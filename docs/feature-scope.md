@@ -2,7 +2,7 @@
 title: Feature Scope and Priority
 type: design
 status: active
-updated: 2026-09-18
+updated: 2026-09-19
 ---
 
 # Feature Scope and Priority
@@ -21,7 +21,7 @@ These are the smallest laws that make the rest meaningful:
 - health, injury, hunger, nutrition, rest, exposure, and mortality
 - resource conservation and truthful production/consumption
 - inventories, ownership, access, and atomic transfer
-- identity, permissions, population limits, and world ownership
+- identity, permissions, population accounting, and world ownership
 - persistence, snapshots, event history, recovery, and replay fixtures
 - mod capabilities, quotas, compatibility, rollback, and host isolation
 - provider/account configuration, timeouts, fallback behaviour, provider-outage
@@ -39,7 +39,7 @@ civilization simulator. Priority systems are:
 - inventories, ownership, direct barter, and simple local exchange
 - routine work plus meaningful LLM decisions
 - relationships, emergent roles, teaching, cooperation, and conflict
-- limited family growth and population constraints
+- family growth and population dynamics without a fixed numeric cap
 - exploration across a modest logical map
 - a seeded temperate ecosystem with simple terrain tiles, objects, and seasons
 - spatial memory of visited places, landmarks, beds, resources, and routes

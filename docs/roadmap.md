@@ -2,7 +2,7 @@
 title: Design and Implementation Roadmap
 type: roadmap
 status: draft
-updated: 2026-09-18
+updated: 2026-09-19
 ---
 
 # Roadmap
@@ -14,7 +14,7 @@ phase; later phases are not commitments to build every feature.
 
 - define the experience and design pillars
 - decide which laws belong to the protected kernel
-- define inhabitants, needs, family growth, and population limits
+- define inhabitants, needs, family growth, and population dynamics
 - define inventories, ownership, exchange, and the no-forged-state rule
 - define the asset proposal and normalization pipeline
 - define the content/mod proposal boundary
@@ -81,13 +81,13 @@ mutate authoritative state.
 **Gate:** one inhabitant can survive and make meaningful choices without
 making the world nondeterministic or unaffordable.
 
-## Phase 4 — Society, economy, and limited family growth
+## Phase 4 — Society, economy, and family growth
 
 - relationships and social memory
 - emergent work and roles
 - food storage, barter, local exchange, and economic decision-making
 - households, farms, workshops, organizations, and simple ownership models
-- housing, care, and population constraints
+- housing, care, and population dynamics without a fixed numeric cap
 - birth, childhood, inheritance, and death design
 - multiple inhabitants with independent cognition schedules
 

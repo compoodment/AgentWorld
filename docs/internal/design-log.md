@@ -2,7 +2,7 @@
 title: AgentWorld Design Log
 type: working-notes
 status: active
-updated: 2026-09-18
+updated: 2026-09-19
 ---
 
 # Design Log
@@ -25,8 +25,8 @@ pretending they are permanent.
 - Inhabitants may self-name and have personalities, values, skills, roles, and
   aspirations.
 - Roles should be emergent rather than permanent classes.
-- Population should grow through limited family formation rather than
-  arbitrary agent spawning.
+- Population should grow through family formation rather than arbitrary agent
+  spawning.
 - The first world is private; multiplayer is a later goal, but the server
   boundary should be authoritative enough to support it later.
 - Godot is the leading visual/client candidate, not a final commitment.
@@ -89,7 +89,7 @@ first framework makes convenient.
   world setup offers per-child selection, parent inheritance, world default,
   and hybrid provider policies.
 
-### Deliberately not decided
+### Deliberately not decided at the end of this batch
 
 - movement representation, pathfinding, travel time, transport, and boats
 - perception inputs, cognition wake events, model latency, and action
@@ -131,7 +131,7 @@ belongs to the people living in the world.
 - Any safe location permits sleep. Beds improve energy recovery, shelter
   improves recovery and exposure protection, and the prototype uses camp start.
 
-### Deliberately not decided
+### Deliberately not decided at the end of this batch
 
 - exact pathfinding and route-cache implementation
 - future rivers, mountains, coastlines, boats, and continent-scale travel
@@ -178,7 +178,7 @@ to rediscover how to walk from one square to the next.
   behaviours and rules require deeper validation.
 - The first camp contains multiple unrelated founders.
 
-### Deliberately not decided
+### Deliberately not decided at the end of this batch
 
 - what makes a sleeping place safe or unsafe, and the exact fatigue, recovery,
   exposure, and health-damage formulas
@@ -193,6 +193,54 @@ to rediscover how to walk from one square to the next.
 Failure handling should preserve the world and make the operational boundary
 visible. A single bad thought can fall back locally; a provider outage is a
 human-visible pause, not a silent simulation that spends blindly.
+
+## 2026-09-19 — Movement, fallback, and family interview
+
+### Current decisions
+
+- The first map uses deterministic tile-grid A*-style pathfinding with
+  reusable route caches. Roads reduce movement cost and are preferred when
+  faster; relevant map changes invalidate cached routes.
+- Rivers, mountains, and coastlines are impassable in the first prototype.
+  Boats and other traversal modes come later.
+- Blocked routes, danger, urgent needs, must-do orders, and irrelevant
+  destinations may interrupt travel at the next action boundary. Carried weight
+  and weather are deferred as travel factors.
+- Safe sleep requires stable ground, no severe exposure hazard, and no active
+  nearby predator or hostile threat. Beds and shelter improve recovery but are
+  not prerequisites. Unsafe sleep can risk injury, illness, or death.
+- The observation has a stable core of current tile, body/urgent needs,
+  current task/intention/destination, and immediate local perception. Other
+  context is selected when relevant. Cognition coalescing is tuned
+  experimentally and monitored during the prototype.
+- Ordinary instructions wait for the current atomic step to finish. The
+  developer view exposes full structured decision telemetry, not raw hidden
+  chain-of-thought.
+- Deterministic fallback covers eating, shelter-seeking, fleeing, sleeping,
+  routine work, and returning home. Personality and learned habits influence
+  the choice and risk tolerance.
+- The human configures hosted provider APIs and models, chooses a world
+  default, and can override or change an inhabitant's provider/model. Ollama
+  means Ollama Cloud through its API; local inference is not a target.
+- Birth and child growth are first-playable features. Children inherit
+  biological traits, personality tendencies, initial skills, and culture, but
+  not raw parental memories. Adoption is deferred.
+- There is no fixed numeric population cap; food, housing, care, and actual
+  simulation/provider capacity determine sustainability.
+
+### Deliberately not decided at the end of this batch
+
+- exact fatigue, sleep, exposure, and unsafe-sleep risk formulas
+- experimentally measured cognition coalescing and cooldown values
+- provider registry capabilities and active provider/model change mechanics
+- detailed family, care, adolescence, adulthood, and death systems
+- later traversal modes such as boats
+
+### Design principle
+
+Keep intent expressive and execution deterministic. Roads, memories, habits,
+and personality should shape choices without asking an LLM to micromanage every
+tile or turning population into an arbitrary counter.
 
 ## 2026-09-18 — Economy, assets, and scope pass
 

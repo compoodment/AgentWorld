@@ -2,7 +2,7 @@
 title: World Model
 type: concept
 status: draft
-updated: 2026-09-18
+updated: 2026-09-19
 ---
 
 # World Model
@@ -25,7 +25,7 @@ default world, inhabitants and ordinary mods cannot remove or bypass:
   conservation rules
 - action validation and authoritative state transitions
 - persistence, save integrity, and recovery
-- identity, permissions, population limits, and world ownership
+- identity, permissions, population accounting, and world ownership
 - mod capability boundaries, quotas, and rollback
 - LLM/API budget limits and emergency shutdown behaviour
 

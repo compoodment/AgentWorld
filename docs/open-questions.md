@@ -2,7 +2,7 @@
 title: Open Questions
 type: design
 status: active
-updated: 2026-09-18
+updated: 2026-09-19
 ---
 
 # Open Questions
@@ -131,39 +131,94 @@ founder contract:
   behaviours and rules require deeper validation.
 - The first camp contains multiple unrelated founders.
 
-## Batch 4 — next questions
+## Batch 4 — closed decisions
 
-The following mechanics remain unresolved and are the next interview targets:
+The fourth design interview established the first routing, sleep, fallback,
+provider, and family contracts:
 
 ### Travel and world scale
 
-- What exact pathfinding approach and route-cache rules are appropriate for the
-  first map?
-- How are rivers, mountains, coastlines, boats, and future continents handled?
-- What additional travel factors, such as carried load or weather, should wait
-  until after the prototype?
-- What can interrupt an active route, and how is a changed destination handled?
+- The first map uses deterministic tile-grid pathfinding, A*-style routing, and
+  reusable route caches.
+- Roads lower movement cost and are preferred when they are faster. Relevant
+  terrain, roads, or obstacles invalidate cached routes.
+- Rivers, mountains, and coastlines are impassable in the first prototype.
+  Boats, climbing, and other traversal systems are later additions.
+- Blocked routes, danger, urgent needs, must-do orders, and irrelevant
+  destinations may all interrupt travel at the next action boundary rather
+  than halfway through an atomic movement step.
+- Carried weight and weather do not affect travel in the first prototype.
 
-### Cognition and embodiment
+### Sleep and cognition
 
-- What makes a sleeping place safe or unsafe, and what are the exact fatigue,
-  sleep duration, bed, shelter, exposure, wake-up, and health-damage formulas?
-- What observation fields are always present, and which are optional or
-  attention-selected?
-- How are event priority, coalescing windows, and cognition cooldowns balanced?
-- How should instructions interact with an already-running project or route at
-  the next decision point?
-- What should the client expose as summarized decision factors, memories, and
-  intentions without presenting hidden chain-of-thought as a game feature?
+- Safe sleep means stable ground, no severe environmental exposure hazard, and
+  no immediately active predator or hostile threat. Lack of a bed or shelter
+  worsens recovery but does not prevent sleep.
+- Unsafe sleep can risk injury, illness, or death depending on the hazard.
+- The observation always includes the current tile, the inhabitant's own body
+  and urgent needs, its current task/intention/destination, and immediate local
+  perception. Messages, memories, route details, weather, and known-location
+  changes are included when relevant.
+- Event coalescing and cognition timing will be tuned experimentally and
+  monitored during prototype operation.
+- Ordinary instructions wait until the current small atomic step finishes;
+  urgent danger and survival conditions may interrupt sooner.
+- The human-facing developer view exposes the full structured decision record:
+  observation fields, retrieved memories, event triggers, model output,
+  selected intention/action, and fallback reason. It does not pretend raw
+  hidden chain-of-thought is a reliable game state.
 
-### Runtime, family, and authoring detail
+### Fallback behaviour
 
-- What local fallback behaviours are available, and how do personality and
-  learned habits modify them?
-- Which provider/model is the first supported default, and what policy assigns a
-  newborn when the human has not selected one?
-- How are birth, development stages, care, adoption, inheritance, and death
-  represented in the first playable society?
+- Deterministic fallback may eat when hungry, seek shelter, flee danger, sleep
+  when exhausted, continue routine work, or return home.
+- Personality and learned habits influence fallback priorities and risk
+  tolerance.
+
+### Providers and family
+
+- The human configures the world's provider and model registry, selects a world
+  default, and may override or change provider/model per inhabitant.
+- Ollama means **Ollama Cloud through its API** in this project; local model
+  inference is not a target.
+- The previously decided newborn provider policy remains: per-child selection,
+  parent inheritance, world default, or a hybrid.
+- Birth and child growth are included in the first playable society.
+- Children inherit biologically grounded traits, personality tendencies, initial
+  skills, and culture, but not raw parental memories.
+- Adoption is deferred and not part of the initial family model.
+- There is no fixed numeric population cap. Food, housing, care, and actual
+  simulation/provider capacity determine what is sustainable.
+
+## Batch 5 — next questions
+
+The remaining questions are implementation and tuning work:
+
+### Survival and cognition tuning
+
+- What exact formulas define fatigue slowdown, sleep duration, bed/shelter
+  bonuses, exposure, wake-up, and unsafe-sleep injury/illness/death risk?
+- What coalescing interval, cognition cooldown, and event-priority rules work
+  best in measured playtests?
+- How should attention select optional memories, messages, weather, and known
+  location changes when the observation grows large?
+- What exact structured debug schema should the developer view persist and
+  replay?
+
+### Travel and family detail
+
+- What route-cache data survives save/load, and how are future boats or other
+  traversal modes added without changing the first grid contract?
+- How are relationships, consent, partnership, care, adolescence, adulthood,
+  and death represented?
+- How do food, housing, care, and social conditions shape population growth
+  without introducing a fixed cap?
+
+### Provider and content detail
+
+- Which hosted provider APIs and model capabilities should the first registry
+  support, and how are credentials/capabilities validated?
+- How are provider/model changes applied to an active inhabitant and recorded?
 - Which asset format, performance checks, provenance fields, and preview steps
   are needed for the first client?
 
@@ -172,11 +227,8 @@ The following mechanics remain unresolved and are the next interview targets:
 - Can a founder self-name and self-describe, or must the creator approve its
   identity?
 - What exactly counts as a family and how are relationships represented?
-- How are consent, partnership, birth, adoption, and care modelled without
+- How are consent, partnership, birth, care, and death modelled without
   reducing them to a crude population button?
-- Is the population limit fixed per world, resource-based, or both?
-- How much inherited memory, culture, appearance, and skill should children
-  receive?
 
 ## Kernel and modding
 
@@ -206,7 +258,8 @@ The following mechanics remain unresolved and are the next interview targets:
 
 ## LLM runtime and technology
 
-- Which model/provider should be the first supported default?
+- Which hosted provider APIs and model capabilities should the first registry
+  support?
 - What is the observation format and maximum context size?
 - What personal memory is useful enough to retain, and how is it compressed?
 - How do we evaluate whether a choice is coherent without judging it only by

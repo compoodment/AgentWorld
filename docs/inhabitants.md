@@ -2,7 +2,7 @@
 title: Inhabitants
 type: concept
 status: draft
-updated: 2026-09-18
+updated: 2026-09-19
 ---
 
 # Inhabitants
@@ -26,7 +26,13 @@ creator may provide:
 - an appearance or visual description
 - an initial aspiration or interest
 - a creator/owner identity and permissions
-- a model/provider policy, selected for the world or this inhabitant
+- a model/provider policy from the world's configured provider registry
+
+The human enters the providers and models they want to use, including hosted
+API providers such as Ollama Cloud. Each world has a human-selected default;
+an individual inhabitant may override it at creation, and the human may change
+that inhabitant's provider or model after the world starts. There is no built-in
+provider or local-model assumption.
 
 The inhabitant should still have room to interpret the starting material. A
 role such as “farmer” is an initial condition or aspiration, not a permanent
@@ -51,8 +57,13 @@ The world has a 365-day calendar, a normal day/night cycle, and sleep. An
 inhabitant decides when to sleep rather than being automatically put to bed by
 the simulation. Low energy slows work and walking; sustained exhaustion causes
 health damage. If necessary, an inhabitant may sleep wherever it is, even in a
-place that is ultimately unsafe. The exact definition of safe sleeping,
-exposure, sleep duration, and recovery rates remain prototype-tuning work.
+place that is ultimately unsafe. For the initial model, a sleeping place is
+safe when its ground is stable, it is not inside a severe environmental
+exposure hazard, and no active predator or hostile threat is immediately
+present. Missing a bed or shelter alone does not make sleep impossible; it
+makes recovery worse. Unsafe sleep can risk injury, illness, or death depending
+on the hazard. Exact thresholds, sleep duration, and recovery rates remain
+prototype-tuning work.
 Night makes sleep and energy recovery more relevant without forcing every
 inhabitant into the same schedule.
 
@@ -75,9 +86,8 @@ aspiration, but should avoid turning them into rigid classes too early.
 
 ## Family and population
 
-Population growth is intentionally limited. Inhabitants may form relationships
-and have children if world conditions permit, rather than spawning arbitrary
-new agents through an unbounded API.
+Inhabitants may form relationships and have children if world conditions
+permit, rather than spawning arbitrary new agents through an unbounded API.
 
 Candidate conditions include:
 
@@ -85,17 +95,21 @@ Candidate conditions include:
 - adequate food and resource outlook
 - available housing or a credible plan to provide it
 - care capacity and time
-- a configurable population cap
+- resource, housing, and care conditions that make additional population
+  sustainable
 - creator/world-owner policy, if the world requires approval for new minds
 
 Children should be new identities. They may inherit tendencies, appearance
 features, cultural knowledge, or physical traits, but not be simple copies of a
 parent prompt. Birth, childhood, teaching, adolescence, adulthood, and death
-are all potential systems; only the population constraint is currently a firm
-direction.
+are all potential systems; the firm direction is that population grows through
+world conditions and family formation rather than arbitrary spawning or a fixed
+numeric cap.
 
 Authorized arrivals or player-created founders may be added later, but they
-must use the same population and permission rules as family growth.
+must use the same population accounting and permission rules as family growth.
+The initial design has no fixed numeric population cap; resource, housing,
+care, and simulation capacity still determine what is sustainable.
 
 ## Cognition model
 
@@ -133,25 +147,32 @@ time and season, nearby weather, and direct interactions may also enter the
 observation. An inhabitant can remember a bed, resource location, landmark,
 destination, or route and later plan to travel there. The LLM chooses the
 destination and broad travel intention; deterministic simulation calculates the
-route and executes it.
+route and executes it with tile-grid pathfinding. Common routes may be reused.
+Roads are preferred when their lower movement cost makes them faster. Terrain,
+roads, health, and transport affect travel time; carried weight and weather
+are later additions, not first-prototype factors.
 
 All meaningful event categories may wake cognition: urgent needs, nearby
 danger, messages, discoveries, failed actions, human instructions, project
 milestones, relationship events, and noteworthy changes that make the current
 plan worth reconsidering. Repeated small events are coalesced into one
-observation, with the exact interval left for prototype measurement. During
-normal model latency, the inhabitant continues its last valid intention. If a
-model remains unavailable for long enough, it switches to simple local
-behaviour. Urgent danger and survival problems use deterministic emergency
-behaviour shaped by personality and learned habits; without a valid intention
-or safe fallback, it stops safely.
+observation, with the exact interval tuned experimentally and monitored during
+prototype operation. During normal model latency, the inhabitant continues its
+last valid intention. If a model remains unavailable for long enough, it
+switches to simple deterministic behaviour: eat when hungry, seek shelter,
+flee danger, sleep when exhausted, continue routine work, or return home as
+appropriate. Urgent danger and survival problems use fallback behaviour shaped
+by personality and learned habits; without a valid intention or safe fallback,
+it stops safely.
 
 Human instructions enter through the same validated action boundary. Suggestive
 instructions can be rejected; must-do instructions override the selected
 inhabitant's normal priorities and values, subject to physical possibility and
 the independent responses of other inhabitants. A must-do instruction does not
 magically interrupt sleep, travel, or crafting; it waits in the instruction
-queue until the next valid decision point.
+queue until the next valid decision point. An ordinary project finishes its
+current small atomic step before reconsidering; immediate interruption is
+reserved for urgent danger and survival conditions.
 
 Sleep is possible wherever the inhabitant chooses, including an unsafe
 location. A bed or bedroll improves energy recovery, and proper shelter
@@ -194,10 +215,14 @@ The design should support:
 - mock or scripted inhabitants for development and tests
 
 The first real-world experiment should measure one inhabitant before adding
-more. Population limits are a gameplay rule and an operational safety control.
+more. Population is not capped by an arbitrary fixed number in the initial
+design; food, housing, care, and actual simulation/provider capacity determine
+what the world can sustain.
 
-Children are LLM-influenced from birth, with age-appropriate cognition rather
-than an immediate adult planning load. At world creation, the human chooses a
-provider policy: select each child, inherit from a parent, use the world
-default, or use a hybrid policy. The exact handoff when a human has not
-selected a provider remains open.
+Children are part of the first playable society: birth and age-appropriate
+growth are included rather than skipping directly to adult inhabitants. They
+inherit biologically grounded traits, personality tendencies, initial skills,
+and culture, but not a parent's raw memories. Adoption is deferred and is not
+part of the initial family model. The world setup retains the previously
+decided provider policy: select each child, inherit from a parent, use the
+world default, or use a hybrid policy.

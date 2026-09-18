@@ -2,7 +2,7 @@
 title: Architecture Direction
 type: design
 status: proposal
-updated: 2026-09-18
+updated: 2026-09-19
 ---
 
 # Architecture Direction
@@ -98,9 +98,13 @@ become a burst of model calls.
 
 Movement is logically tile-backed, while the client may animate movement
 smoothly between tiles. The inhabitant's LLM chooses a destination and broad
-travel intention; the simulation calculates and validates the route. Terrain,
-roads, health, and transport affect travel time. A blocked or dangerous route
-produces an event that can cause the inhabitant to reconsider.
+travel intention; the simulation calculates and validates the route with
+deterministic grid pathfinding. The first implementation should use A*-style
+tile routing with reusable route caches. Roads lower movement cost and are
+preferred when they are faster; route caches are invalidated when relevant
+terrain, roads, or obstacles change. Terrain, roads, health, and transport
+affect travel time. A blocked or dangerous route produces an event that can
+cause the inhabitant to reconsider at the next action boundary.
 
 ## Observation and knowledge boundary
 
@@ -115,6 +119,10 @@ interactions. Spatial knowledge can include remembered objects such as a bed or
 resource node, landmarks, destinations, and lightweight route memories. The
 authoritative world map remains separate from that personal knowledge so an
 inhabitant can be wrong, forget, or lack information without corrupting reality.
+Developer tooling may additionally expose and persist the full structured
+decision record—observation fields, retrieved memories, event triggers, model
+output, selected action, and fallback reason—without treating hidden
+chain-of-thought as authoritative state.
 
 ## Persistence and replay
 
@@ -162,13 +170,14 @@ LLM usage is the expensive and least deterministic part. The runtime needs:
   the game can control billing limits it does not own
 
 The simulation should be able to keep running with agents asleep or using
-local fallback behaviour after an individual model failure. If the provider
-itself is unavailable, the game pauses and asks the human to resolve it.
+deterministic fallback behaviour after an individual model failure. If the
+provider itself is unavailable, the game pauses and asks the human to resolve
+it.
 
-For hosted providers, the provider account remains the authoritative billing
-boundary. For local providers such as Ollama, local resource controls may be
-added later even though there may be no API bill. The initial prototype does
-not promise game-side call or token ceilings.
+For hosted providers, including Ollama Cloud, the provider account remains the
+authoritative billing boundary. The project does not currently target local
+model inference. The initial prototype does not promise game-side call or
+token ceilings.
 
 ## VPS target
 

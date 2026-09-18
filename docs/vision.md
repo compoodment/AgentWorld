@@ -2,7 +2,7 @@
 title: AgentWorld Vision
 type: concept
 status: draft
-updated: 2026-09-18
+updated: 2026-09-19
 ---
 
 # AgentWorld Vision
@@ -121,7 +121,8 @@ The current design target is:
 - hardcoded basic needs and mortality
 - inhabitant-chosen sleep, with fatigue slowdowns and eventual exhaustion
   damage when rest is delayed
-- limited family formation and population growth
+- family formation and population growth shaped by resources and care, without
+  a fixed numeric cap
 - gathering, shelter, food production, construction, exploration, and social
   interaction
 - a camp-start preset with basic shelter, bed or bedroll, storage, tools, food,
