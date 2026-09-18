@@ -43,6 +43,10 @@ civilization simulator. Priority systems are:
 - exploration across a modest logical map
 - a seeded temperate ecosystem with simple terrain tiles, objects, and seasons
 - spatial memory of visited places, landmarks, beds, resources, and routes
+- destination-level LLM travel intentions with deterministic route execution
+- local observations, coalesced cognition triggers, and urgency-based fallback
+- safe-location sleep with bed and shelter recovery bonuses
+- a camp-start prototype preset
 - a small asset/content proposal pipeline with safe declarative rules
 - inspectable events, decisions, failures, and world history
 

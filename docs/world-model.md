@@ -18,6 +18,8 @@ default world, inhabitants and ordinary mods cannot remove or bypass:
 - time progression and causal ordering
 - the 365-day calendar, day/night cycle, seasons, and pause semantics
 - coordinates, occupancy, movement validation, and physical reachability
+- logical tile-backed movement, route validation, and travel effects from
+  terrain, roads, health, and transport
 - health, injury, hunger, rest, and mortality
 - resource ownership, inventory access, consumption, transfer, and
   conservation rules

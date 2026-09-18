@@ -36,6 +36,7 @@ be judged against it, while remaining open to deliberate change.
 - 365-day calendar, simple seasons, day/night, and pause state
 - terrain and resource primitives
 - seeded temperate terrain and ecosystem object fixtures
+- tile-backed movement, route validation, and travel effects
 - health, hunger, rest, shelter, and mortality rules
 - inventories, ownership, access, production, consumption, and atomic transfer
 - action validation and atomic state transitions
@@ -52,6 +53,7 @@ client.
 - render a seeded world and active entities
 - inspect the complete world, selected inhabitants, summarized decision factors,
   spatial knowledge, and event history
+- show current-tile knowledge, local perception, destinations, and active routes
 - expose suggestive/must-do instructions and paused authoring-mode requests
 - define the observation and action protocol
 - run the server headlessly on a development machine or VPS
@@ -64,8 +66,10 @@ mutate authoritative state.
 - add a configurable model/provider adapter
 - event-driven cognition queue
 - structured intentions and actions
+- destination-level travel intentions with server-side route execution
 - compact observations and durable memory prototype
 - bounded observations including spatial memory
+- coalesced event triggers and urgency-based fallback behaviour
 - provider limits, optional game-side cognition limits, timeouts, fallback
   behaviour, and spend shutdown
 - measure cost and decision quality with a mock-world harness

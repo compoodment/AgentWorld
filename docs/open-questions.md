@@ -43,49 +43,74 @@ The first design interview established these decisions:
   world setup offers a provider policy of per-child selection, parent
   inheritance, world default, or a hybrid.
 
-## Batch 2 — embodiment, movement, and cognition
+## Batch 2 — closed decisions
 
-These are the next interview topics. They are deliberately specific enough to
-turn the observer-director concept into a runnable simulation.
+The second design interview established the movement, perception, and basic
+cognition contract:
 
 ### Movement and travel
 
-- Is movement represented as discrete tile steps, continuous coordinates, or a
-  logical action that the client animates between tiles?
-- What determines travel time: terrain, carried load, weather, roads, health,
-  and transport capacity?
-- Should an inhabitant commit to a path and follow it locally, or reconsider
-  its route at meaningful waypoints and interruptions?
-- How should rivers, mountains, coastlines, boats, and future continents fit
-  into the same travel model?
-- What can interrupt travel, and what happens when the destination or route is
-  no longer valid?
+- Movement is logically tile-backed. The client may animate an inhabitant
+  smoothly between tiles, but the simulation owns the authoritative position.
+- The LLM chooses a destination and broad travel intention. The simulation
+  calculates, validates, and executes the route.
+- Terrain, roads, health, and transport affect travel time in the prototype.
+- Inhabitants remember meaningful landmarks and destinations, with lightweight
+  route memories rather than a giant transcript of every visited tile.
+- A blocked or dangerous route becomes an event that can cause the inhabitant
+  to reconsider.
 
 ### Perception and cognition
 
-- Which facts are forced into an observation because they are immediately
-  perceived, and which may the inhabitant choose to inspect or remember?
-- What events wake cognition: urgent needs, nearby danger, social messages,
-  discoveries, failed actions, instruction delivery, project milestones, or a
-  narrower set?
-- While a model is thinking or unavailable, does the inhabitant continue its
-  last valid intention, switch to local survival behaviour, or stop safely?
-- How should a human instruction interact with an existing project, path,
-  sleep state, or already-running action?
+- The current tile is always known, including its material, occupants, objects,
+  and relevant effects.
+- Local observations may include nearby visual surroundings, messages, changes
+  to known locations, danger, urgent needs, body/task state, time and season,
+  nearby weather, and direct interactions.
+- All meaningful event categories may wake cognition: urgent needs, danger,
+  messages, discoveries, failed actions, human instructions, project
+  milestones, and relationship events.
+- Repeated small events are coalesced into one observation rather than causing
+  one model call each.
+- During normal model latency, an inhabitant continues its last valid
+  intention. Urgent danger or survival problems use deterministic emergency
+  behaviour. Without a valid intention or safe fallback, it stops safely.
+- Must-do instructions do not immediately interrupt sleep, travel, or crafting;
+  they wait in the instruction queue until the next valid decision point.
+
+### Sleep and starting conditions
+
+- An inhabitant can sleep in any safe location.
+- A bed improves energy recovery, and proper shelter improves recovery and
+  protection from exposure.
+- The prototype uses a camp-start preset.
+
+## Batch 3 — next questions
+
+The following mechanics remain unresolved and are the next interview targets:
+
+### Travel and world scale
+
+- What exact pathfinding approach and route-cache rules are appropriate for the
+  first map?
+- How are rivers, mountains, coastlines, boats, and future continents handled?
+- What additional travel factors, such as carried load or weather, should wait
+  until after the prototype?
+- What can interrupt an active route, and how is a changed destination handled?
+
+### Cognition and embodiment
+
+- What are the exact fatigue, sleep duration, bed, shelter, exposure, and wake-up
+  formulas?
+- What observation fields are always present, and which are optional or
+  attention-selected?
+- How are event priority, coalescing windows, and cognition cooldowns balanced?
+- How should instructions interact with an already-running project or route at
+  the next decision point?
 - What should the client expose as summarized decision factors, memories, and
   intentions without presenting hidden chain-of-thought as a game feature?
 
-### Bodies, sleep, and starting conditions
-
-- What are the exact fatigue, sleep, bed, shelter, exposure, and wake-up rules?
-- Which starting preset is the default prototype: wild start, camp start, or
-  settlement start, and what precisely does each place in the world?
-- How are birth, development stages, care, adoption, inheritance, and death
-  represented in the first playable society?
-- If a human has not selected a newborn's provider, which temporary policy is
-  used and when does provider assignment become fixed?
-
-### Runtime limits and authoring
+### Runtime, family, and authoring
 
 - Which game-side limits should exist independently of provider billing: calls,
   tokens, estimated cost, concurrency, wall-clock time, or local CPU/memory?
@@ -95,6 +120,10 @@ turn the observer-director concept into a runnable simulation.
   must every edit pause the world or only edits that affect simulation state?
 - How are human-created assets imported, previewed, and approved relative to
   inhabitant-created proposals?
+- How are birth, development stages, care, adoption, inheritance, and death
+  represented in the first playable society?
+- If a human has not selected a newborn's provider, which temporary policy is
+  used and when does provider assignment become fixed?
 
 ## Founders and family
 

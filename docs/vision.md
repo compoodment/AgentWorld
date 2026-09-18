@@ -142,6 +142,11 @@ The client or engine renders those facts using authored textures, sprites, and
 animations. A pretty image is never the authority for where a resource or
 pathable tile exists.
 
+Inhabitants choose destinations and reasons for travel; the simulation handles
+route calculation, movement, and travel time. Their local observations always
+include the tile they occupy, while landmarks, destinations, and routes become
+part of personal spatial memory.
+
 ## Agent-created world
 
 The defining long-term feature is not merely that agents play a game. It is

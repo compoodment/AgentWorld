@@ -89,18 +89,30 @@ can be changed after playtesting without changing the calendar model.
 
 The simulation does not make a model call for every tick, tile movement, or
 small need change. Cognition is event-driven and receives a compact observation
-when an inhabitant needs to choose or revise an intention. The exact triggers,
-perception contract, and movement model remain open design work.
+when an inhabitant needs to choose or revise an intention. All meaningful event
+categories may trigger cognition, but repeated small events are coalesced into
+one observation so a burst of hunger, messages, and route failures does not
+become a burst of model calls.
+
+Movement is logically tile-backed, while the client may animate movement
+smoothly between tiles. The inhabitant's LLM chooses a destination and broad
+travel intention; the simulation calculates and validates the route. Terrain,
+roads, health, and transport affect travel time. A blocked or dangerous route
+produces an event that can cause the inhabitant to reconsider.
 
 ## Observation and knowledge boundary
 
 The human client receives the complete world view by default; there is no fog
 of war. An inhabitant receives an epistemically bounded observation assembled
 from its current senses, location, communication, durable memories, and known
-map facts. Spatial knowledge can include visited tiles, remembered objects such
-as a bed or resource node, landmarks, and learned routes. The authoritative
-world map remains separate from that personal knowledge so an inhabitant can be
-wrong, forget, or lack information without corrupting reality.
+map facts. The current tile is always known, including its material, occupants,
+objects, and relevant effects. Local observations include nearby visible
+surroundings, messages, changes to known locations, danger, urgent needs, the
+inhabitant's own body and task state, time/season, nearby weather, and direct
+interactions. Spatial knowledge can include remembered objects such as a bed or
+resource node, landmarks, destinations, and lightweight route memories. The
+authoritative world map remains separate from that personal knowledge so an
+inhabitant can be wrong, forget, or lack information without corrupting reality.
 
 ## Persistence and replay
 

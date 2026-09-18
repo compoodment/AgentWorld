@@ -100,7 +100,7 @@ The proposed cognition split is:
 
 Cheap deterministic systems handle:
 
-- time, movement, pathfinding, and collisions
+- time, movement, pathfinding, route execution, and collisions
 - need changes and resource consumption
 - routine work already chosen
 - simple reactions and survival priorities
@@ -122,15 +122,32 @@ An LLM is consulted when an inhabitant reaches a meaningful decision point:
 
 An observation is not an omniscient dump of the world. It is assembled from
 the inhabitant's current perception, communication, durable memory, and known
-spatial facts. An inhabitant can remember visited tiles, a bed, a resource
-location, a landmark, or a route and later plan to travel there. Movement,
-pathfinding, travel time, and the exact perception schedule are still open
-mechanics.
+spatial facts. The current tile is always included. Nearby visual surroundings,
+messages, changes to known locations, danger, urgent needs, body/task state,
+time and season, nearby weather, and direct interactions may also enter the
+observation. An inhabitant can remember a bed, resource location, landmark,
+destination, or route and later plan to travel there. The LLM chooses the
+destination and broad travel intention; deterministic simulation calculates the
+route and executes it.
+
+All meaningful event categories may wake cognition: urgent needs, nearby
+danger, messages, discoveries, failed actions, human instructions, project
+milestones, and relationship events. Repeated small events are coalesced into
+one observation. During normal model latency, the inhabitant continues its last
+valid intention. Urgent danger or survival problems use deterministic emergency
+behaviour; without a valid intention or safe fallback, the inhabitant stops
+safely.
 
 Human instructions enter through the same validated action boundary. Suggestive
 instructions can be rejected; must-do instructions override the selected
 inhabitant's normal priorities and values, subject to physical possibility and
-the independent responses of other inhabitants.
+the independent responses of other inhabitants. A must-do instruction does not
+magically interrupt sleep, travel, or crafting; it waits in the instruction
+queue until the next valid decision point.
+
+Sleep is possible in any safe location. A bed improves energy recovery, and
+proper shelter improves recovery and protection from exposure. The prototype
+uses a camp-start preset.
 
 The runtime must be able to continue safely when no model is available. API
 budget exhaustion, timeouts, malformed output, and provider failure are normal

@@ -35,7 +35,7 @@ pretending they are permanent.
 - Agent-created world changes should begin as safe declarative proposals and
   only become executable code if a real sandbox and rollback model exists.
 
-### Deliberately not decided
+### Deliberately not decided at that stage
 
 - exact founder composition and family model
 - final need list and balance
@@ -104,6 +104,46 @@ first framework makes convenient.
 The human can be powerful without making the simulation omniscient for its
 inhabitants. Full map visibility belongs to the observatory; limited knowledge
 belongs to the people living in the world.
+
+## 2026-09-18 — Movement and local cognition interview
+
+### Current decisions
+
+- Movement is logically tile-backed, with smooth client animation allowed
+  between authoritative tile positions.
+- An inhabitant's LLM chooses a destination and broad travel intention. The
+  deterministic simulation calculates, validates, and executes the route.
+- Terrain, roads, health, and transport affect travel time in the prototype.
+- Spatial memory emphasizes meaningful landmarks and destinations, with
+  lightweight route memories instead of recording every tile as prose.
+- The inhabitant always knows its current tile, including its material,
+  occupants, objects, and relevant effects.
+- Local observations include nearby visual surroundings, messages, changes to
+  known locations, danger, urgent needs, body/task state, time and season,
+  nearby weather, and direct interactions.
+- All meaningful event categories may wake cognition. Repeated small events are
+  coalesced into one observation rather than one model call per event.
+- During normal model latency, an inhabitant continues its last valid
+  intention. Urgent danger or survival problems use deterministic emergency
+  behaviour; with no valid intention or safe fallback, it stops safely.
+- Must-do instructions queue instead of immediately interrupting sleep, travel,
+  or crafting. They apply at the next valid decision point.
+- Any safe location permits sleep. Beds improve energy recovery, shelter
+  improves recovery and exposure protection, and the prototype uses camp start.
+
+### Deliberately not decided
+
+- exact pathfinding and route-cache implementation
+- future rivers, mountains, coastlines, boats, and continent-scale travel
+- exact fatigue, sleep, exposure, and wake-up formulas
+- cognition priority, coalescing windows, cooldowns, and observation schema
+- provider fallback, game-side limit semantics, and paused authoring details
+
+### Design principle
+
+The LLM chooses meaningful intentions; the simulation handles repetitive,
+physical execution. That keeps inhabitants expressive without charging a model
+to rediscover how to walk from one square to the next.
 
 ## 2026-09-18 — Economy, assets, and scope pass
 
