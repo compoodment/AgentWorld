@@ -55,6 +55,56 @@ The concept comes before the foundation. The foundation should implement a
 reasonably complete concept, not force the concept to become whatever the
 first framework makes convenient.
 
+## 2026-09-18 — Observer-director and world-clock interview
+
+### Current decisions
+
+- The human role is an **observer-director**. The player sees the complete
+  world and can inspect selected inhabitants, summarized decision factors,
+  memories, intentions, and known facts.
+- Human influence uses two instruction strengths: suggestive instructions may
+  be rejected; must-do instructions override the selected inhabitant's normal
+  priorities, values, and relationships and make it attempt the order.
+- Persistent world directives and direct broadcasts are separate controls.
+  Directives apply immediately and to inhabitants added or born later.
+- Must-do instructions still pass through physical reality and cannot dictate
+  another inhabitant's consent or response.
+- Fog of war is not part of AgentWorld. Inhabitants are still limited by
+  perception, communication, memory, and spatial knowledge.
+- The first world uses a 365-day in-world calendar, four simple seasons, and a
+  provisional four-real-minute day: about 2:40 daylight and 1:20 night. The
+  timing can be changed through world configuration after playtesting.
+- The world continues and may spend provider resources while unpaused and
+  unattended. Provider/account limits are controlled outside the game; the
+  runtime may add optional game-level limits and local-provider controls.
+- Prototype maps are seeded and procedurally generated, begin with a living
+  ecosystem, and use a small temperate biome. Tile properties are simulation
+  data; trees, resources, buildings, and other occupants are separate world
+  objects rendered by the client.
+- A paused authoring mode may edit terrain, resources, ecosystem objects, and
+  approved assets before or during a world, with interventions recorded.
+- Inhabitants can remember visited tiles, landmarks, objects, resources, and
+  routes. Movement and travel are the next major design interview.
+- Children are LLM-influenced from birth with age-appropriate cognition. The
+  world setup offers per-child selection, parent inheritance, world default,
+  and hybrid provider policies.
+
+### Deliberately not decided
+
+- movement representation, pathfinding, travel time, transport, and boats
+- perception inputs, cognition wake events, model latency, and action
+  interruption rules
+- exact sleep, shelter, bed, fatigue, and starting-preset mechanics
+- provider fallback and the distinction between game-side limits and provider
+  billing limits
+- the exact paused authoring toolset and asset approval path
+
+### Design principle
+
+The human can be powerful without making the simulation omniscient for its
+inhabitants. Full map visibility belongs to the observatory; limited knowledge
+belongs to the people living in the world.
+
 ## 2026-09-18 — Economy, assets, and scope pass
 
 ### Current decisions

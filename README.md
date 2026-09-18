@@ -40,6 +40,13 @@ handled by deterministic simulation; an LLM is consulted at meaningful
 decision points such as projects, discoveries, relationships, crises, and
 creative proposals.
 
+The human is an observer-director: the full map is visible without fog of war,
+while inhabitants only know what they perceive, remember, or learn. The player
+can inspect an inhabitant and send either a suggestive instruction or a must-do
+instruction, as well as persistent world directives and direct broadcasts.
+The world uses a configurable 365-day calendar with simple seasons and a
+day/night cycle; it continues spending provider resources while unpaused.
+
 ## Design boundaries
 
 - **Protected kernel:** time, space, health, needs, mortality, persistence,

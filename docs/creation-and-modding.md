@@ -69,6 +69,11 @@ Every world-changing proposal follows the same broad lifecycle:
 7. The accepted proposal receives a version and is applied atomically.
 8. The event log records who proposed it, what changed, and how to roll it back.
 
+Human-created assets use the same normalization and provenance path, but the
+human is the approving authority rather than an inhabitant. Paused authoring
+mode may preview and place approved human or inhabitant content; it does not
+turn asset files into executable host code.
+
 ## What a proposal must declare
 
 The eventual format should require at least:
@@ -95,7 +100,7 @@ No mod or inhabitant proposal may directly:
 - read host files, environment secrets, or unrelated processes
 - execute unbounded code on the server
 - disable persistence, logging, quotas, or rollback
-- spend beyond the world's resource or API budget
+- bypass configured world cognition limits or provider/account controls
 
 World owners may eventually choose a different constitution when creating a
 world, but that is a new world configuration with explicit rules—not a hidden

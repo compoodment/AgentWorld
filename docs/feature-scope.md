@@ -16,6 +16,7 @@ requirements.
 These are the smallest laws that make the rest meaningful:
 
 - causal time and ordered events
+- a 365-day calendar, simple seasons, day/night, and pausing
 - locations, reachability, occupancy, and action validation
 - health, injury, hunger, nutrition, rest, exposure, and mortality
 - resource conservation and truthful production/consumption
@@ -23,7 +24,10 @@ These are the smallest laws that make the rest meaningful:
 - identity, permissions, population limits, and world ownership
 - persistence, snapshots, event history, recovery, and replay fixtures
 - mod capabilities, quotas, compatibility, rollback, and host isolation
-- LLM budgets, timeouts, fallback behaviour, and emergency shutdown
+- provider/account configuration, game-side cognition limits, timeouts, fallback
+  behaviour, and emergency shutdown
+- complete human observability, explicit suggestive/must-do instructions, and
+  recorded paused authoring-mode edits
 
 ## First compelling world
 
@@ -37,6 +41,8 @@ civilization simulator. Priority systems are:
 - relationships, emergent roles, teaching, cooperation, and conflict
 - limited family growth and population constraints
 - exploration across a modest logical map
+- a seeded temperate ecosystem with simple terrain tiles, objects, and seasons
+- spatial memory of visited places, landmarks, beds, resources, and routes
 - a small asset/content proposal pipeline with safe declarative rules
 - inspectable events, decisions, failures, and world history
 
@@ -47,7 +53,7 @@ not require every possible institution or a large generated-content ecosystem.
 
 Add these only when the first world shows a concrete need for them:
 
-- richer ecology, seasons, weather, and domestication
+- richer ecology, more detailed seasons and weather, and domestication
 - organizations, laws, taxes, wages, contracts, and currency
 - research, technology trees, and larger production chains
 - faction politics, religion, festivals, games, and formal education

@@ -35,6 +35,32 @@ home, and inventing a local game can be a successful world. Another world may
 develop agriculture, politics, trade, religions, machines, or entirely new
 dimensions over a much longer run.
 
+## The human role: observer-director
+
+The human is an observer-director rather than an RTS unit controller or a chat
+partner for every inhabitant. The normal interface is an observatory and an
+instruction panel, not an always-open conversational chatbox. The human can:
+
+- inspect the whole map, all settlements, inhabitants, statistics, and history
+- select an inhabitant and inspect its current situation, known facts, memories,
+  intention, and summarized decision factors
+- send a **suggestive instruction** that the inhabitant may accept or reject
+- send a **must-do instruction** that overrides that inhabitant's priorities,
+  values, and relationships and makes it attempt the order
+- issue a persistent world directive that applies immediately and to inhabitants
+  added or born later
+- broadcast a direct instruction to the current inhabitants
+
+Must-do instructions still pass through the protected reality: they cannot
+teleport an inhabitant, forge resources, or make another inhabitant consent or
+respond in a particular way. The player can influence an inhabitant completely
+within the bounds of what that inhabitant can physically attempt. Pure
+observation remains a valid playstyle.
+
+The human view is omniscient by design. AgentWorld will not use fog of war as a
+player-facing feature. Inhabitants remain epistemically limited: they know what
+they currently perceive, have explored, remember, or learn from others.
+
 ## Design pillars
 
 ### Autonomous, not unattended automation
@@ -84,7 +110,12 @@ weird.”
 The current design target is:
 
 - one private persistent world
-- a large WorldBox-like environment made from logical tiles
+- a seeded procedural environment made from logical tiles and world objects
+- a 365-day in-world calendar with four simple seasons
+- a fixed normal day/night cycle of roughly 2:40 daylight and 1:20 night
+- a small temperate prototype biome with a living ecosystem; richer terrain,
+  continents, oceans, rivers, mountains, deserts, wetlands, and boat travel are
+  future scale rather than requirements for the first test
 - one to three founding inhabitants
 - configurable names, personalities, skills, values, and aspirations
 - hardcoded basic needs and mortality
@@ -102,6 +133,14 @@ The map's logical tile count is not the same as visible pixel resolution. A
 logical world can be large while using a smaller pixel-art tile for rendering.
 Chunking and active-region simulation are expected to matter more than choosing
 one permanent map size now.
+
+Procedural generation creates simulation-valid terrain: tile properties such as
+material, moisture, fertility, elevation, and biome are data, not just painted
+pixels. Trees, plants, resources, buildings, and other things that occupy a
+tile are separate world objects with growth, condition, and interaction state.
+The client or engine renders those facts using authored textures, sprites, and
+animations. A pretty image is never the authority for where a resource or
+pathable tile exists.
 
 ## Agent-created world
 

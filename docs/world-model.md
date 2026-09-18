@@ -16,6 +16,7 @@ The kernel defines the minimum rules that make the world coherent. In the
 default world, inhabitants and ordinary mods cannot remove or bypass:
 
 - time progression and causal ordering
+- the 365-day calendar, day/night cycle, seasons, and pause semantics
 - coordinates, occupancy, movement validation, and physical reachability
 - health, injury, hunger, rest, and mortality
 - resource ownership, inventory access, consumption, transfer, and
@@ -74,6 +75,8 @@ validated rules. See [Assets and Art Pipeline](assets-and-art.md).
 This is what actually happened:
 
 - terrain, weather, time, and discovered areas
+- tile properties, world objects, landmarks, and spatial knowledge held by each
+  inhabitant
 - living inhabitants, relationships, families, and deaths
 - inventories, resources, buildings, settlements, and projects
 - ownership, offers, contracts, transactions, prices, and economic history
@@ -84,6 +87,20 @@ This is what actually happened:
 State should be reconstructible from a snapshot plus an append-only event
 history, subject to the final storage design.
 
+## Human authority and authoring mode
+
+The human has an explicit control lane above ordinary inhabitant decisions. A
+suggestive instruction may be rejected; a must-do instruction overrides the
+selected inhabitant's priorities and makes it attempt the order. Both still
+enter the action validator and cannot forge physical state or dictate another
+inhabitant's response.
+
+The human can also enter a paused authoring mode before or during a world to
+edit terrain, resources, ecosystem objects, and approved assets. Such edits
+are authoritative interventions recorded in the event history. The exact edit
+toolset and which operations require a pause remain open, but authoring is not
+an invisible mutation of the save.
+
 ## Action lifecycle
 
 An inhabitant or human participant should never directly mutate state. The
@@ -91,7 +108,7 @@ normal path is:
 
 ```text
 observe
-  → choose intention
+  → choose intention or submit instruction
   → request structured action
   → validate against kernel and current state
   → apply atomically

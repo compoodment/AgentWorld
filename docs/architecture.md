@@ -48,6 +48,7 @@ a client is also possible.
 The server owns:
 
 - time and tick ordering
+- the in-world calendar, day/night cycle, seasons, and pause state
 - world state and random seeds
 - inhabitant state
 - resource and action validation
@@ -55,6 +56,7 @@ The server owns:
 - installed mods and policy
 - persistence and recovery
 - observation data sent to clients
+- human directives, broadcasts, and paused authoring-mode edits
 
 Clients render observations and submit requests. They do not decide whether an
 action happened. This is useful for integrity even before multiplayer exists.
@@ -64,7 +66,7 @@ action happened. This is useful for integrity even before multiplayer exists.
 The loop should be deterministic where practical:
 
 ```text
-advance clock
+advance fixed world clock
   → update kernel needs and environment
   → advance routine actions
   → resolve collisions, production, consumption, and transactions
@@ -77,6 +79,28 @@ advance clock
 LLM responses should enter through a queue and be validated like any other
 external input. A slow or failed response must not pause the whole world or
 apply half an action.
+
+The first normal clock is intentionally simple: 365 in-world days per year,
+four seasons, about 2 minutes 40 seconds of daylight and 1 minute 20 seconds of
+night per in-world day. Pausing stops the world. Sleep changes an inhabitant's
+state and cognition eligibility; it does not require the whole simulation to
+stop. The timing is a world configuration, not a permanent balance law, so it
+can be changed after playtesting without changing the calendar model.
+
+The simulation does not make a model call for every tick, tile movement, or
+small need change. Cognition is event-driven and receives a compact observation
+when an inhabitant needs to choose or revise an intention. The exact triggers,
+perception contract, and movement model remain open design work.
+
+## Observation and knowledge boundary
+
+The human client receives the complete world view by default; there is no fog
+of war. An inhabitant receives an epistemically bounded observation assembled
+from its current senses, location, communication, durable memories, and known
+map facts. Spatial knowledge can include visited tiles, remembered objects such
+as a bed or resource node, landmarks, and learned routes. The authoritative
+world map remains separate from that personal knowledge so an inhabitant can be
+wrong, forget, or lack information without corrupting reality.
 
 ## Persistence and replay
 
@@ -115,14 +139,21 @@ LLM usage is the expensive and least deterministic part. The runtime needs:
 
 - compact observations and summaries
 - event-triggered calls instead of tick-triggered calls
-- per-world and per-agent budgets
+- provider/account limits configured by the human, plus optional game-level
+  per-world and per-agent cognition limits
 - model/provider configuration rather than hardcoded identity
 - timeouts, retries, and malformed-output handling
 - local mock agents and deterministic scripted scenarios
-- a hard emergency stop before credits are exhausted
+- a best-effort game-side stop before configured estimates are exhausted, while
+  never pretending the game can control billing limits it does not own
 
 The simulation should be able to keep running with agents asleep, paused, or
 using local fallback behaviour when the model provider is unavailable.
+
+For hosted providers, the provider account remains the authoritative billing
+boundary. For local providers such as Ollama, the game can cap calls, tokens,
+concurrency, or other local resource use even though there may be no API bill.
+The exact budget and fallback contract is still a Batch 2 design question.
 
 ## VPS target
 

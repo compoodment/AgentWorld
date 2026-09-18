@@ -18,6 +18,10 @@ phase; later phases are not commitments to build every feature.
 - define inventories, ownership, exchange, and the no-forged-state rule
 - define the asset proposal and normalization pipeline
 - define the content/mod proposal boundary
+- define observer-director control, instructions, world directives, and paused
+  authoring mode
+- define the calendar, day/night timing, seasons, tile properties, ecosystem
+  objects, and the human/inhabitant knowledge boundary
 - classify first-world features and explicit deferrals in [feature scope](feature-scope.md)
 - compare Godot, a separate simulation service, and storage options
 - write failure modes and invariants before implementation
@@ -29,11 +33,14 @@ be judged against it, while remaining open to deliberate change.
 ## Phase 1 — Deterministic simulation kernel
 
 - world time and logical coordinates
+- 365-day calendar, simple seasons, day/night, and pause state
 - terrain and resource primitives
+- seeded temperate terrain and ecosystem object fixtures
 - health, hunger, rest, shelter, and mortality rules
 - inventories, ownership, access, production, consumption, and atomic transfer
 - action validation and atomic state transitions
 - one scripted inhabitant or test actor
+- human instruction and event-history fixtures
 - snapshots, event log, migrations, and replay fixtures
 
 **Gate:** the world remains correct and reproducible without any LLM or visual
@@ -43,7 +50,9 @@ client.
 
 - choose the rendering/client engine
 - render a seeded world and active entities
-- inspect state and event history
+- inspect the complete world, selected inhabitants, summarized decision factors,
+  spatial knowledge, and event history
+- expose suggestive/must-do instructions and paused authoring-mode requests
 - define the observation and action protocol
 - run the server headlessly on a development machine or VPS
 
@@ -56,7 +65,9 @@ mutate authoritative state.
 - event-driven cognition queue
 - structured intentions and actions
 - compact observations and durable memory prototype
-- budgets, timeouts, fallback behaviour, and spend shutdown
+- bounded observations including spatial memory
+- provider limits, optional game-side cognition limits, timeouts, fallback
+  behaviour, and spend shutdown
 - measure cost and decision quality with a mock-world harness
 
 **Gate:** one inhabitant can survive and make meaningful choices without
