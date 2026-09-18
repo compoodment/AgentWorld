@@ -70,9 +70,17 @@ Every world-changing proposal follows the same broad lifecycle:
 8. The event log records who proposed it, what changed, and how to roll it back.
 
 Human-created assets use the same normalization and provenance path, but the
-human is the approving authority rather than an inhabitant. Paused authoring
-mode may preview and place approved human or inhabitant content; it does not
-turn asset files into executable host code.
+human is the approving authority rather than an inhabitant. After format and
+performance checks, a human-created visual asset may be used immediately in
+paused authoring mode. New behaviours and rules still require the deeper
+validation path. Paused authoring mode may preview and place approved human or
+inhabitant content; it does not turn asset files into executable host code.
+
+Authoring may create resources from nothing, but every such placement is an
+explicit, recorded god-mode intervention rather than an ordinary world action.
+The initial authoring surface includes terrain, rivers and water, resources,
+trees and plants, buildings, inhabitants, weather and seasons, and approved
+assets.
 
 ## What a proposal must declare
 
@@ -100,7 +108,8 @@ No mod or inhabitant proposal may directly:
 - read host files, environment secrets, or unrelated processes
 - execute unbounded code on the server
 - disable persistence, logging, quotas, or rollback
-- bypass configured world cognition limits or provider/account controls
+- bypass provider/account controls or any future configured world cognition
+  limits
 
 World owners may eventually choose a different constitution when creating a
 world, but that is a new world configuration with explicit rules—not a hidden

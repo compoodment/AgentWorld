@@ -17,7 +17,8 @@ property and access rules. See [Economy, Inventories, and Exchange](economy.md).
 
 ## Creation
 
-The first world begins with one to three founders. A creator may provide:
+The first world begins with a small group of multiple, unrelated founders. A
+creator may provide:
 
 - a name, or permission for the inhabitant to choose one
 - personality traits and values
@@ -46,10 +47,14 @@ must be hardcoded enough that an inhabitant cannot simply code hunger away. An
 inhabitant can discover farming, preservation, medicine, shelter, automation,
 or another solution to a need.
 
-The world has a 365-day calendar, a normal day/night cycle, and sleep. Fatigue
-and sleep make an inhabitant unavailable for ordinary cognition while it rests;
-the deterministic simulation continues around it. Exact sleep duration, beds,
-shelter quality, and travel interruptions remain to be designed.
+The world has a 365-day calendar, a normal day/night cycle, and sleep. An
+inhabitant decides when to sleep rather than being automatically put to bed by
+the simulation. Low energy slows work and walking; sustained exhaustion causes
+health damage. If necessary, an inhabitant may sleep wherever it is, even in a
+place that is ultimately unsafe. The exact definition of safe sleeping,
+exposure, sleep duration, and recovery rates remain prototype-tuning work.
+Night makes sleep and energy recovery more relevant without forcing every
+inhabitant into the same schedule.
 
 The distinction is important: a crop can reduce hunger through a valid,
 declared food effect; an inhabitant cannot directly edit its hunger value. A
@@ -132,11 +137,14 @@ route and executes it.
 
 All meaningful event categories may wake cognition: urgent needs, nearby
 danger, messages, discoveries, failed actions, human instructions, project
-milestones, and relationship events. Repeated small events are coalesced into
-one observation. During normal model latency, the inhabitant continues its last
-valid intention. Urgent danger or survival problems use deterministic emergency
-behaviour; without a valid intention or safe fallback, the inhabitant stops
-safely.
+milestones, relationship events, and noteworthy changes that make the current
+plan worth reconsidering. Repeated small events are coalesced into one
+observation, with the exact interval left for prototype measurement. During
+normal model latency, the inhabitant continues its last valid intention. If a
+model remains unavailable for long enough, it switches to simple local
+behaviour. Urgent danger and survival problems use deterministic emergency
+behaviour shaped by personality and learned habits; without a valid intention
+or safe fallback, it stops safely.
 
 Human instructions enter through the same validated action boundary. Suggestive
 instructions can be rejected; must-do instructions override the selected
@@ -145,13 +153,16 @@ the independent responses of other inhabitants. A must-do instruction does not
 magically interrupt sleep, travel, or crafting; it waits in the instruction
 queue until the next valid decision point.
 
-Sleep is possible in any safe location. A bed improves energy recovery, and
-proper shelter improves recovery and protection from exposure. The prototype
-uses a camp-start preset.
+Sleep is possible wherever the inhabitant chooses, including an unsafe
+location. A bed or bedroll improves energy recovery, and proper shelter
+improves recovery and protection from exposure. The camp-start preset provides
+basic shelter, a bed or bedroll, storage, basic tools, starting food, and a
+fire/cooking setup.
 
-The runtime must be able to continue safely when no model is available. API
-budget exhaustion, timeouts, malformed output, and provider failure are normal
-operational states, not reasons to corrupt the world.
+The runtime must be able to fail safely when a model response is slow,
+malformed, or temporarily unavailable. A prolonged individual failure can use
+simple local behaviour, but a provider-level outage pauses the game and notifies
+the human rather than silently running up an unknown failure state.
 
 ## Memory
 
@@ -178,8 +189,8 @@ The design should support:
 - sleeping or background inhabitants with local simulation only
 - event-triggered cognition
 - provider/account limits chosen by the human
-- optional game-level per-world and per-inhabitant cognition limits
-- safe fallback behaviour when a limit or provider is unavailable
+- safe fallback behaviour after an individual model failure
+- provider-outage pause and human notification
 - mock or scripted inhabitants for development and tests
 
 The first real-world experiment should measure one inhabitant before adding
@@ -188,5 +199,5 @@ more. Population limits are a gameplay rule and an operational safety control.
 Children are LLM-influenced from birth, with age-appropriate cognition rather
 than an immediate adult planning load. At world creation, the human chooses a
 provider policy: select each child, inherit from a parent, use the world
-default, or use a hybrid policy. The exact handoff and fallback when a human
-has not selected a provider are still open.
+default, or use a hybrid policy. The exact handoff when a human has not
+selected a provider remains open.

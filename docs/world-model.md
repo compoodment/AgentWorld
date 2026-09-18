@@ -98,10 +98,12 @@ enter the action validator and cannot forge physical state or dictate another
 inhabitant's response.
 
 The human can also enter a paused authoring mode before or during a world to
-edit terrain, resources, ecosystem objects, and approved assets. Such edits
-are authoritative interventions recorded in the event history. The exact edit
-toolset and which operations require a pause remain open, but authoring is not
-an invisible mutation of the save.
+edit terrain, rivers and water, resources, trees and plants, buildings,
+inhabitants, weather and seasons, and approved assets. Creating a resource from
+nothing is allowed, but is recorded explicitly as a god-mode intervention in
+the event history. Human-created assets may become usable immediately after
+format and performance checks; new behaviours and rules require the deeper
+proposal validation path. Authoring is never an invisible mutation of the save.
 
 ## Action lifecycle
 

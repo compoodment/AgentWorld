@@ -21,7 +21,7 @@ pretending they are permanent.
   issuing every action.
 - A default world protects its core survival laws: health, needs, mortality,
   time, validation, persistence, permissions, and sandbox boundaries.
-- The first world begins with one to three founders.
+- The first world begins with a small group of multiple, unrelated founders.
 - Inhabitants may self-name and have personalities, values, skills, roles, and
   aspirations.
 - Roles should be emergent rather than permanent classes.
@@ -37,7 +37,7 @@ pretending they are permanent.
 
 ### Deliberately not decided at that stage
 
-- exact founder composition and family model
+- exact founder count, founder identity-approval flow, and family model
 - final need list and balance
 - exact world size, tile scale, and chunking strategy
 - model/provider name, call frequency, and API budget
@@ -144,6 +144,55 @@ belongs to the people living in the world.
 The LLM chooses meaningful intentions; the simulation handles repetitive,
 physical execution. That keeps inhabitants expressive without charging a model
 to rediscover how to walk from one square to the next.
+
+## 2026-09-18 — Survival, providers, and authoring interview
+
+### Current decisions
+
+- An inhabitant decides when to sleep. Low energy slows tasks and walking;
+  sustained exhaustion eventually damages health.
+- If exhausted, an inhabitant may sleep wherever it is, including an unsafe
+  location. The exact safety and exposure model is still a prototype-tuning
+  question.
+- Night makes sleep and energy recovery more relevant, but does not impose one
+  universal sleep schedule.
+- Camp start provides basic shelter, a bed or bedroll, storage, basic tools,
+  starting food, and a fire/cooking setup.
+- Meaningful events may cause an inhabitant to reconsider an ordinary plan.
+  The exact coalescing interval and cognition cooldown are left for
+  measurement.
+- A prolonged individual model failure switches the inhabitant to simple local
+  behaviour. Emergency behaviour is shaped by personality and learned habits.
+- If the provider itself is unavailable, the game pauses and notifies the
+  human.
+- At creation, the human may choose an inhabitant's provider, model,
+  personality, and skills. Provider and model choices may be changed after the
+  world starts.
+- Game-side cognition ceilings are deferred; provider/account controls remain
+  the initial cost boundary.
+- Paused authoring may edit terrain, rivers and water, resources, trees and
+  plants, buildings, inhabitants, weather and seasons, and approved assets.
+- Authoring may create resources from nothing, but records each placement as an
+  explicit god-mode intervention.
+- Human-created assets may be used after format and performance checks; new
+  behaviours and rules require deeper validation.
+- The first camp contains multiple unrelated founders.
+
+### Deliberately not decided
+
+- what makes a sleeping place safe or unsafe, and the exact fatigue, recovery,
+  exposure, and health-damage formulas
+- the cognition coalescing interval, cooldowns, and event-priority policy
+- the local fallback behaviour library and how learned habits modify it
+- the first supported provider/model default and provider assignment for
+  newborns when the human has not chosen one
+- the exact pathfinding and route-cache implementation
+
+### Design principle
+
+Failure handling should preserve the world and make the operational boundary
+visible. A single bad thought can fall back locally; a provider outage is a
+human-visible pause, not a silent simulation that spends blindly.
 
 ## 2026-09-18 — Economy, assets, and scope pass
 

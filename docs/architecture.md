@@ -77,8 +77,10 @@ advance fixed world clock
 ```
 
 LLM responses should enter through a queue and be validated like any other
-external input. A slow or failed response must not pause the whole world or
-apply half an action.
+external input. A slow or malformed individual response must not corrupt the
+world or apply half an action. A prolonged individual failure can fall back to
+simple local behaviour; a provider-level outage pauses the game and notifies
+the human.
 
 The first normal clock is intentionally simple: 365 in-world days per year,
 four seasons, about 2 minutes 40 seconds of daylight and 1 minute 20 seconds of
@@ -151,21 +153,22 @@ LLM usage is the expensive and least deterministic part. The runtime needs:
 
 - compact observations and summaries
 - event-triggered calls instead of tick-triggered calls
-- provider/account limits configured by the human, plus optional game-level
-  per-world and per-agent cognition limits
+- provider/account limits configured by the human; game-level cognition caps
+  are deferred until the prototype demonstrates a need for them
 - model/provider configuration rather than hardcoded identity
 - timeouts, retries, and malformed-output handling
 - local mock agents and deterministic scripted scenarios
-- a best-effort game-side stop before configured estimates are exhausted, while
-  never pretending the game can control billing limits it does not own
+- explicit provider/account status and a safe stop path, while never pretending
+  the game can control billing limits it does not own
 
-The simulation should be able to keep running with agents asleep, paused, or
-using local fallback behaviour when the model provider is unavailable.
+The simulation should be able to keep running with agents asleep or using
+local fallback behaviour after an individual model failure. If the provider
+itself is unavailable, the game pauses and asks the human to resolve it.
 
 For hosted providers, the provider account remains the authoritative billing
-boundary. For local providers such as Ollama, the game can cap calls, tokens,
-concurrency, or other local resource use even though there may be no API bill.
-The exact budget and fallback contract is still a Batch 2 design question.
+boundary. For local providers such as Ollama, local resource controls may be
+added later even though there may be no API bill. The initial prototype does
+not promise game-side call or token ceilings.
 
 ## VPS target
 

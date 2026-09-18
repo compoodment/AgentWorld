@@ -116,12 +116,16 @@ The current design target is:
 - a small temperate prototype biome with a living ecosystem; richer terrain,
   continents, oceans, rivers, mountains, deserts, wetlands, and boat travel are
   future scale rather than requirements for the first test
-- one to three founding inhabitants
+- multiple unrelated founding inhabitants
 - configurable names, personalities, skills, values, and aspirations
 - hardcoded basic needs and mortality
+- inhabitant-chosen sleep, with fatigue slowdowns and eventual exhaustion
+  damage when rest is delayed
 - limited family formation and population growth
 - gathering, shelter, food production, construction, exploration, and social
   interaction
+- a camp-start preset with basic shelter, bed or bedroll, storage, tools, food,
+  and fire/cooking setup
 - inventories, ownership, direct barter, and early local exchange
 - a small asset pipeline that can turn inhabitant ideas into safe visual and
   interactive content

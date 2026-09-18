@@ -24,8 +24,8 @@ These are the smallest laws that make the rest meaningful:
 - identity, permissions, population limits, and world ownership
 - persistence, snapshots, event history, recovery, and replay fixtures
 - mod capabilities, quotas, compatibility, rollback, and host isolation
-- provider/account configuration, game-side cognition limits, timeouts, fallback
-  behaviour, and emergency shutdown
+- provider/account configuration, timeouts, fallback behaviour, provider-outage
+  pause, and emergency shutdown; game-side cognition ceilings are deferred
 - complete human observability, explicit suggestive/must-do instructions, and
   recorded paused authoring-mode edits
 
@@ -34,7 +34,7 @@ These are the smallest laws that make the rest meaningful:
 The first world should be able to demonstrate a small society, not a full
 civilization simulator. Priority systems are:
 
-- one to three founders with distinct identities and needs
+- multiple unrelated founders with distinct identities and needs
 - gathering, food production, storage, shelter, construction, and basic craft
 - inventories, ownership, direct barter, and simple local exchange
 - routine work plus meaningful LLM decisions
@@ -45,8 +45,11 @@ civilization simulator. Priority systems are:
 - spatial memory of visited places, landmarks, beds, resources, and routes
 - destination-level LLM travel intentions with deterministic route execution
 - local observations, coalesced cognition triggers, and urgency-based fallback
-- safe-location sleep with bed and shelter recovery bonuses
+- inhabitant-chosen sleep, including unsafe fallback, with fatigue slowdowns,
+  eventual exhaustion damage, and bed/shelter recovery bonuses
 - a camp-start prototype preset
+- camp-start supplies: basic shelter, bed or bedroll, storage, basic tools,
+  starting food, and a fire/cooking setup
 - a small asset/content proposal pipeline with safe declarative rules
 - inspectable events, decisions, failures, and world history
 

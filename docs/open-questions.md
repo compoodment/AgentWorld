@@ -30,7 +30,8 @@ The first design interview established these decisions:
   timing is configurable after playtesting.
 - The world continues while unpaused and unattended. Model calls may continue
   and incur provider cost; provider/account limits belong to the human's
-  provider setup, with optional game-side cognition limits as a second guard.
+  provider setup. Game-side cognition ceilings are deferred rather than an
+  initial promise.
 - The prototype starts from a seeded, procedurally generated world with a
   living ecosystem. A small temperate biome is enough for the first test;
   richer terrain and continents remain part of the larger concept.
@@ -80,12 +81,57 @@ cognition contract:
 
 ### Sleep and starting conditions
 
-- An inhabitant can sleep in any safe location.
+- An inhabitant decides when to sleep and may sleep wherever it is, including
+  an unsafe location. Low energy slows tasks and walking; sustained exhaustion
+  eventually causes health damage.
 - A bed improves energy recovery, and proper shelter improves recovery and
-  protection from exposure.
-- The prototype uses a camp-start preset.
+  protection from exposure. The exact safe/unsafe test remains a later tuning
+  question.
+- The prototype uses a camp-start preset; Batch 3 defines its starting shelter,
+  bed or bedroll, storage, tools, food, and fire/cooking setup.
 
-## Batch 3 — next questions
+## Batch 3 — closed decisions
+
+The third design interview established the survival, provider, authoring, and
+founder contract:
+
+### Survival and camp start
+
+- Inhabitants decide when to sleep. Low energy slows tasks and walking;
+  sustained exhaustion eventually causes health damage.
+- An exhausted inhabitant may sleep wherever it is, including an unsafe place.
+  The exact meaning of safe or unsafe sleep remains a tuning question rather
+  than an excuse to prevent sleep entirely.
+- Night makes sleep and energy recovery more relevant without imposing one
+  universal schedule.
+- Camp start provides basic shelter, a bed or bedroll, storage, basic tools,
+  starting food, and a fire/cooking setup.
+
+### Cognition and provider behaviour
+
+- Meaningful changes may cause an inhabitant to reconsider an ordinary plan;
+  the prototype will measure the right coalescing interval instead of fixing a
+  number prematurely.
+- A prolonged individual model failure eventually switches to simple local
+  behaviour. Emergency behaviour is influenced by personality and learned
+  habits.
+- A provider-level outage pauses the game and notifies the human.
+- The human chooses provider, model, personality, and skills when creating an
+  inhabitant, and may change provider or model after world start.
+- Optional game-side cognition ceilings are deferred. Provider/account limits
+  remain the initial cost boundary.
+
+### Authoring and founders
+
+- Paused authoring may edit terrain, rivers and water, resources, trees and
+  plants, buildings, inhabitants, weather and seasons, and approved assets.
+- Creating resources from nothing is allowed but is recorded as an explicit
+  god-mode intervention.
+- Human-created assets may be used after format and performance checks; new
+  behaviours and rules require deeper validation.
+- The first camp contains multiple unrelated founders.
+
+## Batch 4 — next questions
 
 The following mechanics remain unresolved and are the next interview targets:
 
@@ -100,8 +146,8 @@ The following mechanics remain unresolved and are the next interview targets:
 
 ### Cognition and embodiment
 
-- What are the exact fatigue, sleep duration, bed, shelter, exposure, and wake-up
-  formulas?
+- What makes a sleeping place safe or unsafe, and what are the exact fatigue,
+  sleep duration, bed, shelter, exposure, wake-up, and health-damage formulas?
 - What observation fields are always present, and which are optional or
   attention-selected?
 - How are event priority, coalescing windows, and cognition cooldowns balanced?
@@ -110,24 +156,19 @@ The following mechanics remain unresolved and are the next interview targets:
 - What should the client expose as summarized decision factors, memories, and
   intentions without presenting hidden chain-of-thought as a game feature?
 
-### Runtime, family, and authoring
+### Runtime, family, and authoring detail
 
-- Which game-side limits should exist independently of provider billing: calls,
-  tokens, estimated cost, concurrency, wall-clock time, or local CPU/memory?
-- What is the fallback when a provider limit is reached, an API is unavailable,
-  or an Ollama model is overloaded?
-- Which terrain/resource/object edits are allowed in paused authoring mode, and
-  must every edit pause the world or only edits that affect simulation state?
-- How are human-created assets imported, previewed, and approved relative to
-  inhabitant-created proposals?
+- What local fallback behaviours are available, and how do personality and
+  learned habits modify them?
+- Which provider/model is the first supported default, and what policy assigns a
+  newborn when the human has not selected one?
 - How are birth, development stages, care, adoption, inheritance, and death
   represented in the first playable society?
-- If a human has not selected a newborn's provider, which temporary policy is
-  used and when does provider assignment become fixed?
+- Which asset format, performance checks, provenance fields, and preview steps
+  are needed for the first client?
 
 ## Founders and family
 
-- Should a world normally begin with one founder, a couple, or a small group?
 - Can a founder self-name and self-describe, or must the creator approve its
   identity?
 - What exactly counts as a family and how are relationships represented?

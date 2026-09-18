@@ -37,7 +37,8 @@ be judged against it, while remaining open to deliberate change.
 - terrain and resource primitives
 - seeded temperate terrain and ecosystem object fixtures
 - tile-backed movement, route validation, and travel effects
-- health, hunger, rest, shelter, and mortality rules
+- health, hunger, rest, shelter, fatigue slowdown, exhaustion damage, and
+  mortality rules
 - inventories, ownership, access, production, consumption, and atomic transfer
 - action validation and atomic state transitions
 - one scripted inhabitant or test actor
@@ -54,7 +55,9 @@ client.
 - inspect the complete world, selected inhabitants, summarized decision factors,
   spatial knowledge, and event history
 - show current-tile knowledge, local perception, destinations, and active routes
-- expose suggestive/must-do instructions and paused authoring-mode requests
+- expose suggestive/must-do instructions and the full paused authoring surface:
+  terrain, water, resources, plants, buildings, inhabitants, weather/seasons,
+  and checked human assets
 - define the observation and action protocol
 - run the server headlessly on a development machine or VPS
 
@@ -70,8 +73,9 @@ mutate authoritative state.
 - compact observations and durable memory prototype
 - bounded observations including spatial memory
 - coalesced event triggers and urgency-based fallback behaviour
-- provider limits, optional game-side cognition limits, timeouts, fallback
-  behaviour, and spend shutdown
+- provider/model selection and later changes, individual-failure local
+  fallback, provider-outage pause and notification, and provider status
+- defer game-side cognition ceilings until measurement shows they are needed
 - measure cost and decision quality with a mock-world harness
 
 **Gate:** one inhabitant can survive and make meaningful choices without
