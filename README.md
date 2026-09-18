@@ -68,7 +68,6 @@ creative proposals.
 - [Open questions](docs/open-questions.md) — decisions intentionally left
   unresolved
 - [Design log](docs/internal/design-log.md) — the current decision record
-- [Related projects](docs/related-projects.md) — inspiration and distinction
 
 ## What AgentWorld is not yet
 
@@ -90,11 +89,10 @@ The most useful contributions during this phase are design critiques,
 alternative models, small feasibility experiments, and precise questions. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Name and related work
+## Project name
 
-The name **AgentWorld** is used here for this project, which is independent
-from other projects using the same name. See [Related projects](docs/related-projects.md)
-for the distinction.
+The name **AgentWorld** is used for this project. The concept and design in
+this repository stand on their own.
 
 ## License
 
