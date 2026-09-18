@@ -80,6 +80,8 @@ day/night cycle; it continues spending provider resources while unpaused.
   expansion, and explicit deferrals
 - [Open questions](docs/open-questions.md) — decisions intentionally left
   unresolved
+- [Batch 5 worksheet](docs/batch-5-decision-worksheet.md) — proposed defaults,
+  examples, and the next design interview
 - [Design log](docs/internal/design-log.md) — the current decision record
 
 ## What AgentWorld is not yet

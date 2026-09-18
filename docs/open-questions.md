@@ -194,6 +194,11 @@ provider, and family contracts:
 
 The remaining questions are implementation and tuning work:
 
+Use the concrete proposal worksheet in
+[Batch 5 Decision Worksheet](batch-5-decision-worksheet.md). It gives each
+question a suggested prototype default and an example before the decision is
+closed.
+
 ### Survival and cognition tuning
 
 - What exact formulas define fatigue slowdown, sleep duration, bed/shelter
