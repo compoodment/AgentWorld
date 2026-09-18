@@ -18,8 +18,9 @@ Godot client / viewer
           ↕ protocol
 authoritative world server
   ├── deterministic simulation core
+  ├── inventory and transaction ledger
   ├── persistence and event log
-  ├── action and mod validators
+  ├── action, asset, and mod validators
   └── observation API
           ↕ queued decisions
 LLM inhabitant worker
@@ -50,6 +51,7 @@ The server owns:
 - world state and random seeds
 - inhabitant state
 - resource and action validation
+- inventory ownership and atomic transaction settlement
 - installed mods and policy
 - persistence and recovery
 - observation data sent to clients
@@ -65,7 +67,7 @@ The loop should be deterministic where practical:
 advance clock
   → update kernel needs and environment
   → advance routine actions
-  → resolve collisions and resource effects
+  → resolve collisions, production, consumption, and transactions
   → deliver due events
   → enqueue cognition requests
   → apply validated decisions
@@ -85,6 +87,7 @@ The current direction is:
 - explicit schema and migration versions
 - deterministic world seed and simulation version
 - mod manifest included in saves
+- asset manifest and economic ledger included in saves
 - crash-safe checkpointing
 - a replay or reproduction mode for tests and bug reports
 

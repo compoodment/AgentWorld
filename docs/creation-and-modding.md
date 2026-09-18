@@ -11,6 +11,16 @@ AgentWorld's defining ambition is that inhabitants can make their world more
 interesting while living in it. This must be powerful enough to be meaningful
 and constrained enough to remain testable and safe.
 
+## The governing distinction
+
+Creation should preserve **creative sovereignty** without granting **reality
+sovereignty**. Inhabitants may invent a crop that changes food scarcity, a
+building that transforms work, or an art style nobody expected. They may not
+forge health, create inventory from nothing, bypass ownership, or rewrite the
+kernel's causal records.
+
+The goal is to restrict impossible state mutations, not powerful ideas.
+
 ## Capability levels
 
 Creation should grow through capability levels rather than jumping straight to
@@ -24,6 +34,7 @@ Structured data can describe:
 - art and text assets
 - creatures with existing behaviour templates
 - maps, biomes, and terrain decorations
+- visual assets and asset metadata; see [Assets and Art Pipeline](assets-and-art.md)
 
 ### Level 2 — rule composition
 
@@ -35,6 +46,7 @@ Approved primitives can be combined into new systems:
 - faction and reputation rules
 - ecological relationships
 - games, rituals, and social institutions
+- economic rules such as prices, wages, contracts, and exchange mechanisms
 
 ### Level 3 — sandboxed behaviour
 
@@ -76,6 +88,8 @@ The eventual format should require at least:
 No mod or inhabitant proposal may directly:
 
 - edit kernel health or mortality semantics
+- write directly to hunger, health, ownership, inventories, or transaction
+  history
 - bypass action validation
 - create arbitrary population without permission
 - read host files, environment secrets, or unrelated processes
@@ -86,6 +100,21 @@ No mod or inhabitant proposal may directly:
 World owners may eventually choose a different constitution when creating a
 world, but that is a new world configuration with explicit rules—not a hidden
 escape hatch inside an existing simulation.
+
+## The abundance test
+
+Every proposal that appears to remove a survival constraint must answer:
+
+- what inputs and infrastructure does it require?
+- what time, space, labour, or ecological conditions limit it?
+- what happens when it fails, spreads, spoils, or is monopolized?
+- which inventories and transactions record its effects?
+- is it changing a world rule, or attempting to forge kernel state?
+
+An instant, eternal crop that simply sets hunger to zero fails the test. A
+resource-intensive crop that produces large quantities and changes prices,
+labour, ecology, and power may pass it. The latter is a world-changing
+discovery, not an exploit.
 
 ## The creative goal
 

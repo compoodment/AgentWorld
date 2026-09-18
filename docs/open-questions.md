@@ -44,6 +44,21 @@ prototype result, or explicit reason to defer—not a guess hidden in code.
 - How do we prove that a mod cannot create runaway resources, entities, or
   computation?
 
+## Economy and assets
+
+- Which ownership models should the first world support: personal, household,
+  communal, cooperative, or all of them through one abstraction?
+- Is direct barter enough for the first economy, or should a local exchange
+  token exist from the start?
+- How should prices, wages, debt, theft, taxation, and contracts interact with
+  consent and local law?
+- Which economic events deserve an LLM decision and which stay deterministic?
+- What asset formats and normalization rules are needed for the first client?
+- Which generated-art sources are acceptable, and how should provenance and
+  licensing be recorded?
+- How much visual inconsistency should a culture be allowed to create before
+  the world becomes unreadable to a human viewer?
+
 ## LLM runtime
 
 - Which model/provider should be the first supported default?
@@ -71,7 +86,8 @@ prototype result, or explicit reason to defer—not a guess hidden in code.
 - When does a new dimension become a justified design need rather than scope
   inflation?
 - Which systems are essential for the first compelling world: farming,
-  crafting, ecology, trade, weather, combat, or something else?
+  crafting, inventories, barter, ecology, trade, weather, combat, or something
+  else?
 - How many inhabitants can the target VPS run at acceptable cost?
 - What is the first feature that should be removed if the foundation becomes
   too complex?

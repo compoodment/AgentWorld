@@ -15,7 +15,10 @@ phase; later phases are not commitments to build every feature.
 - define the experience and design pillars
 - decide which laws belong to the protected kernel
 - define inhabitants, needs, family growth, and population limits
+- define inventories, ownership, exchange, and the no-forged-state rule
+- define the asset proposal and normalization pipeline
 - define the content/mod proposal boundary
+- classify first-world features and explicit deferrals in [feature scope](feature-scope.md)
 - compare Godot, a separate simulation service, and storage options
 - write failure modes and invariants before implementation
 - keep unresolved decisions visible in [open questions](open-questions.md)
@@ -28,6 +31,7 @@ be judged against it, while remaining open to deliberate change.
 - world time and logical coordinates
 - terrain and resource primitives
 - health, hunger, rest, shelter, and mortality rules
+- inventories, ownership, access, production, consumption, and atomic transfer
 - action validation and atomic state transitions
 - one scripted inhabitant or test actor
 - snapshots, event log, migrations, and replay fixtures
@@ -58,10 +62,12 @@ mutate authoritative state.
 **Gate:** one inhabitant can survive and make meaningful choices without
 making the world nondeterministic or unaffordable.
 
-## Phase 4 — Society and limited family growth
+## Phase 4 — Society, economy, and limited family growth
 
 - relationships and social memory
 - emergent work and roles
+- food storage, barter, local exchange, and economic decision-making
+- households, farms, workshops, organizations, and simple ownership models
 - housing, care, and population constraints
 - birth, childhood, inheritance, and death design
 - multiple inhabitants with independent cognition schedules
@@ -69,9 +75,10 @@ making the world nondeterministic or unaffordable.
 **Gate:** a small group can form a legible settlement without population or API
 costs running away.
 
-## Phase 5 — Agent-created content
+## Phase 5 — Agent-created content and assets
 
 - content declaration format
+- asset proposal, normalization, provenance, and preview pipeline
 - proposal validation and capability manifests
 - isolated test-world execution
 - versioning, compatibility, approval policy, and rollback
@@ -82,7 +89,7 @@ host remain protected.
 
 ## Phase 6 — Richer worlds
 
-- ecology, weather, factions, trade, and culture as justified by play
+- ecology, weather, factions, law, currency, and culture as justified by play
 - larger chunked maps and distant-region simulation
 - more expressive world rules
 - carefully evaluated sandboxed behaviour, if still desirable

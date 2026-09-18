@@ -5,7 +5,8 @@ world inhabited by LLM-driven agents.
 
 The inhabitants are not quest-givers waiting for a player. They live under
 hardcoded survival laws, form relationships and families, gather resources,
-build settlements, and may eventually create new systems for the world itself.
+own and exchange things, build settlements, and may eventually create new
+systems for the world itself.
 The long-term idea is a world that can become more complex because its
 inhabitants choose to make it so.
 
@@ -58,6 +59,9 @@ creative proposals.
 - [Vision](docs/vision.md) — the intended experience and design pillars
 - [World model](docs/world-model.md) — what is fixed, moddable, created, and
   persisted
+- [Economy](docs/economy.md) — inventories, ownership, exchange, and abundance
+- [Assets and art](docs/assets-and-art.md) — how world creations become safe,
+  versioned visual assets
 - [Inhabitants](docs/inhabitants.md) — identity, needs, family, roles, and LLM
   cognition
 - [Creation and modding](docs/creation-and-modding.md) — how inhabitants may
@@ -65,6 +69,8 @@ creative proposals.
 - [Architecture direction](docs/architecture.md) — proposed technical shape,
   boundaries, and invariants
 - [Roadmap](docs/roadmap.md) — design and implementation gates, not promises
+- [Feature scope](docs/feature-scope.md) — foundation, first-world priorities,
+  expansion, and explicit deferrals
 - [Open questions](docs/open-questions.md) — decisions intentionally left
   unresolved
 - [Design log](docs/internal/design-log.md) — the current decision record

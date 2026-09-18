@@ -18,7 +18,8 @@ default world, inhabitants and ordinary mods cannot remove or bypass:
 - time progression and causal ordering
 - coordinates, occupancy, movement validation, and physical reachability
 - health, injury, hunger, rest, and mortality
-- resource ownership, consumption, and conservation rules
+- resource ownership, inventory access, consumption, transfer, and
+  conservation rules
 - action validation and authoritative state transitions
 - persistence, save integrity, and recovery
 - identity, permissions, population limits, and world ownership
@@ -42,8 +43,12 @@ versioned mods when the world policy permits it. Examples include:
 - magic or other fictional systems, if a world chooses to introduce them
 - additional worlds or dimensions
 
-The kernel validates their effects. A farming mod can define irrigation; it
-cannot make a negative food balance harmless by writing directly to health.
+The kernel validates their effects. A farming mod can define irrigation and a
+crop can have a powerful nutritional effect, but neither can write directly to
+health or hunger, duplicate resources, or bypass the transaction ledger.
+Economy details such as prices, wages, property law, currency, and communal
+allocation remain world rules. The accounting facts underneath them remain
+authoritative kernel state.
 
 ## 3. World content — things inhabitants make
 
@@ -60,6 +65,10 @@ Content is the least privileged layer and should be the easiest to create:
 Content should still have schemas, resource costs, spatial validation, and
 version metadata. “Creative” does not mean “unbounded mutation.”
 
+An asset is inert data. Its appearance, animation, and metadata may be
+inhabitant-created, but behaviour enters through declared interactions and
+validated rules. See [Assets and Art Pipeline](assets-and-art.md).
+
 ## 4. Persistent world state
 
 This is what actually happened:
@@ -67,6 +76,7 @@ This is what actually happened:
 - terrain, weather, time, and discovered areas
 - living inhabitants, relationships, families, and deaths
 - inventories, resources, buildings, settlements, and projects
+- ownership, offers, contracts, transactions, prices, and economic history
 - active rules and installed content mods
 - proposals, approvals, failures, and rollback history
 - simulation events and notable decisions

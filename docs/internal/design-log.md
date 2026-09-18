@@ -45,11 +45,35 @@ pretending they are permanent.
 - storage and networking implementation
 - the full mod schema and sandbox technology
 - the amount of direct human control
-- whether dimensions, combat, trade, ecology, or weather belong in the first
-  compelling world
+- whether dimensions, combat, rich ecology, or weather belong in the first
+  compelling world; basic exchange is now a first-world requirement, while
+  complex economic institutions remain later scope
 
 ### Design principle
 
 The concept comes before the foundation. The foundation should implement a
 reasonably complete concept, not force the concept to become whatever the
 first framework makes convenient.
+
+## 2026-09-18 — Economy, assets, and scope pass
+
+### Current decisions
+
+- Inventories and ownership are first-class world state, not flavour text.
+- Trades, gifts, wages, and contracts settle through an authoritative atomic
+  transaction ledger.
+- The kernel protects accounting and causality, but does not prescribe
+  capitalism, communism, barter, currency, or another economic ideology.
+- Inhabitants may create powerful abundance through valid world proposals, but
+  may not write hunger, health, ownership, or inventory state directly.
+- Art and assets enter through a proposal, normalization, validation, and
+  versioning pipeline. Asset files are inert and cannot execute host code.
+- The first compelling world includes basic exchange and a small content/asset
+  pipeline. Full law, credit, rich ecology, multiple dimensions, combat, and
+  magic are expansions or deferred choices rather than foundation requirements.
+
+### Design principle
+
+Creative freedom should be limited by causality and inspectability, not by a
+permanent ban on powerful ideas. If inhabitants discover abundance, society
+should change around it.

@@ -11,6 +11,10 @@ Inhabitants are LLM-driven agents embodied in the world. They are not just
 chat sessions with sprites; their identity, needs, possessions, relationships,
 and memories have consequences in the simulation.
 
+Their possessions are not decorative prompt text. An inhabitant may own food,
+tools, clothing, currency, or a share in a building, subject to the world's
+property and access rules. See [Economy, Inventories, and Exchange](economy.md).
+
 ## Creation
 
 The first world begins with one to three founders. A creator may provide:
@@ -40,6 +44,11 @@ The final set, rates, and interactions require design and balance work. Needs
 must be hardcoded enough that an inhabitant cannot simply code hunger away. An
 inhabitant can discover farming, preservation, medicine, shelter, automation,
 or another solution to a need.
+
+The distinction is important: a crop can reduce hunger through a valid,
+declared food effect; an inhabitant cannot directly edit its hunger value. A
+very productive crop may still be accepted if it pays real inputs and passes
+validation. If it creates abundance, the economy and society must adapt.
 
 ## Roles and identity
 
@@ -100,6 +109,8 @@ An LLM is consulted when an inhabitant reaches a meaningful decision point:
 - deciding between competing needs
 - forming or repairing a relationship
 - teaching, negotiating, or planning collectively
+- deciding whether to eat, trade, gift, reserve, or stockpile possessions
+- setting a price, accepting a bargain, joining a cooperative, or hiring help
 - proposing new world content or a mod
 - reflecting on an outcome and changing an aspiration
 

@@ -20,12 +20,15 @@ that exists between visits:
 
 - inhabitants have needs and limited lives
 - resources can be scarce
+- possessions and food can be owned, shared, traded, or withheld
 - survival creates pressure and meaningful stakes
 - personalities and relationships affect choices
 - roles are discovered through behaviour rather than selected as permanent
   classes
 - settlements, institutions, games, and customs may emerge
 - inhabitants can attempt to improve the world when they encounter a problem
+- inhabitants can create art, goods, institutions, and systems that change the
+  incentives faced by everyone else
 
 There is no mandatory victory condition. A small family surviving, building a
 home, and inventing a local game can be a successful world. Another world may
@@ -54,6 +57,14 @@ The world needs stable laws so that actions have meaning. Its inhabitants can
 invent solutions and add content, but they cannot silently remove the rules
 that make survival, effort, and creation matter. See [World model](world-model.md).
 
+### Creative sovereignty without reality sovereignty
+
+Inhabitants should be free to invent powerful things. They are not free to
+forge state directly. A miraculous crop, new exchange system, or beautiful
+building must enter through declared inputs, outputs, costs, permissions, and
+validation. This preserves consequences without forcing the world to remain
+poor forever: legitimate abundance is allowed to transform a civilization.
+
 ### LLMs at meaningful decision points
 
 An LLM should not be called for every tile movement or hunger decrement. Local
@@ -80,6 +91,9 @@ The current design target is:
 - limited family formation and population growth
 - gathering, shelter, food production, construction, exploration, and social
   interaction
+- inventories, ownership, direct barter, and early local exchange
+- a small asset pipeline that can turn inhabitant ideas into safe visual and
+  interactive content
 - a Godot-based pixel-art viewer, if the engine remains the best fit after a
   feasibility prototype
 - one real LLM inhabitant at first, with local mock inhabitants for tests
@@ -97,6 +111,8 @@ that they may create parts of the game they are playing:
 - buildings and objects
 - recipes and production chains
 - creatures and ecological relationships
+- art, objects, and assets authored by inhabitants or generated from their
+  proposals
 - social institutions and rules
 - games and rituals
 - new biomes or dimensions
