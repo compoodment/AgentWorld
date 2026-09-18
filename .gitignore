@@ -1,0 +1,30 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Python tooling, if used by prototypes
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Godot editor and export output
+.godot/
+*.godot/
+export/
+build/
+
+# Local saves, logs, and generated experiments
+saves/
+logs/
+tmp/
+dist/
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
