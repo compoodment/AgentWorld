@@ -361,3 +361,31 @@ than a silent undo button.
 
 Keep secret material outside world state, keep the initial model contract
 narrow, and preserve creative variation inside an inspectable asset pipeline.
+
+## 2026-09-19 — Batch 5E replay, traversal, and failure defaults
+
+### Current decisions
+
+- Developer replay uses versioned JSON decision records containing the tick,
+  inhabitant/world IDs, triggers, filtered observation, memory references,
+  provider/model/config epoch, structured response, validation, selected
+  action or fallback, resulting event IDs, and timing/token metadata. Replay
+  uses recorded outputs and does not call a live provider by default.
+- Future traversal modes share a deterministic route interface. Walking and
+  roads are first; later routes may compose segments such as walking to a dock,
+  travelling by boat, and walking onward. Boats are excluded from the first
+  prototype.
+- A hosted-provider failure gets one bounded retry, then deterministic fallback
+  behaviour. The last known-good assignment remains active, the failure and
+  fallback are recorded, and the current atomic action continues safely.
+
+### Deliberately not decided
+
+- Exact serialization formats, retention limits, replay UI, and
+  traversal-specific mechanics remain engineering work.
+
+### Design principle
+
+Replay should preserve inspectability without depending on an unavailable
+provider, and new movement modes should extend the simulation contract rather
+than smuggle nondeterminism into pathfinding.

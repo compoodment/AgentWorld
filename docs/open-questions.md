@@ -264,15 +264,28 @@ The credentials and content pass accepted these defaults:
   strict provenance, performance, and replacement-history checks matter more
   than a single universal palette.
 
+### Batch 5E — accepted replay, traversal, and failure defaults
+
+The runtime resilience pass accepted these defaults:
+
+- Developer replay uses versioned JSON decision records containing the tick,
+  inhabitant/world IDs, triggers, filtered observation, memory references,
+  provider/model/config epoch, structured response, validation, selected
+  action or fallback, resulting event IDs, and timing/token metadata. Replay
+  uses recorded outputs and does not call a live provider by default.
+- Future traversal modes share a deterministic route interface. Walking and
+  roads are first; later routes may compose segments such as walking to a dock,
+  travelling by boat, and walking onward. Boats are excluded from the first
+  prototype.
+- A hosted-provider failure gets one bounded retry, then deterministic fallback
+  behaviour. The last known-good assignment remains active, the failure and
+  fallback are recorded, and the current atomic action continues safely.
+
 ### Survival and cognition tuning
 
-- What exact structured debug schema should the developer view persist and
-  replay?
-
-### Travel and family detail
-
-- How are future boats or other traversal modes added without changing the
-  first deterministic grid contract?
+The policy questions in Batch 5 are now closed. Exact serialization formats,
+retention limits, replay UI, and traversal-specific mechanics remain
+engineering work rather than unresolved world-design choices.
 
 ## Founders and family
 
