@@ -21,9 +21,9 @@ not remain open product questions.
 
 - Phase 2: Godot is the intended player-facing client, while the browser stays
   a deliberately read-only diagnostic surface. The live headless host,
-  reconnect baseline, and first Godot protocol client are now proven. Select
-  production rendering details, a target platform for packaging, and any
-  authoring workflow only when the next prototype needs them.
+  reconnect baseline, and first Godot protocol client are now proven. The
+  first end-user package targets Windows 11 x64; select production rendering
+  details and any authoring workflow only when the next prototype needs them.
 - Phase 3: measured observation, memory, inhabitant-capacity, and provider-usage
   budgets under the [cognition and society contract](../planning/cognition-and-society-contract.md);
   the contract's admission, backpressure, pause, and emergency-stop behavior is

@@ -426,6 +426,9 @@ design-log entry, with migration/fixture impact considered alongside prose.
 - Both clients consume the same versioned, non-authoritative observation and
   action protocol from a separate headless .NET world server. This decision
   does not make Godot a simulation dependency or change server authority.
+- The first end-user Godot package targets **Windows 11 x64**. It is a normal
+  runnable client, not an editor requirement; other platforms and distribution
+  mechanics remain future packaging work.
 - App-level owner authentication is deferred until a client can submit
   privileged controls such as pause, directives, or paused-world edits.
 

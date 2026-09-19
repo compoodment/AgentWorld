@@ -565,3 +565,18 @@ the project does not build the eventual Godot UI twice.
 The browser is fast and useful for protocol inspection, but it is plainly not
 the product experience. Keeping it narrow preserves its debugging value while
 spending UI work on the client users will actually run.
+
+## 2026-09-19 — First packaged-client platform
+
+### Decision
+
+The first end-user Godot package targets **Windows 11 x64**. It will be a
+normal runnable client; using or installing the Godot editor is not part of
+the user path.
+
+### Reason
+
+The first intended user confirmed Windows 11. Fixing that first package target
+lets the project validate export and handoff on the platform that will actually
+be used, without promising cross-platform distribution before the client is
+worth packaging.

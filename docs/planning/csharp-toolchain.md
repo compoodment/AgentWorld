@@ -19,6 +19,11 @@ Godot observer uses Godot 4.7.2's .NET project SDK and targets `net8.0`, the
 desktop script target supported by that engine. That target is intentionally
 local to the client; the authoritative projects remain on .NET 10.
 
+The first end-user export target is **Windows 11 x64**. It will be packaged as
+a normal runnable client; the Godot editor is a development-only tool. This
+does not yet select an installer format, code-signing provider, or additional
+desktop platforms.
+
 ## Project boundary
 
 ```text
