@@ -21,12 +21,24 @@ tool_root="${scratch_root}/tool"
 dotnet_root="${scratch_root}/dotnet"
 dotnet_archive_path="${scratch_root}/${DOTNET_RUNTIME_ARCHIVE}"
 
+verify_sha256() {
+    local expected="$1"
+    local path="$2"
+    local label="$3"
+    local actual
+    actual="$(sha256sum "${path}" | awk '{ print $1 }')"
+    if [[ "${actual}" != "${expected}" ]]; then
+        printf '%s SHA-256 mismatch\nexpected: %s\nactual:   %s\n' "${label}" "${expected}" "${actual}" >&2
+        return 1
+    fi
+}
+
 mkdir -p "${scratch_root}"
 printf 'Downloading Godot %s and its required .NET runtime\n' "${GODOT_VERSION}"
 curl --fail --location --retry 3 --retry-all-errors --silent --show-error --output "${archive_path}" "${GODOT_URL}"
-printf '%s  %s\n' "${GODOT_SHA256}" "${archive_path}" | sha256sum --check --status
+verify_sha256 "${GODOT_SHA256}" "${archive_path}" "Godot archive"
 curl --fail --location --retry 3 --retry-all-errors --silent --show-error --output "${dotnet_archive_path}" "${DOTNET_RUNTIME_URL}"
-printf '%s  %s\n' "${DOTNET_RUNTIME_SHA256}" "${dotnet_archive_path}" | sha256sum --check --status
+verify_sha256 "${DOTNET_RUNTIME_SHA256}" "${dotnet_archive_path}" ".NET runtime archive"
 unzip -qq "${archive_path}" -d "${tool_root}"
 mkdir -p "${dotnet_root}"
 tar -xzf "${dotnet_archive_path}" -C "${dotnet_root}"
