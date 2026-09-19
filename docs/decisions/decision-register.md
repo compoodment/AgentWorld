@@ -353,6 +353,29 @@ contract.
   capabilities, permissions, and preview/test results. A public registry is
   deferred.
 
+## Release and compatibility versioning
+
+- Public AgentWorld releases use Semantic Versioning with an annotated Git tag
+  prefixed by `v`. The project remains unreleased until the first runnable,
+  replay-verified vertical slice passes its acceptance gate; that first release
+  is `v0.1.0-alpha.1`.
+- Pre-1.0 alpha and beta releases communicate experimental compatibility. Patch
+  releases fix a released line; minor releases mark a new prototype milestone
+  or incompatible change in the currently supported experimental contract.
+  `v1.0.0` is reserved for a deliberate stable public-product promise.
+- A Git commit SHA identifies the exact build. Once an executable exists, its
+  `--version` output reports the release version and source revision.
+- `contract_version`, `simulation_version`, and `schema_version` remain the
+  authoritative saved-world compatibility fields. Bump them only when their
+  actual semantics change, with the required migration and replay fixtures;
+  never merely because the public game release version changed.
+- Content and mod compatibility continue to use their own SemVer ranges under
+  the content-governance contract. Future network protocol versions are a
+  separate client/server concern.
+
+The complete operational policy is
+[Versioning and releases](../planning/versioning-and-releases.md).
+
 ## 2026-09-19 — Contract remediation decisions
 
 The post-freeze review exposed implementation-critical ambiguity, not a need

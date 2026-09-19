@@ -508,3 +508,25 @@ the history of how their world changed.
 If a rule changes replay, authority, safety, or resource conservation, it needs
 an executable contract and fixture—not another vague “we should think about
 this later” bullet. Fancy phrasing is not a state machine. Sad but true.
+
+## 2026-09-19 — Release versioning
+
+### Current decisions
+
+- Public AgentWorld releases use pre-1.0 Semantic Versioning and annotated
+  `v`-prefixed Git tags. The project has no release tag until a runnable,
+  replay-verified vertical slice passes its gate; the first target is
+  `v0.1.0-alpha.1`.
+- Release labels are distinct from source identity and saved-world
+  compatibility. The exact commit SHA identifies a build, while the existing
+  contract, simulation, and schema versions continue to govern persistence and
+  replay compatibility.
+- Later package metadata will be the runtime version authority. A Python build
+  may use the equivalent PEP 440 form (`0.1.0a1`) internally while public tags
+  and release notes use the SemVer label (`v0.1.0-alpha.1`).
+
+### Design principle
+
+People need to know whether a build is an experimental game release, while the
+simulation needs to know whether a world can safely load. Those are related,
+but they are not the same bloody number.
