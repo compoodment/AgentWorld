@@ -16,7 +16,7 @@ This choice concerns the world brain, not the player-facing renderer. Godot is
 the intended player-facing client and may share C# with the core, but it must
 never become a dependency of the authoritative simulation project. The first
 Godot observer uses Godot 4.7.2's .NET project SDK and targets `net8.0`, the
-desktop runtime line loaded by that Godot engine. That target is intentionally
+desktop script target supported by that engine. That target is intentionally
 local to the client; the authoritative projects remain on .NET 10.
 
 ## Project boundary
@@ -62,5 +62,5 @@ bash scripts/verify-godot-client.sh
 
 The final command downloads the exact Godot 4.7.2 .NET engine archive, checks
 its SHA-256, builds the C# scripts, and starts the scene headlessly. GitHub
-Actions runs the same checks for pushes and pull requests and provisions the
-.NET 8 runtime alongside the pinned .NET 10 SDK.
+Actions runs the same checks for pushes and pull requests using the pinned .NET
+10 SDK/runtime host.

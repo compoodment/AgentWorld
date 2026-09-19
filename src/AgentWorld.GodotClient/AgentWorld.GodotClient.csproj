@@ -2,7 +2,7 @@
   <PropertyGroup>
     <RootNamespace>AgentWorld.GodotClient</RootNamespace>
     <!-- The authoritative projects stay on the repository-wide .NET 10 target.
-         Godot 4.7 loads its desktop C# scripts through the .NET 8 runtime. -->
+         Godot desktop projects retain this .NET 8 script target. -->
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
 </Project>
