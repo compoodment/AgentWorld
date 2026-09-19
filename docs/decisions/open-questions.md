@@ -27,12 +27,14 @@ Only implementation choices remain:
 These are build-spec choices. Resolve them in the first implementation plan and
 record the chosen direction in the [decision register](decision-register.md).
 
-## Deferred until their roadmap phase
+## Later roadmap-phase implementation choices
 
 - Phase 2: whether Godot is the viewer, client only, or a discarded prototype
   tool; native versus web client.
-- Phase 3: measured observation, memory, inhabitant-capacity, and cost budgets
-  within the [cognition and society contract](../planning/cognition-and-society-contract.md).
+- Phase 3: measured observation, memory, inhabitant-capacity, and provider-usage
+  budgets under the [cognition and society contract](../planning/cognition-and-society-contract.md);
+  the contract's admission, backpressure, pause, and emergency-stop behavior is
+  already settled.
 - Phase 5: executable-mod sandbox/runtime choice and measured resource budgets
   within the [content-governance contract](../planning/content-governance-contract.md).
 

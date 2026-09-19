@@ -164,8 +164,10 @@ LLM usage is the expensive and least deterministic part. The runtime needs:
 
 - compact observations and summaries
 - event-triggered calls instead of tick-triggered calls
-- provider/account limits configured by the human; game-level cognition caps
-  are deferred until the prototype demonstrates a need for them
+- provider/account limits configured by the human remain the external billing
+  boundary
+- contract-defined runtime controls: owner pause, queue limits and backpressure,
+  provider-wide outage pause, emergency stop, and deterministic fallback
 - model/provider configuration rather than hardcoded identity
 - timeouts, retries, and malformed-output handling
 - local mock agents and deterministic scripted scenarios
@@ -179,8 +181,9 @@ it.
 
 For hosted providers, including Ollama Cloud, the provider account remains the
 authoritative billing boundary. The project does not currently target local
-model inference. The initial prototype does not promise game-side call or
-token ceilings.
+model inference. The initial prototype does not promise fixed game-side call or
+token ceilings; Phase 3 measures usage and queue pressure before deciding
+whether any numeric ceiling is needed.
 
 An individual failed cognition request uses bounded retry and deterministic
 fallback. A confirmed provider-wide outage enters the full-world paused state at

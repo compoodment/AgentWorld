@@ -86,11 +86,13 @@ The queue, provider, authority, and telemetry semantics are defined in the
 - coalesced event triggers and urgency-based fallback behaviour
 - provider/model selection and later changes, individual-failure local
   fallback, provider-outage pause and notification, and provider status
-- defer game-side cognition ceilings until measurement shows they are needed
-- measure cost and decision quality with a mock-world harness
+- measure provider usage, queue pressure, and decision quality against the
+  contract's admission and stop controls with a mock-world harness; choose a
+  numeric call/token ceiling only if prototype evidence requires one
 
-**Gate:** one inhabitant can survive and make meaningful choices without
-making the world nondeterministic or unaffordable.
+**Gate:** one inhabitant can survive and make meaningful choices without making
+the world nondeterministic, silently exceeding declared queue/admission limits,
+or hiding provider usage and stop/fallback events.
 
 ## Phase 4 — Society, economy, and family growth
 
@@ -105,8 +107,10 @@ the [cognition and society contract](cognition-and-society-contract.md).
 - birth, childhood, inheritance, and death design
 - multiple inhabitants with independent cognition schedules
 
-**Gate:** a small group can form a legible settlement without population or API
-costs running away.
+**Gate:** a small group can form a legible settlement without unbounded
+cognition queueing or silent provider-cost growth; provider/account billing
+remains the external boundary and all runtime stop/fallback behavior remains
+observable and replayable.
 
 ## Phase 5 — Agent-created content and assets
 

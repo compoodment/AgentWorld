@@ -34,9 +34,11 @@ The first design interview established these decisions:
   provisional four-real-minute day: about 2:40 daylight and 1:20 night. The
   timing is configurable after playtesting.
 - The world continues while unpaused and unattended. Model calls may continue
-  and incur provider cost; provider/account limits belong to the human's
-  provider setup. Game-side cognition ceilings are deferred rather than an
-  initial promise.
+  and incur provider cost; provider/account limits remain the external billing
+  boundary. Numeric game-side cognition ceilings are not an initial promise;
+  runtime admission, queue/backpressure, provider-outage pause, and
+  emergency-stop behavior follow the
+  [cognition and society contract](../planning/cognition-and-society-contract.md).
 - The prototype starts from a seeded, procedurally generated world with a
   living ecosystem. A small temperate biome is enough for the first test;
   richer terrain and continents remain part of the larger concept.
@@ -123,8 +125,11 @@ founder contract:
 - A provider-level outage pauses the game and notifies the human.
 - The human chooses provider, model, personality, and skills when creating an
   inhabitant, and may change provider or model after world start.
-- Optional game-side cognition ceilings are deferred. Provider/account limits
-  remain the initial cost boundary.
+- Numeric game-side cognition ceilings are not fixed until prototype
+  measurement. Provider/account limits remain the external billing boundary;
+  runtime admission, queue/backpressure, provider-outage pause, and
+  emergency-stop behavior follow the
+  [cognition and society contract](../planning/cognition-and-society-contract.md).
 
 ### Authoring and founders
 

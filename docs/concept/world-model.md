@@ -10,8 +10,9 @@ updated: 2026-09-19
 AgentWorld is easiest to reason about as four layers. The separation is a
 design boundary, not necessarily four separate programs.
 
-The exact protected-transition, extension, and authoring rules are specified in
-the [deterministic kernel contract](../planning/deterministic-kernel-contract.md)
+The exact protected-transition, cognition, extension, and authoring rules are
+specified in the [deterministic kernel contract](../planning/deterministic-kernel-contract.md),
+[cognition and society contract](../planning/cognition-and-society-contract.md),
 and [content-governance contract](../planning/content-governance-contract.md).
 
 ## 1. Engine kernel — protected reality
@@ -31,10 +32,13 @@ default world, inhabitants and ordinary mods cannot remove or bypass:
 - persistence, save integrity, and recovery
 - identity, permissions, population accounting, and world ownership
 - mod capability boundaries, quotas, and rollback
-- LLM/API budget limits and emergency shutdown behaviour
+- cognition call-admission, provider-outage pause, and emergency-stop behaviour
 
 This is the accepted first policy boundary; exact APIs and schemas remain
-engineering work. The important principle is that survival laws must not be
+engineering work. Provider/account billing remains outside the game, while the
+runtime's stop and admission controls are executable contract requirements.
+The initial design does not promise a fixed numeric per-world or per-inhabitant
+call/token ceiling. The important principle is that survival laws must not be
 editable by the same actor whose survival depends on them.
 
 ## 2. World rules — extensible systems
