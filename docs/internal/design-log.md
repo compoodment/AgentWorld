@@ -333,3 +333,31 @@ become hidden authoritative world state.
 The world can expand its metaphysics without making mortality meaningless:
 extraordinary restoration must be an explicit, costly, inspectable rule rather
 than a silent undo button.
+
+## 2026-09-19 — Batch 5D credentials, model, and asset defaults
+
+### Current decisions
+
+- Credentials stay outside world saves. Worlds reference opaque provider
+  configuration IDs, and secrets never appear in saves, logs, prompts, or
+  telemetry. Assignment uses preflight validation and preserves the last
+  known-good assignment when validation fails.
+- Reliable structured JSON actions are the only required model capability for
+  the first prototype. Tool calls, vision, streaming, and unusually large
+  context windows remain optional extensions.
+- The first asset contract uses inert PNG files plus JSON manifests on a
+  16×16 or 32×32 world-grid scale. Dimensions, anchors, frames, collision,
+  draw cost, and isolated previews are validated before acceptance.
+- Cultures may develop distinct visual styles. Shared readability rules and
+  strict provenance, performance, and replacement-history checks matter more
+  than a single universal palette.
+
+### Deliberately not decided
+
+- The exact provider capability schema, tile-scale choice, numerical asset
+  budgets, and final client implementation remain engineering decisions.
+
+### Design principle
+
+Keep secret material outside world state, keep the initial model contract
+narrow, and preserve creative variation inside an inspectable asset pipeline.

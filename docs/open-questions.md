@@ -246,6 +246,24 @@ The family and population pass accepted these defaults:
   mods may add constrained resurrection, but revival creates a new explicit
   event/state and cannot erase the historical death.
 
+### Batch 5D — accepted credentials, model, and asset defaults
+
+The credentials and content pass accepted these defaults:
+
+- Credentials stay outside world saves. Worlds reference opaque provider
+  configuration IDs, and secrets never appear in saves, logs, prompts, or
+  telemetry. Assignment uses preflight validation and preserves the last
+  known-good assignment when validation fails.
+- Reliable structured JSON actions are the only required model capability for
+  the first prototype. Tool calls, vision, streaming, and unusually large
+  context windows remain optional extensions.
+- The first asset contract uses inert PNG files plus JSON manifests on a
+  16×16 or 32×32 world-grid scale. Dimensions, anchors, frames, collision,
+  draw cost, and isolated previews are validated before acceptance.
+- Cultures may develop distinct visual styles. Shared readability rules and
+  strict provenance, performance, and replacement-history checks matter more
+  than a single universal palette.
+
 ### Survival and cognition tuning
 
 - What exact structured debug schema should the developer view persist and
@@ -253,22 +271,13 @@ The family and population pass accepted these defaults:
 
 ### Travel and family detail
 
-- What route-cache data survives save/load, and how are future boats or other
-  traversal modes added without changing the first grid contract?
-
-### Provider and content detail
-
-- How are credentials and model capabilities validated before assignment?
-- Which asset format, performance checks, provenance fields, and preview steps
-  are needed for the first client?
+- How are future boats or other traversal modes added without changing the
+  first deterministic grid contract?
 
 ## Founders and family
 
 - Can a founder self-name and self-describe, or must the creator approve its
   identity?
-- What exactly counts as a family and how are relationships represented?
-- How are consent, partnership, birth, care, and death modelled without
-  reducing them to a crude population button?
 
 ## Kernel and modding
 
