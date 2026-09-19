@@ -51,6 +51,8 @@ project happened to ask questions.
 - [Phase 1 implementation ledger](implementation/phase-1.md) — capability
   evidence for the deterministic vertical slice. GitHub owns its active-work
   state.
+- [Persistence spike evidence](implementation/persistence-spike.md) — the
+  bounded save/replay/migration feasibility result, not a database commitment.
 
 ## Maintenance rule
 

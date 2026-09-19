@@ -25,15 +25,15 @@ the [deterministic kernel contract](../planning/deterministic-kernel-contract.md
 
 ## Capability ledger
 
-All kernel rows begin as `specified`. The toolchain foundation is verified, but
-that does not mean any world behavior exists. The linked issue is the
-live-work source; replace `none` with a merged PR and test or CI command only
-when evidence exists.
+All kernel rows begin as `specified`. The toolchain foundation and bounded
+persistence spike are verified, but that does not mean a complete world
+behavior exists. The linked issue is the live-work source; replace `none` with
+a merged PR and test or CI command only when evidence exists.
 
 | Contract area | Delivery issue | Evidence status | Code / test evidence |
 | --- | --- | --- | --- |
 | Runtime, test framework, dependency and CI entrypoint | [#86](https://github.com/compoodment/AgentWorld/issues/86) | verified | [C# toolchain](../planning/csharp-toolchain.md); `dotnet restore --locked-mode && dotnet format --verify-no-changes --no-restore && dotnet test --configuration Release --no-restore` |
-| World identity, events, snapshots, migrations, and replay persistence | [#87](https://github.com/compoodment/AgentWorld/issues/87) | specified | none |
+| World identity, events, snapshots, migrations, and replay persistence | [#87](https://github.com/compoodment/AgentWorld/issues/87) | verified spike | [Persistence spike evidence](persistence-spike.md); `dotnet test --configuration Release --no-restore` |
 | Seed corpus, generated-map acceptance, scripted actor, and canonical digest harness | [#88](https://github.com/compoodment/AgentWorld/issues/88) | specified | none |
 | Integral tick loop, clock, pause/resume, ordered ingress, and deterministic randomness | [#89](https://github.com/compoodment/AgentWorld/issues/89) | specified | none |
 | Routing, reservations, movement contention, and cache invalidation | [#89](https://github.com/compoodment/AgentWorld/issues/89) | specified | none |

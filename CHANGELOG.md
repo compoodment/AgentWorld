@@ -7,3 +7,5 @@ published a release yet.
 
 - Added the .NET 10 headless simulation foundation and reproducible test entry
   point for the Phase 1 deterministic kernel.
+- Added a bounded canonical snapshot/event-log, migration, and replay
+  feasibility spike; no production database or save-format promise is made.
