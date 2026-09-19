@@ -23,6 +23,7 @@ baseline is defined in the
 | Contract area | Delivery issue | Evidence status | Code / test evidence |
 | --- | --- | --- | --- |
 | Versioned handshake, tick-indexed seeded snapshot, ordered event suffix, and static read-only browser inspection | [#95](https://github.com/compoodment/AgentWorld/issues/95) | verified | [c44fb37](https://github.com/compoodment/AgentWorld/commit/c44fb376803735cba1eebc458fc6778ff61387a6); ViewerObservationTests; ViewerHttpTests; [GitHub CI](https://github.com/compoodment/AgentWorld/actions/runs/35438342872); locked restore, format, and test command |
+| Persistent private deployment of the read-only viewer | [#96](https://github.com/compoodment/AgentWorld/issues/96) | verified | systemd service source binds Kestrel to loopback only; private Tailscale Serve HTTPS proxy; deployed static page, handshake, and 405 write refusal checked over HTTPS; CI for the deployment source |
 
 ## Scope and deferrals
 
