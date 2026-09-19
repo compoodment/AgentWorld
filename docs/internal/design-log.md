@@ -445,13 +445,41 @@ arbitrary packages with its filesystem, network, credentials, or process.
   validation and application path and can later be exported as normal mod
   packages.
 
-### Deliberately not decided
+### Later resolved
 
-- The authority inhabitants have to activate or export their own creations is
-  still open; authorship does not itself grant kernel or executable privileges.
+- Batch 6C established that validated data-only content may be adopted through
+  ordinary world activity, major changes follow constitutional authority, and
+  export remains a human world-owner action. Authorship still grants neither
+  kernel nor executable privileges.
 
 ### Design principle
 
 Modding is not only an external developer feature. The world itself should be
 able to invent and preserve new content without turning creativity into an
 unvalidated back door.
+
+## 2026-09-19 — Batch 6C inhabitant authorship and constitutional change
+
+### Current decisions
+
+- Inhabitants may propose tools, items, buildings, recipes, clothing, art,
+  festivals, customs, professions, organizations, crops, domesticated species,
+  local events, and declarative world rules. Altered biology, resurrection,
+  and new physical laws follow a higher-risk proposal path.
+- Validated data-only content may be adopted through ordinary world activity.
+  Major rule changes require the authority established by the world
+  constitution: human-owner approval by default, or an explicit in-world
+  constitutional process where the constitution delegates that authority.
+- A constitution may change after world creation only through an explicit,
+  paused, validated, versioned migration. It is a historical event with a
+  rollback path; kernel safety and causality cannot be removed.
+- Inhabitant-authored creations are private to their world by default. A human
+  owner may export a reusable package with author/provenance, dependencies,
+  compatibility, capabilities, permissions, and preview/test results. A public
+  registry is deferred.
+
+### Design principle
+
+Inhabitants can become genuine authors of their world without acquiring the
+unstated power to rewrite protected reality, publish arbitrary code, or erase
+the history of how their world changed.

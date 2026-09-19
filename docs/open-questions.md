@@ -333,13 +333,31 @@ contract.
   creations use the same validation and application path and can later be
   exported as normal mod packages.
 
+### Batch 6C — accepted inhabitant authorship and constitution defaults
+
+- Inhabitants may propose tools, items, buildings, recipes, clothing, art,
+  festivals, customs, professions, organizations, crops, domesticated species,
+  local events, and declarative world rules. Altered biology, resurrection,
+  and new physical laws take a higher-risk proposal path.
+- Validated data-only creations may be adopted through ordinary world activity.
+  Major rule changes require world-owner approval by default, or an explicit
+  in-world constitutional process where the current constitution delegates that
+  authority.
+- Constitutions can change after world creation only through an explicit,
+  paused, tested, versioned migration. The change is historical and reversible
+  through its migration record; kernel safety and causality remain mandatory.
+- Creations are private to their world by default. A human world owner may
+  export a reusable package with provenance, dependencies, compatibility,
+  capabilities, permissions, and preview/test results. A public registry is
+  deferred.
+
 ### Remaining kernel and modding questions
 
 - How are mods migrated when the simulation version changes?
 - How do we prove that a mod cannot create runaway resources, entities, or
   computation?
-- How much authority should inhabitants have to activate or export their own
-  creations?
+- What default world policies should govern automatic adoption of low-risk
+  inhabitant-created content?
 
 ## Economy and assets
 

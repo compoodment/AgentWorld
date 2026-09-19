@@ -149,9 +149,23 @@ is the current candidate—but that runtime is not locked yet. A private fork ma
 change host code directly; that is a deployment fork, not a regular installed
 mod, and it carries the fork owner's security responsibility.
 
-Inhabitants are also allowed to author proposals for objects, items, recipes,
-buildings, customs, events, and potentially new world rules. Their creations
-use the same validation, approval, migration, and rollback path as human-made
-mods. Accepted creations can preserve their provenance and be exported as a
-normal mod package; authorship does not grant an inhabitant direct executable
-or kernel privileges.
+Inhabitants are authors, not merely consumers of content. They may propose
+objects, items, tools, recipes, buildings, clothing, art, customs,
+organizations, events, crops, domesticated species, and potentially new world
+rules. Validated data-only content can enter a world through its ordinary
+proposal and application policy. Higher-risk changes—such as altered biology,
+resurrection, or new physical laws—need the authority defined by the world's
+constitution.
+
+Their creations use the same validation, approval, migration, and rollback path
+as human-made mods. A world may delegate major changes to an explicit in-world
+constitutional process, but protected kernel invariants remain mandatory.
+Accepted creations preserve their provenance. The human world owner decides
+whether one is exported as a reusable mod package; authorship never grants an
+inhabitant direct executable, kernel, or publishing privileges.
+
+World constitutions are themselves versioned world rules. They can change only
+through an explicit, paused, tested migration authorized either by the owner or
+by an in-world constitutional process that the current constitution explicitly
+permits. The event is historical, reversible through the recorded migration
+path, and cannot retroactively falsify prior world history.

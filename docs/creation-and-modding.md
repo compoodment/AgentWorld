@@ -2,7 +2,7 @@
 title: Creation and Modding
 type: concept
 status: draft
-updated: 2026-09-18
+updated: 2026-09-19
 ---
 
 # Creation and Modding
@@ -111,9 +111,33 @@ No mod or inhabitant proposal may directly:
 - bypass provider/account controls or any future configured world cognition
   limits
 
-World owners may eventually choose a different constitution when creating a
-world, but that is a new world configuration with explicit rules—not a hidden
-escape hatch inside an existing simulation.
+World owners choose a constitution when creating a world. A constitution may
+later change only through an explicit, paused, validated migration: either the
+owner authorizes it, or an in-world constitutional process authorizes it when
+the current constitution has explicitly delegated that authority. It is a
+versioned historical event, not a hidden escape hatch inside an existing
+simulation. No constitution may bypass protected kernel invariants.
+
+## Inhabitant authorship and authority
+
+Inhabitants can author more than decorative content. They may propose tools,
+items, buildings, recipes, clothing, art, festivals, customs, professions,
+organizations, crops, domesticated species, local events, and declarative world
+rules. A fungus crop and its harvest festival are ordinary world creativity;
+altered biology, resurrection, or new physical laws are higher-risk changes.
+
+Validated data-only creations may enter the world through ordinary activity
+under the world policy. Major rule changes require the authority assigned by the
+world constitution—by default the world owner, or an explicit in-world process
+where that constitution permits it. Every accepted creation remains subject to
+resource costs, spatial checks, quotas, and the protected boundaries above.
+
+Inhabitant-authored creations are private to the world by default. A human
+world owner may export one as a reusable package with its author/provenance,
+dependencies, compatibility range, declared capabilities, permissions, and
+preview/test results. A public registry is a later feature. Inhabitants do not
+gain automatic authority to publish, install executable code, or grant their
+own proposals privileges.
 
 ## The abundance test
 
