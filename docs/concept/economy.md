@@ -2,10 +2,14 @@
 title: Economy, Inventories, and Exchange
 type: concept
 status: draft
-updated: 2026-09-18
+updated: 2026-09-19
 ---
 
 # Economy, Inventories, and Exchange
+
+The exact deterministic transaction, reservation, resource, and lot/freshness
+semantics are specified in the
+[deterministic kernel contract](../planning/deterministic-kernel-contract.md).
 
 The economy is how survival becomes social. A farmer should be able to grow
 food, own or share it, and decide what to do with it. Other inhabitants should

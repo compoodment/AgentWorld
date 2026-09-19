@@ -7,6 +7,10 @@ updated: 2026-09-19
 
 # Inhabitants
 
+The exact cognition, provider, memory, relationship, consent, birth, age, and
+death semantics are specified in the
+[cognition and society contract](../planning/cognition-and-society-contract.md).
+
 Inhabitants are LLM-driven agents embodied in the world. They are not just
 chat sessions with sprites; their identity, needs, possessions, relationships,
 and memories have consequences in the simulation.

@@ -13,6 +13,10 @@ evidence. Do not create new interview batches for speculative future systems.
 
 ## Phase 1 — deterministic simulation kernel
 
+The behavioral contract and fixture categories are settled in the
+[deterministic kernel contract](../planning/deterministic-kernel-contract.md).
+Only implementation choices remain:
+
 - Which implementation language and test toolchain produce the smallest
   reproducible headless kernel on the target host?
 - What event, snapshot, and migration storage format is sufficient for the
@@ -20,18 +24,16 @@ evidence. Do not create new interview batches for speculative future systems.
 - What compact seeded map, terrain fixture set, and test actors expose movement,
   needs, ownership, and persistence failures quickly?
 
-These are build-spec choices. Resolve them in the Phase 1 prototype contract
-and acceptance tests, then record the chosen direction in the
-[decision register](decision-register.md).
+These are build-spec choices. Resolve them in the first implementation plan and
+record the chosen direction in the [decision register](decision-register.md).
 
 ## Deferred until their roadmap phase
 
 - Phase 2: whether Godot is the viewer, client only, or a discarded prototype
   tool; native versus web client.
-- Phase 3: the provider adapter schema, observation budget, memory compression,
-  and measured inhabitant capacity/cost.
-- Phase 5: mod migration across simulation versions, resource-proof/testing
-  strategy, automatic low-risk-content adoption policy, and the executable-mod
-  sandbox runtime.
+- Phase 3: measured observation, memory, inhabitant-capacity, and cost budgets
+  within the [cognition and society contract](../planning/cognition-and-society-contract.md).
+- Phase 5: executable-mod sandbox/runtime choice and measured resource budgets
+  within the [content-governance contract](../planning/content-governance-contract.md).
 
 No item above blocks the deterministic Phase 1 kernel.

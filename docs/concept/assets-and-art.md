@@ -2,10 +2,14 @@
 title: Assets and Art Pipeline
 type: concept
 status: draft
-updated: 2026-09-18
+updated: 2026-09-19
 ---
 
 # Assets and Art Pipeline
+
+The deterministic asset identity, resource limits, and export rights/integrity
+requirements are specified in the
+[content-governance contract](../planning/content-governance-contract.md).
 
 AgentWorld needs a visual world without making every inhabitant a trusted game
 developer. The key separation is:

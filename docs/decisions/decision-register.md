@@ -347,3 +347,27 @@ contract.
   export a reusable package with provenance, dependencies, compatibility,
   capabilities, permissions, and preview/test results. A public registry is
   deferred.
+
+## 2026-09-19 — Contract remediation decisions
+
+The post-freeze review exposed implementation-critical ambiguity, not a need
+for another broad design interview. The linked contracts now define the current
+authority for deterministic execution, cognition/social state, and content
+governance.
+
+- A confirmed provider-wide outage pauses the entire world at an atomic boundary
+  and needs explicit owner resume after recovery probes; individual failures use
+  bounded local fallback first.
+- Tick order, pause/resume, RNG streams, genesis identity, migrations, route
+  resolution, inventories/lots, commands, and replay fixtures are fixed by the
+  [deterministic kernel contract](../planning/deterministic-kernel-contract.md).
+- Inhabitants are identities rather than owned objects. Consent, guardian care,
+  provider precedence, cognition epochs, private telemetry, birth/age/death,
+  and the default estate path are fixed by the
+  [cognition and society contract](../planning/cognition-and-society-contract.md).
+- Content activation, package locks, compatibility, authoring batches, runtime
+  quarantine, asset integrity/rights, and constitutional changes are fixed by
+  the [content-governance contract](../planning/content-governance-contract.md).
+
+The contract documents may be changed only through an explicit decision and
+design-log entry, with migration/fixture impact considered alongside prose.

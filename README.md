@@ -73,6 +73,11 @@ project is:
 3. [Roadmap](docs/planning/roadmap.md)
 4. [Decision register](docs/decisions/decision-register.md)
 
+The implementation-level boundaries for the next phases live in the
+[deterministic kernel contract](docs/planning/deterministic-kernel-contract.md),
+[cognition and society contract](docs/planning/cognition-and-society-contract.md),
+and [content-governance contract](docs/planning/content-governance-contract.md).
+
 The decision register is the current authority; the
 [design log](docs/decisions/design-log.md) is the chronological record of why
 those decisions were made. The retired Batch 5 worksheet has been removed:

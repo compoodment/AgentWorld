@@ -484,3 +484,27 @@ unvalidated back door.
 Inhabitants can become genuine authors of their world without acquiring the
 unstated power to rewrite protected reality, publish arbitrary code, or erase
 the history of how their world changed.
+
+## 2026-09-19 — Review-contract remediation
+
+### Current decisions
+
+- A broad external review identified overlapping but real execution-contract
+  gaps. The project resolved them as three maintained contracts rather than a
+  new collection of disconnected issue-specific prose.
+- The deterministic kernel contract fixes the replay/pause/time/RNG/save/map/
+  movement/inventory/message boundary and Phase 1 acceptance fixtures.
+- The cognition and society contract fixes authority provenance, provider
+  binding/failure, privacy, memory, consent, family lifecycle, and estates.
+- The content-governance contract fixes immutable package identity, live
+  data-only activation, authoring batches, dependency resolution, quarantine,
+  asset rights/limits, and constitutional migrations.
+- A confirmed provider-wide outage is now unambiguously a full-world atomic
+  pause requiring recovery probes and explicit owner resume; it does not let
+  unrelated simulation time advance in the background.
+
+### Design principle
+
+If a rule changes replay, authority, safety, or resource conservation, it needs
+an executable contract and fixture—not another vague “we should think about
+this later” bullet. Fancy phrasing is not a state machine. Sad but true.

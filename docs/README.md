@@ -25,6 +25,9 @@ project happened to ask questions.
 - [Architecture direction](planning/architecture.md)
 - [Feature scope](planning/feature-scope.md)
 - [Roadmap](planning/roadmap.md)
+- [Deterministic kernel and recovery contract](planning/deterministic-kernel-contract.md)
+- [Cognition, authority, and society contract](planning/cognition-and-society-contract.md)
+- [Content, mod, and constitutional governance contract](planning/content-governance-contract.md)
 
 ## Decisions
 

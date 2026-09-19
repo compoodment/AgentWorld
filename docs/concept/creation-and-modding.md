@@ -7,6 +7,10 @@ updated: 2026-09-19
 
 # Creation and Modding
 
+The package identity, activation, compatibility, quota, and constitutional
+rules are specified in the
+[content-governance contract](../planning/content-governance-contract.md).
+
 AgentWorld's defining ambition is that inhabitants can make their world more
 interesting while living in it. This must be powerful enough to be meaningful
 and constrained enough to remain testable and safe.

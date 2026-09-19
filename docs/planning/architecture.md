@@ -11,6 +11,9 @@ This is a proposed foundation, not an implementation specification. Its job is
 to identify boundaries and invariants before code makes them expensive to
 change.
 
+The concrete deterministic, cognition, and content-governance semantics are in
+the linked [implementation contracts](../README.md#planning).
+
 ## Proposed components
 
 ```text
@@ -180,9 +183,10 @@ model inference. The initial prototype does not promise game-side call or
 token ceilings.
 
 An individual failed cognition request uses bounded retry and deterministic
-fallback. If health checks establish a provider-wide outage, the runtime may
-pause new model-dependent decisions and notify the human while safe current
-actions and fallback behaviour continue according to world policy.
+fallback. A confirmed provider-wide outage enters the full-world paused state at
+the next atomic boundary, cancels/invalidates pending model work, and notifies
+the human. It does not quietly keep the rest of the simulation advancing; see
+the [deterministic kernel contract](deterministic-kernel-contract.md).
 
 ## VPS target
 

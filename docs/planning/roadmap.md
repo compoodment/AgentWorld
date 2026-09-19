@@ -34,6 +34,9 @@ prototype evidence.
 
 ## Phase 1 — Deterministic simulation kernel (current)
 
+The exact Phase 1 semantics and replay fixtures are in the
+[deterministic kernel contract](deterministic-kernel-contract.md).
+
 - world time and logical coordinates
 - 365-day calendar, simple seasons, day/night, and pause state
 - terrain and resource primitives
@@ -52,6 +55,9 @@ client.
 
 ## Phase 2 — World viewer and observation boundary
 
+The protocol and client-correction baseline are defined in the
+[deterministic kernel contract](deterministic-kernel-contract.md).
+
 - choose the rendering/client engine
 - render a seeded world and active entities
 - inspect the complete world, selected inhabitants, summarized decision factors,
@@ -67,6 +73,9 @@ client.
 mutate authoritative state.
 
 ## Phase 3 — One LLM inhabitant
+
+The queue, provider, authority, and telemetry semantics are defined in the
+[cognition and society contract](cognition-and-society-contract.md).
 
 - add a configurable model/provider adapter
 - event-driven cognition queue
@@ -85,6 +94,9 @@ making the world nondeterministic or unaffordable.
 
 ## Phase 4 — Society, economy, and family growth
 
+The relationship, consent, family, estate, and access semantics are defined in
+the [cognition and society contract](cognition-and-society-contract.md).
+
 - relationships and social memory
 - emergent work and roles
 - food storage, barter, local exchange, and economic decision-making
@@ -97,6 +109,9 @@ making the world nondeterministic or unaffordable.
 costs running away.
 
 ## Phase 5 — Agent-created content and assets
+
+The activation, package, asset, quarantine, and constitutional semantics are
+defined in the [content-governance contract](content-governance-contract.md).
 
 - content declaration format
 - asset proposal, normalization, provenance, and preview pipeline

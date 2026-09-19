@@ -10,6 +10,10 @@ updated: 2026-09-19
 AgentWorld is easiest to reason about as four layers. The separation is a
 design boundary, not necessarily four separate programs.
 
+The exact protected-transition, extension, and authoring rules are specified in
+the [deterministic kernel contract](../planning/deterministic-kernel-contract.md)
+and [content-governance contract](../planning/content-governance-contract.md).
+
 ## 1. Engine kernel — protected reality
 
 The kernel defines the minimum rules that make the world coherent. In the
