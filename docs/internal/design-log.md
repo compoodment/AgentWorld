@@ -389,3 +389,38 @@ narrow, and preserve creative variation inside an inspectable asset pipeline.
 Replay should preserve inspectability without depending on an unavailable
 provider, and new movement modes should extend the simulation contract rather
 than smuggle nondeterminism into pathfinding.
+
+## 2026-09-19 — Batch 6A kernel and modding boundaries
+
+### Current decisions
+
+- The kernel protects identity and lifecycle, time and causal ordering,
+  authoritative state mutation, spatial validity, ownership and transactions,
+  consent and protected biological rules, death, persistence, and mod quotas.
+- World rules and content may add or tune weather, needs, cultures, economies,
+  species, buildings, professions, events, objects, items, recipes, and
+  visual/narrative material. They submit validated proposals rather than
+  directly rewriting protected state.
+- Each world may choose a constitution or rule package at creation, while
+  kernel safety and causality remain mandatory.
+- Data-only content can be auto-approved; declarative rules require explicit
+  world-owner enablement; executable code, network, filesystem, and host
+  integration are disabled by default and require stronger review and
+  isolation. Review applies to outside contributors and to packages installed
+  on a hosted world; it is not the sole security boundary.
+
+### Provisional recommendation
+
+- Future executable mods should probably use a capability-limited WebAssembly
+  sandbox. A private fork can change host code directly, but that is a separate
+  deployment fork rather than an installed-mod capability.
+
+### Deliberately not decided
+
+- Mod migration, formal resource-proof/testing strategy, and the final
+  executable sandbox/runtime remain open.
+
+### Design principle
+
+The game should be highly moddable without requiring a hosted server to trust
+arbitrary packages with its filesystem, network, credentials, or process.

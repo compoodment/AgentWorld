@@ -294,11 +294,30 @@ engineering work rather than unresolved world-design choices.
 
 ## Kernel and modding
 
-- What is the smallest genuinely immutable kernel?
-- Which systems belong in moddable world rules rather than the kernel?
-- Can a world owner choose a different constitution when creating a new world?
-- What capabilities can be auto-approved, and which require human review?
-- Which sandbox technology is appropriate for future executable behaviours?
+### Batch 6A — accepted kernel and modding boundaries
+
+- The kernel protects identity and lifecycle, time and causal ordering,
+  authoritative state mutation, spatial validity, ownership and transactions,
+  consent and protected biological rules, death, persistence, and mod quotas.
+- World rules and content may add or tune weather, needs, cultures, economies,
+  species, buildings, professions, events, objects, items, recipes, and
+  visual/narrative material. They submit validated proposals rather than
+  directly rewriting protected state.
+- Each world may choose a constitution or rule package at creation, while
+  kernel safety and causality remain mandatory.
+- Data-only content can be auto-approved; declarative rules require explicit
+  world-owner enablement; executable code, network, filesystem, and host
+  integration are disabled by default and require stronger review and
+  isolation. This distinction applies both to outside contributors and to
+  packages installed on a hosted world.
+
+The current recommendation for future executable mods is a capability-limited
+WebAssembly sandbox, but that technology choice is still provisional. A private
+fork can change host code directly; that is separate from the installed-mod
+contract.
+
+### Remaining kernel and modding questions
+
 - How are mods migrated when the simulation version changes?
 - How do we prove that a mod cannot create runaway resources, entities, or
   computation?
@@ -312,7 +331,6 @@ engineering work rather than unresolved world-design choices.
 - How should prices, wages, debt, theft, taxation, and contracts interact with
   consent and local law?
 - Which economic events deserve an LLM decision and which stay deterministic?
-- What asset formats and normalization rules are needed for the first client?
 - Which generated-art sources are acceptable, and how should provenance and
   licensing be recorded?
 - How much visual inconsistency should a culture be allowed to create before
@@ -320,8 +338,8 @@ engineering work rather than unresolved world-design choices.
 
 ## LLM runtime and technology
 
-- Which hosted provider APIs and model capabilities should the first registry
-  support?
+- What exact provider capability schema and adapter contract should the first
+  registry implement?
 - What is the observation format and maximum context size?
 - What personal memory is useful enough to retain, and how is it compressed?
 - How do we evaluate whether a choice is coherent without judging it only by

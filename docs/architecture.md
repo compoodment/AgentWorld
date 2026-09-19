@@ -179,6 +179,11 @@ authoritative billing boundary. The project does not currently target local
 model inference. The initial prototype does not promise game-side call or
 token ceilings.
 
+An individual failed cognition request uses bounded retry and deterministic
+fallback. If health checks establish a provider-wide outage, the runtime may
+pause new model-dependent decisions and notify the human while safe current
+actions and fallback behaviour continue according to world policy.
+
 ## VPS target
 
 The initial target is a small VPS-hosted private world, not an MMO. A headless

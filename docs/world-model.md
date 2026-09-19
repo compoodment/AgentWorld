@@ -29,8 +29,9 @@ default world, inhabitants and ordinary mods cannot remove or bypass:
 - mod capability boundaries, quotas, and rollback
 - LLM/API budget limits and emergency shutdown behaviour
 
-The exact list is still open. The important principle is that survival laws
-must not be editable by the same actor whose survival depends on them.
+This is the accepted first policy boundary; exact APIs and schemas remain
+engineering work. The important principle is that survival laws must not be
+editable by the same actor whose survival depends on them.
 
 ## 2. World rules — extensible systems
 
@@ -141,3 +142,9 @@ propose
 Every applied mod needs an identifier, author, version, dependency list,
 declared capabilities, migration strategy, and rollback strategy. These fields
 are design requirements even though the package format is not chosen yet.
+
+Data-only content and declarative rule packages are the first-class modding
+target. Future executable mods may use a capability-limited sandbox—WebAssembly
+is the current candidate—but that runtime is not locked yet. A private fork may
+change host code directly; that is a deployment fork, not a regular installed
+mod, and it carries the fork owner's security responsibility.
