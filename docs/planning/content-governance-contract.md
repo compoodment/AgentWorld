@@ -162,15 +162,55 @@ collisions reject by default; replacement creates a new immutable version with
 explicit references/aliases/tombstones. Normalization is idempotent and gets a
 cross-platform fixture digest.
 
-Initial acceptance limits are versioned policy, not renderer accidents:
+Initial acceptance limits are versioned policy, not renderer accidents. The
+limits below are `asset-budget-v1`; `MiB` means `2^20` bytes and all counters
+are integers:
 
-- PNG only; at most 4 MiB compressed and 16 MiB decoded per asset;
-- at most 2,048 × 2,048 pixels, 256 animation frames, and 60 frames/second;
-- at most 512 assets / 64 MiB decoded data per activated package;
-- isolated decode/preview with a two-second CPU timeout and no network/file
-  access beyond the candidate; and
-- rejection/quarantine plus a provenance event for a decode bomb, budget breach,
-  malformed input, or aggregate load breach.
+| scope | resource | limit and deterministic accounting |
+| --- | --- | --- |
+| asset | candidate compressed bytes | 4 MiB, counted from the exact input PNG byte length before decode |
+| asset | decoded bytes | 16 MiB, counted as `width × height × 4 × frame_count` for canonical RGBA8 frames |
+| asset | dimensions | 2,048 × 2,048 pixels maximum; neither dimension may be zero |
+| asset | animation frames | 256 frames maximum, including the still-image frame |
+| asset | animation duration | 30,000 ms maximum; frame timestamps are integer milliseconds and the last frame end must be within this bound |
+| asset | animation sample rate | 60 Hz maximum; the normalized manifest stores an integer rate and rejects zero, fractional, or inconsistent timing |
+| asset | durable storage | 8 MiB per asset, counted as normalized PNG bytes plus canonical JSON metadata, notices, and provenance |
+| asset | decoded cache | 16 MiB per resident asset, charged by the same canonical RGBA8 byte count (a cache entry is keyed by normalized digest and decode profile) |
+| asset | render/GPU charge | 16 MiB per resident texture, charged as canonical RGBA8 bytes regardless of backend compression, and at most 4 logical draw units per visible instance |
+| package | package load | 512 assets and 64 MiB decoded-data reservation per activated package |
+| world | durable asset storage | 512 MiB across distinct normalized asset digests referenced by the active world; each digest is charged once, including its metadata and notices |
+| world | decoded cache | 256 MiB across resident cache entries; entries are keyed by `(normalized_digest, decode_profile)` |
+| world | GPU texture residency | 256 MiB across resident textures, using the canonical RGBA8 charge rather than a driver-specific allocation |
+| world | render work | 8,192 logical draw units per rendered frame, where each visible instance contributes its declared 1–4 draw units |
+
+The normalizer validates the asset-level limits before reserving package or
+world resources. It then evaluates reservations in ascending canonical asset
+ID (digest as the final tie-break), without partially applying a package or
+world activation. A candidate that exceeds any asset, package, or durable
+world limit is rejected. An already-active package that cannot satisfy a new
+world reservation is quarantined for that world; committed definitions and
+history remain available for recovery, but the failing version is not loaded.
+
+Cache and texture residency are rebuildable runtime data, not authoritative
+world state. On a cache or texture miss, entries are evicted by ascending
+`(last_used_tick, normalized_digest, decode_profile)` and current-frame-pinned
+entries are never evicted. If no deterministic eviction can make room, the
+candidate is not decoded or rendered and an audit event is emitted. Render
+work is counted before submission; a frame that would exceed 8,192 units
+renders no over-budget candidate and does not mutate simulation state. These
+rules make cache/GPU behaviour independent of client driver compression or
+thread scheduling.
+
+Decode and preview run in an isolated process with a fixed two-second CPU
+budget, no network access, and no file access beyond the candidate and its
+declared metadata. The decoder must stop before allocating beyond the decoded
+limit. Every rejection or quarantine emits one provenance event containing the
+world/package/asset IDs, normalized or input digest when available, policy
+version, stage, reason code, observed value, limit, and validation/event ID.
+The required reason codes are `malformed_input`, `decode_bomb`,
+`asset_budget_breach`, `package_budget_breach`, `world_storage_breach`,
+`world_cache_breach`, `world_gpu_breach`, `world_render_breach`, and
+`preview_timeout`.
 
 An export manifest additionally contains source kind, creator/proposer, rights
 holder where known, upstream/derivative chain, original and normalized digests,
@@ -206,6 +246,45 @@ The Phase 5 gate includes fixtures for: ambiguous aliases; package-digest
 mismatch after preview; dependency cycle/conflict/missing optional dependency;
 compatibility range failure; data-only next-tick activation; paused rule
 migration; forbidden authoring overwrite; authoring crash/retry; quota failure
-with dependent inventory/job state; package uninstall migration; normalization
-idempotence/name collision; decompression/aggregate budget rejection; asset
-rights `unknown`; and constitutional quorum/tie/deadlock/rollback.
+with dependent inventory/job state; package uninstall migration;
+normalization idempotence/name collision; asset rights `unknown`; and
+constitutional quorum/tie/deadlock/rollback.
+
+The `asset-budget-v1` fixture vector uses canonical IDs and records the
+provenance event as well as the accept/reject result:
+
+- `asset-boundaries`: independent valid candidates at each scalar ceiling
+  (4 MiB compressed, 16 MiB decoded, 2,048 × 2,048 pixels, 256 frames,
+  30,000 ms, and 60 Hz) are accepted when each applicable aggregate
+  reservation fits. Increasing a byte-valued ceiling by one byte, a dimension
+  by one pixel, or a count/timing ceiling by one frame, millisecond, or Hz
+  rejects with `asset_budget_breach` at the named field.
+- `asset-storage-boundary`: an 8 MiB normalized payload-plus-manifest is
+  accepted; 8 MiB + 1 byte rejects with `asset_budget_breach` and reports
+  `durable_storage`.
+- `asset-render-boundary`: four declared draw units and a 16 MiB canonical
+  RGBA8 texture are accepted; five draw units or 16 MiB + 1 byte rejects with
+  `asset_budget_breach` and reports `render/GPU`.
+- `package-aggregate-boundary`: four 16 MiB decoded assets are accepted; a
+  candidate that raises the decoded reservation to 64 MiB + 1 byte, or a
+  candidate that would make 513 assets, rejects the whole package with
+  `package_budget_breach`; no earlier asset becomes active.
+- `world-storage-boundary`: distinct normalized digests totaling 512 MiB are
+  accepted; a candidate taking the total to 512 MiB + 1 byte rejects with
+  `world_storage_breach`, while a duplicate digest is charged once.
+- `world-cache-and-gpu-boundary`: 256 one-MiB entries fit each corresponding
+  world budget. A 257th entry evicts the deterministic least-recently-used
+  unpinned entry by the specified tuple; when every existing entry is pinned,
+  the candidate is not decoded/uploaded and emits `world_cache_breach` or
+  `world_gpu_breach` without changing authoritative state.
+- `world-render-boundary`: 2,048 visible four-unit instances fit exactly; a
+  frame with 2,049 such instances (8,196 units) omits the over-budget
+  candidate and emits `world_render_breach` without a simulation mutation.
+- `compressed-bomb-and-timeout`: a PNG whose compressed bytes pass but whose
+  declared/decompressed output exceeds 16 MiB, and a decoder that runs past
+  two CPU seconds, both terminate before unbounded allocation and emit
+  `decode_bomb` or `preview_timeout`, respectively, with the input digest.
+- `aggregate-load-audit`: a malformed candidate, a package aggregate breach,
+  and each world-budget breach produce exactly one event with the policy
+  version, observed value, limit, stage, and immutable provenance; retries do
+  not duplicate the event or partially activate content.
