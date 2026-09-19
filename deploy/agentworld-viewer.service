@@ -1,0 +1,22 @@
+[Unit]
+Description=AgentWorld read-only browser viewer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=clanker
+Group=clanker
+WorkingDirectory=/opt/agentworld-viewer
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_NOLOGO=1
+ExecStart=/home/clanker/.local/bin/dotnet /opt/agentworld-viewer/AgentWorld.Viewer.dll --urls http://127.0.0.1:5188
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
