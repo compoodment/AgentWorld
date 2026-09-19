@@ -25,10 +25,8 @@ the [deterministic kernel contract](../planning/deterministic-kernel-contract.md
 
 ## Capability ledger
 
-All kernel rows begin as `specified`. The toolchain foundation and bounded
-persistence spike are verified, but that does not mean a complete world
-behavior exists. The linked issue is the live-work source; replace `none` with
-a merged PR and test or CI command only when evidence exists.
+The linked issue is the live-work source; code, named fixtures, and the
+reproducible verification command provide the evidence below.
 
 | Contract area | Delivery issue | Evidence status | Code / test evidence |
 | --- | --- | --- | --- |
@@ -37,12 +35,13 @@ a merged PR and test or CI command only when evidence exists.
 | Seed corpus, generated-map acceptance, scripted actor, and canonical digest harness | [#88](https://github.com/compoodment/AgentWorld/issues/88) | verified harness | [Seeded harness evidence](seeded-harness.md); `dotnet test --configuration Release --no-restore` |
 | Integral tick loop, clock, pause/resume, ordered ingress, and deterministic randomness | [#90](https://github.com/compoodment/AgentWorld/issues/90) | verified fixture | [Staged kernel evidence](staged-kernel.md); `dotnet test --configuration Release --no-restore` |
 | Routing, reservations, movement contention, and cache invalidation | [#91](https://github.com/compoodment/AgentWorld/issues/91) | verified fixture | [Deterministic movement evidence](deterministic-movement.md); `dotnet test --configuration Release --no-restore` |
-| Needs, resources, lots, reservations, ownership, commands, and messages | [#89](https://github.com/compoodment/AgentWorld/issues/89) | specified | none |
-| Contract fixture matrix and end-to-end acceptance gate | [#89](https://github.com/compoodment/AgentWorld/issues/89) | specified | none |
+| Integer needs, exhaustion/recovery, harvest-to-zero, and scheduled resource regeneration | [#92](https://github.com/compoodment/AgentWorld/issues/92) | verified fixture | `SurvivalFixtureTests`; `dotnet test --configuration Release --no-restore` |
+| Lot inventory, spoilage/restore, reservations, ownership, and exact-revision direct barter | [#93](https://github.com/compoodment/AgentWorld/issues/93) | verified fixture | `InventoryFixtureTests`; `dotnet test --configuration Release --no-restore` |
+| Durable commands/messages, duplicate rejection, ordered delivery, and stale provider-result rejection | [#94](https://github.com/compoodment/AgentWorld/issues/94) | verified fixture | `ControlFixtureTests`; `dotnet test --configuration Release --no-restore` |
+| Contract fixture matrix and end-to-end acceptance gate | [#89](https://github.com/compoodment/AgentWorld/issues/89) | verified | all test fixtures; `dotnet restore --locked-mode && dotnet format --verify-no-changes --no-restore && dotnet test --configuration Release --no-restore` |
 
-Issue #89 is intentionally an acceptance umbrella, not permission to hide
-unbounded work. Split a new narrowly scoped issue before implementation when a
-row cannot be completed by one reviewable pull request.
+Issue #89 remains the recorded acceptance umbrella: it closes only after every
+fixture row is verified together from the documented clean setup.
 
 ## Scope and non-goals
 

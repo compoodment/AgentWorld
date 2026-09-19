@@ -83,8 +83,11 @@ actions, identical whole-run digests, and save/reload/physical-replay equality.
 
 ## Deliberate limits
 
-This is evidence for the first end-to-end slice only. It does **not** yet prove
-the full clock scheduler, pause/resume, multi-actor movement contention,
-reservations, resource regeneration, inventory lots, migration of a populated
-harness save, route-cache invalidation, or the complete contract fixture
-matrix. Those remain work under [#89](https://github.com/compoodment/AgentWorld/issues/89).
+This document is evidence for the seeded end-to-end slice only. The companion
+fixtures now cover clock/pause/recovery and deterministic routing ([#90](https://github.com/compoodment/AgentWorld/issues/90),
+[#91](https://github.com/compoodment/AgentWorld/issues/91)), survival/resource
+lifecycle ([#92](https://github.com/compoodment/AgentWorld/issues/92)),
+inventory/barter ([#93](https://github.com/compoodment/AgentWorld/issues/93)),
+and durable ingress/provider-result safety ([#94](https://github.com/compoodment/AgentWorld/issues/94)).
+The [Phase 1 implementation ledger](phase-1.md) is the complete current
+acceptance matrix.
