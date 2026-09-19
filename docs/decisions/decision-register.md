@@ -1,14 +1,19 @@
 ---
-title: Open Questions
-type: design
+title: AgentWorld Decision Register
+type: decision-record
 status: active
 updated: 2026-09-19
 ---
 
-# Open Questions
+# Decision Register
 
-These are intentionally unresolved. Closing them should produce a decision,
-prototype result, or explicit reason to defer—not a guess hidden in code.
+This is the current authority for accepted first-world product decisions. It is
+not an interview transcript: chronological rationale belongs in the
+[design log](design-log.md), while genuinely unresolved work belongs in
+[open questions](open-questions.md).
+
+Change a decision only through an explicit update with the reason, prototype
+evidence where applicable, and a matching design-log entry.
 
 ## Batch 1 — closed decisions
 
@@ -190,14 +195,11 @@ provider, and family contracts:
 - There is no fixed numeric population cap. Food, housing, care, and actual
   simulation/provider capacity determine what is sustainable.
 
-## Batch 5 — next questions
+## Batch 5 — closed decisions
 
-The remaining questions are implementation and tuning work:
-
-Use the concrete proposal worksheet in
-[Batch 5 Decision Worksheet](batch-5-decision-worksheet.md). It gives each
-question a suggested prototype default and an example before the decision is
-closed.
+The Batch 5 policy decisions are settled. Their numerical constants and exact
+formats are prototype-tuning or engineering work, not a reason to reopen the
+product-policy batch.
 
 ### Batch 5A — accepted prototype defaults
 
@@ -287,12 +289,7 @@ The policy questions in Batch 5 are now closed. Exact serialization formats,
 retention limits, replay UI, and traversal-specific mechanics remain
 engineering work rather than unresolved world-design choices.
 
-## Founders and family
-
-- Can a founder self-name and self-describe, or must the creator approve its
-  identity?
-
-## Kernel and modding
+## Batch 6 — closed decisions
 
 ### Batch 6A — accepted kernel and modding boundaries
 
@@ -350,52 +347,3 @@ contract.
   export a reusable package with provenance, dependencies, compatibility,
   capabilities, permissions, and preview/test results. A public registry is
   deferred.
-
-### Remaining kernel and modding questions
-
-- How are mods migrated when the simulation version changes?
-- How do we prove that a mod cannot create runaway resources, entities, or
-  computation?
-- What default world policies should govern automatic adoption of low-risk
-  inhabitant-created content?
-
-## Economy and assets
-
-- Which ownership models should the first world support: personal, household,
-  communal, cooperative, or all of them through one abstraction?
-- Is direct barter enough for the first economy, or should a local exchange
-  token exist from the start?
-- How should prices, wages, debt, theft, taxation, and contracts interact with
-  consent and local law?
-- Which economic events deserve an LLM decision and which stay deterministic?
-- Which generated-art sources are acceptable, and how should provenance and
-  licensing be recorded?
-- How much visual inconsistency should a culture be allowed to create before
-  the world becomes unreadable to a human viewer?
-
-## LLM runtime and technology
-
-- What exact provider capability schema and adapter contract should the first
-  registry implement?
-- What is the observation format and maximum context size?
-- What personal memory is useful enough to retain, and how is it compressed?
-- How do we evaluate whether a choice is coherent without judging it only by
-  how entertaining it sounds?
-- Is Godot the simulation engine, the client only, or merely a prototype tool?
-- What storage engine best supports snapshots, events, and migrations?
-- What is the smallest useful logical map and chunk size?
-- Does the first visual style require custom pixel art or temporary generated
-  assets?
-- Should the client be a native Godot application, a web client, or both?
-- What protocol keeps a future multiplayer client possible without overbuilding
-  networking now?
-
-## Scope
-
-- When does a new dimension become a justified design need rather than scope
-  inflation?
-- Which systems are essential for the first compelling world after movement,
-  cognition, and survival are proven?
-- How many inhabitants can the target VPS run at acceptable cost?
-- What is the first feature that should be removed if the foundation becomes
-  too complex?

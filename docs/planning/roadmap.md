@@ -7,10 +7,10 @@ updated: 2026-09-19
 
 # Roadmap
 
-This roadmap is intentionally gated. The project is still in the concept
-phase; later phases are not commitments to build every feature.
+This roadmap is intentionally gated. The first-world concept gate is complete;
+later phases are not commitments to build every feature.
 
-## Phase 0 — Concept and foundation design (current)
+## Phase 0 — Concept and foundation design (complete)
 
 - define the experience and design pillars
 - decide which laws belong to the protected kernel
@@ -25,12 +25,14 @@ phase; later phases are not commitments to build every feature.
 - classify first-world features and explicit deferrals in [feature scope](feature-scope.md)
 - compare Godot, a separate simulation service, and storage options
 - write failure modes and invariants before implementation
-- keep unresolved decisions visible in [open questions](open-questions.md)
+- keep unresolved implementation choices visible in
+  [open questions](../decisions/open-questions.md)
 
-**Gate:** the first-world concept is coherent enough that implementation can
-be judged against it, while remaining open to deliberate change.
+**Gate met:** the first-world concept is coherent enough that implementation
+can be judged against it. Further changes require deliberate decisions or
+prototype evidence.
 
-## Phase 1 — Deterministic simulation kernel
+## Phase 1 — Deterministic simulation kernel (current)
 
 - world time and logical coordinates
 - 365-day calendar, simple seasons, day/night, and pause state

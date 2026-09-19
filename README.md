@@ -10,11 +10,13 @@ systems for the world itself.
 The long-term idea is a world that can become more complex because its
 inhabitants choose to make it so.
 
-> **Status: concept and foundation design.** There is no playable game yet.
+> **Status: concept freeze; preparing the first deterministic vertical slice.**
+> There is no playable game yet.
 
-This repository deliberately captures the concept before implementation. The
-design is ambitious and incomplete; unresolved decisions are recorded instead
-of being quietly turned into accidental architecture.
+This repository deliberately captured the concept before implementation. The
+first-world rules are now settled enough to build and test; new design changes
+should come from prototype evidence or a deliberate decision, not an endless
+questionnaire.
 
 ## The core idea
 
@@ -63,26 +65,18 @@ day/night cycle; it continues spending provider resources while unpaused.
 
 ## Documentation
 
-- [Vision](docs/vision.md) — the intended experience and design pillars
-- [World model](docs/world-model.md) — what is fixed, moddable, created, and
-  persisted
-- [Economy](docs/economy.md) — inventories, ownership, exchange, and abundance
-- [Assets and art](docs/assets-and-art.md) — how world creations become safe,
-  versioned visual assets
-- [Inhabitants](docs/inhabitants.md) — identity, needs, family, roles, and LLM
-  cognition
-- [Creation and modding](docs/creation-and-modding.md) — how inhabitants may
-  extend their world without arbitrary code execution
-- [Architecture direction](docs/architecture.md) — proposed technical shape,
-  boundaries, and invariants
-- [Roadmap](docs/roadmap.md) — design and implementation gates, not promises
-- [Feature scope](docs/feature-scope.md) — foundation, first-world priorities,
-  expansion, and explicit deferrals
-- [Open questions](docs/open-questions.md) — decisions intentionally left
-  unresolved
-- [Batch 5 worksheet](docs/batch-5-decision-worksheet.md) — proposed defaults,
-  examples, and the next design interview
-- [Design log](docs/internal/design-log.md) — the current decision record
+Start with the [documentation map](docs/README.md). The shortest path into the
+project is:
+
+1. [Vision](docs/concept/vision.md)
+2. [Feature scope](docs/planning/feature-scope.md)
+3. [Roadmap](docs/planning/roadmap.md)
+4. [Decision register](docs/decisions/decision-register.md)
+
+The decision register is the current authority; the
+[design log](docs/decisions/design-log.md) is the chronological record of why
+those decisions were made. The retired Batch 5 worksheet has been removed:
+every one of its policy proposals was accepted or superseded.
 
 ## What AgentWorld is not yet
 

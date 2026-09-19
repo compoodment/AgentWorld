@@ -1,14 +1,15 @@
 ---
 title: AgentWorld Design Log
-type: working-notes
+type: decision-history
 status: active
 updated: 2026-09-19
 ---
 
 # Design Log
 
-This is a public working record. It captures current decisions without
-pretending they are permanent.
+This is the public chronological record of how decisions were made. The
+[decision register](decision-register.md), not this log, is the current source
+of truth.
 
 ## 2026-09-18 — Initial concept capture
 
