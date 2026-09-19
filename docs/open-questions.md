@@ -199,14 +199,26 @@ Use the concrete proposal worksheet in
 question a suggested prototype default and an example before the decision is
 closed.
 
+### Batch 5A — accepted prototype defaults
+
+The first survival and cognition pass accepted the worksheet's baseline:
+
+- Fatigue is moderate: it slows work and walking progressively, with bed and
+  shelter improving recovery; sustained exhaustion damages health.
+- Unsafe sleep is meaningfully risky but not arbitrarily lethal. Severe
+  exposure, repeated neglect, or already-poor health can make it deadly.
+- Cognition uses the middle-ground cadence: immediate deterministic emergency
+  response, short coalescing for urgent events, longer batching for normal and
+  background events, and a cooldown unless something important changes.
+- Observation attention is filtered deterministically by urgency, current
+  goals, recency, relationships, novelty, and redundancy rather than dumping a
+  large raw memory context into the model.
+
+The numerical constants remain prototype tuning targets and may change after
+measurement without reopening these policy decisions.
+
 ### Survival and cognition tuning
 
-- What exact formulas define fatigue slowdown, sleep duration, bed/shelter
-  bonuses, exposure, wake-up, and unsafe-sleep injury/illness/death risk?
-- What coalescing interval, cognition cooldown, and event-priority rules work
-  best in measured playtests?
-- How should attention select optional memories, messages, weather, and known
-  location changes when the observation grows large?
 - What exact structured debug schema should the developer view persist and
   replay?
 

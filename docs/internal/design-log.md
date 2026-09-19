@@ -264,3 +264,30 @@ tile or turning population into an arbitrary counter.
 Creative freedom should be limited by causality and inspectability, not by a
 permanent ban on powerful ideas. If inhabitants discover abundance, society
 should change around it.
+
+## 2026-09-19 — Batch 5A survival and cognition defaults
+
+### Current decisions
+
+- Fatigue uses a moderate curve: it progressively slows work and walking,
+  beds and shelter improve recovery, and sustained exhaustion damages health.
+- Unsafe sleep is risky but not arbitrarily lethal. Severe exposure, repeated
+  neglect, or already-poor health can produce serious outcomes.
+- Cognition uses a middle-ground cadence: deterministic emergency response is
+  immediate; urgent events coalesce briefly; normal and background events are
+  batched more slowly; normal decisions have a cooldown unless relevant state
+  changes.
+- Attention is selected deterministically from urgency, current goals,
+  recency, relationship relevance, novelty, and redundancy. The model does not
+  receive an unbounded raw memory dump.
+
+### Deliberately not decided
+
+- The exact constants for fatigue, recovery, exposure, cognition windows, and
+  attention budgets remain measurable prototype tuning parameters.
+
+### Design principle
+
+The first world should feel alive without turning every small stimulus into an
+LLM invoice. Deterministic filtering and coalescing protect both legibility and
+cost while preserving meaningful decisions.
