@@ -21,9 +21,12 @@ The spike represents a save as two canonical UTF-8 byte streams:
    property order and strictly increasing event IDs/ticks.
 
 State and ordered-event digests are lowercase SHA-256 hex hashes over those
-canonical bytes. The tiny fixture state contains only a counter; it exists to
-exercise ordering, replay, versioning, and recovery rather than pretend the
-survival world has been implemented.
+canonical bytes. The original tiny fixture state contains only a counter; it
+exists to exercise ordering, replay, versioning, and recovery rather than
+pretend the survival world has been implemented. Its v2 snapshot schema adds
+an optional canonical state-payload field so the [#88 harness](seeded-harness.md)
+can use the same envelope rather than invent a second save format. V1 snapshots
+remain decodable by the spike.
 
 ## Evidence
 

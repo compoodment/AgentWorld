@@ -9,3 +9,6 @@ published a release yet.
   point for the Phase 1 deterministic kernel.
 - Added a bounded canonical snapshot/event-log, migration, and replay
   feasibility spike; no production database or save-format promise is made.
+- Added the first deterministic seeded-map/actor harness, including canonical
+  map manifests, stable cardinal routing, a survival script, and a real
+  save/reload/physical-replay digest proof.

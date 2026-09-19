@@ -34,7 +34,7 @@ a merged PR and test or CI command only when evidence exists.
 | --- | --- | --- | --- |
 | Runtime, test framework, dependency and CI entrypoint | [#86](https://github.com/compoodment/AgentWorld/issues/86) | verified | [C# toolchain](../planning/csharp-toolchain.md); `dotnet restore --locked-mode && dotnet format --verify-no-changes --no-restore && dotnet test --configuration Release --no-restore` |
 | World identity, events, snapshots, migrations, and replay persistence | [#87](https://github.com/compoodment/AgentWorld/issues/87) | verified spike | [Persistence spike evidence](persistence-spike.md); `dotnet test --configuration Release --no-restore` |
-| Seed corpus, generated-map acceptance, scripted actor, and canonical digest harness | [#88](https://github.com/compoodment/AgentWorld/issues/88) | specified | none |
+| Seed corpus, generated-map acceptance, scripted actor, and canonical digest harness | [#88](https://github.com/compoodment/AgentWorld/issues/88) | verified harness | [Seeded harness evidence](seeded-harness.md); `dotnet test --configuration Release --no-restore` |
 | Integral tick loop, clock, pause/resume, ordered ingress, and deterministic randomness | [#89](https://github.com/compoodment/AgentWorld/issues/89) | specified | none |
 | Routing, reservations, movement contention, and cache invalidation | [#89](https://github.com/compoodment/AgentWorld/issues/89) | specified | none |
 | Needs, resources, lots, reservations, ownership, commands, and messages | [#89](https://github.com/compoodment/AgentWorld/issues/89) | specified | none |

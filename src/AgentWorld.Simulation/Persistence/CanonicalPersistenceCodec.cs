@@ -10,7 +10,8 @@ namespace AgentWorld.Simulation.Persistence;
 /// </summary>
 public static class CanonicalPersistenceCodec
 {
-    private const string Format = "agentworld.persistence-spike/v1";
+    private const string CurrentFormat = "agentworld.persistence-spike/v2";
+    private const string PriorFormat = "agentworld.persistence-spike/v1";
 
     public static byte[] EncodeSnapshot(WorldSnapshot snapshot)
     {
@@ -20,13 +21,21 @@ public static class CanonicalPersistenceCodec
         using (var writer = CreateWriter(stream))
         {
             writer.WriteStartObject();
-            writer.WriteString("format", Format);
+            writer.WriteString("format", CurrentFormat);
             writer.WritePropertyName("world_identity");
             WriteIdentity(writer, snapshot.State.Identity);
             writer.WritePropertyName("state");
             writer.WriteStartObject();
             writer.WriteNumber("counter", snapshot.State.Counter);
             writer.WriteNumber("last_event_id", snapshot.State.LastEventId);
+            if (snapshot.State.CanonicalStatePayload is null)
+            {
+                writer.WriteNull("canonical_state_payload");
+            }
+            else
+            {
+                writer.WriteString("canonical_state_payload", snapshot.State.CanonicalStatePayload);
+            }
             writer.WriteEndObject();
             writer.WriteEndObject();
         }
@@ -38,7 +47,7 @@ public static class CanonicalPersistenceCodec
     {
         using var document = JsonDocument.Parse(bytes);
         var root = document.RootElement;
-        RequireFormat(root);
+        var format = RequireFormat(root);
 
         var identity = ReadIdentity(root.GetProperty("world_identity"));
         var state = root.GetProperty("state");
@@ -46,7 +55,12 @@ public static class CanonicalPersistenceCodec
             new MiniatureWorldState(
                 identity,
                 state.GetProperty("counter").GetInt32(),
-                state.GetProperty("last_event_id").GetInt64()));
+                state.GetProperty("last_event_id").GetInt64(),
+                format == PriorFormat ||
+                !state.TryGetProperty("canonical_state_payload", out var payload) ||
+                payload.ValueKind == JsonValueKind.Null
+                    ? null
+                    : payload.GetString()));
     }
 
     public static byte[] EncodeEventLog(IEnumerable<PersistenceEvent> events)
@@ -142,6 +156,11 @@ public static class CanonicalPersistenceCodec
             writer.WriteString("target_schema_version", worldEvent.TargetSchemaVersion);
         }
 
+        if (worldEvent.Detail is not null)
+        {
+            writer.WriteString("detail", worldEvent.Detail);
+        }
+
         writer.WriteEndObject();
     }
 
@@ -152,14 +171,22 @@ public static class CanonicalPersistenceCodec
         element.GetProperty("counter_delta").GetInt32(),
         element.GetProperty("target_schema_version").ValueKind == JsonValueKind.Null
             ? null
-            : element.GetProperty("target_schema_version").GetString());
+            : element.GetProperty("target_schema_version").GetString(),
+        element.TryGetProperty("detail", out var detail) && detail.ValueKind != JsonValueKind.Null
+            ? detail.GetString()
+            : null);
 
-    private static void RequireFormat(JsonElement root)
+    private static string RequireFormat(JsonElement root)
     {
-        if (!string.Equals(root.GetProperty("format").GetString(), Format, StringComparison.Ordinal))
+        var format = root.GetProperty("format").GetString()
+            ?? throw new InvalidDataException("Snapshot format must be a string.");
+        if (!string.Equals(format, CurrentFormat, StringComparison.Ordinal) &&
+            !string.Equals(format, PriorFormat, StringComparison.Ordinal))
         {
             throw new InvalidDataException("Snapshot format is not supported by this persistence spike.");
         }
+
+        return format;
     }
 
     private static string ToWireValue(PersistenceEventKind kind) => kind switch

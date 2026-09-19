@@ -53,6 +53,8 @@ project happened to ask questions.
   state.
 - [Persistence spike evidence](implementation/persistence-spike.md) — the
   bounded save/replay/migration feasibility result, not a database commitment.
+- [Seeded harness evidence](implementation/seeded-harness.md) — the first
+  executable map, actor, action, and save/replay acceptance slice.
 
 ## Maintenance rule
 

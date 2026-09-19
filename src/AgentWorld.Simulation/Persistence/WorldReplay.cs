@@ -70,6 +70,10 @@ public static class WorldReplay
             throw new InvalidDataException("Only migration events can change the schema version.");
         }
 
-        return new MiniatureWorldState(identity, counter, worldEvent.EventId);
+        return new MiniatureWorldState(
+            identity,
+            counter,
+            worldEvent.EventId,
+            state.CanonicalStatePayload);
     }
 }

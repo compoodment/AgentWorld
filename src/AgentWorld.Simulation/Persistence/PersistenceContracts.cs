@@ -27,7 +27,11 @@ public sealed record WorldIdentity(
 /// <summary>
 /// The miniature state used solely to exercise persistence semantics.
 /// </summary>
-public sealed record MiniatureWorldState(WorldIdentity Identity, int Counter, long LastEventId)
+public sealed record MiniatureWorldState(
+    WorldIdentity Identity,
+    int Counter,
+    long LastEventId,
+    string? CanonicalStatePayload = null)
 {
     public static MiniatureWorldState Genesis(WorldIdentity identity) => new(identity, 0, 0);
 }
@@ -49,7 +53,8 @@ public sealed record PersistenceEvent(
     long WorldTick,
     PersistenceEventKind Kind,
     int CounterDelta,
-    string? TargetSchemaVersion);
+    string? TargetSchemaVersion,
+    string? Detail = null);
 
 /// <summary>
 /// A snapshot whose state is valid immediately after its final committed event.

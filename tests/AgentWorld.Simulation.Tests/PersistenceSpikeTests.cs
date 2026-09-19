@@ -1,3 +1,4 @@
+using System.Text;
 using AgentWorld.Simulation.Persistence;
 
 namespace AgentWorld.Simulation.Tests;
@@ -43,6 +44,27 @@ public sealed class PersistenceSpikeTests
         Assert.Equal(identity.WorldId, inspection.Identity.WorldId);
         Assert.Equal(3, inspection.LastEventId);
         Assert.Equal(3, inspection.EventCount);
+    }
+
+    [Fact]
+    public void VersionOneSnapshotRemainsDecodableAfterTheCanonicalPayloadExtension()
+    {
+        var state = WorldReplay.ReplayGenesis(CreateIdentity(), CreateEvents().Take(2));
+        var current = Encoding.UTF8.GetString(
+            CanonicalPersistenceCodec.EncodeSnapshot(new WorldSnapshot(state)));
+        var versionOne = current
+            .Replace(
+                "\"format\":\"agentworld.persistence-spike/v2\"",
+                "\"format\":\"agentworld.persistence-spike/v1\"",
+                StringComparison.Ordinal)
+            .Replace(",\"canonical_state_payload\":null", string.Empty, StringComparison.Ordinal);
+
+        var decoded = CanonicalPersistenceCodec.DecodeSnapshot(Encoding.UTF8.GetBytes(versionOne));
+
+        Assert.Equal(state.Identity, decoded.State.Identity);
+        Assert.Equal(state.Counter, decoded.State.Counter);
+        Assert.Equal(state.LastEventId, decoded.State.LastEventId);
+        Assert.Null(decoded.State.CanonicalStatePayload);
     }
 
     [Fact]

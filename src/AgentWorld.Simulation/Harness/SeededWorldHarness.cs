@@ -1,0 +1,950 @@
+using System.Buffers.Binary;
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
+using AgentWorld.Simulation.Persistence;
+
+namespace AgentWorld.Simulation.Harness;
+
+/// <summary>
+/// A coordinate in the first world's bounded, logical ground grid.
+/// </summary>
+public readonly record struct GridPoint(int X, int Y);
+
+public enum TerrainKind
+{
+    Meadow,
+    Water,
+    Mountain,
+}
+
+public enum ResourceState
+{
+    Available,
+    Depleted,
+}
+
+public sealed record TerrainTile(GridPoint Position, TerrainKind Terrain);
+
+public sealed record CampObject(string Id, string Kind, GridPoint Position);
+
+public sealed record MapResource(
+    string Id,
+    string Kind,
+    GridPoint Position,
+    bool IsRenewable);
+
+/// <summary>
+/// The selected deterministic map attempt and its canonical manifest lock.
+/// </summary>
+public sealed record SeededMap(
+    int Width,
+    int Height,
+    int GenerationAttempt,
+    IReadOnlyList<TerrainTile> Tiles,
+    IReadOnlyList<CampObject> CampObjects,
+    IReadOnlyList<MapResource> Resources,
+    string ManifestDigest)
+{
+    public bool Contains(GridPoint point) =>
+        point.X >= 0 && point.X < Width && point.Y >= 0 && point.Y < Height;
+
+    public bool IsPassable(GridPoint point) =>
+        Contains(point) && Tiles.Single(tile => tile.Position == point).Terrain == TerrainKind.Meadow;
+
+    public CampObject GetObject(string id) =>
+        CampObjects.Single(mapObject => string.Equals(mapObject.Id, id, StringComparison.Ordinal));
+
+    public MapResource GetResource(string id) =>
+        Resources.Single(resource => string.Equals(resource.Id, id, StringComparison.Ordinal));
+}
+
+/// <summary>
+/// Generates the tiny fixed-corpus temperate camp fixture. It intentionally has
+/// only enough terrain variation to exercise the validation rules.
+/// </summary>
+public static class SeededMapGenerator
+{
+    public const int MaximumAttempts = 32;
+    public const string GeneratorId = "temperate-fixture";
+    public const string GeneratorVersion = "v1";
+    public const string GeneratorConfigDigest = "sha256:temperate-fixture-config-v1";
+
+    public static SeededMap Generate(string worldSeed)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(worldSeed);
+
+        var diagnostics = new List<string>();
+        for (var attempt = 0; attempt < MaximumAttempts; attempt++)
+        {
+            var candidate = CreateCandidate(worldSeed, attempt);
+            var validation = MapAcceptance.Validate(candidate);
+            if (validation.IsValid)
+            {
+                return candidate;
+            }
+
+            diagnostics.Add($"attempt {attempt}: {validation.Failure}");
+        }
+
+        throw new InvalidOperationException(
+            $"No valid temperate fixture map for seed '{worldSeed}' after {MaximumAttempts} attempts: " +
+            string.Join("; ", diagnostics));
+    }
+
+    private static SeededMap CreateCandidate(string worldSeed, int attempt)
+    {
+        const int width = 6;
+        const int height = 5;
+        var terrain = new TerrainKind[height, width];
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                terrain[y, x] = TerrainKind.Meadow;
+            }
+        }
+
+        var safeObstacles = new[]
+        {
+            new GridPoint(5, 0),
+            new GridPoint(5, 4),
+            new GridPoint(0, 4),
+            new GridPoint(4, 4),
+        };
+        var random = Pcg32.Create(worldSeed, $"worldgen/attempt:{attempt}");
+        var waterIndex = (int)(random.NextUInt() % (uint)safeObstacles.Length);
+        var mountainIndex = (waterIndex + 1 + (int)(random.NextUInt() % (uint)(safeObstacles.Length - 1))) %
+            safeObstacles.Length;
+        terrain[safeObstacles[waterIndex].Y, safeObstacles[waterIndex].X] = TerrainKind.Water;
+        terrain[safeObstacles[mountainIndex].Y, safeObstacles[mountainIndex].X] = TerrainKind.Mountain;
+
+        var tiles = new List<TerrainTile>(width * height);
+        for (var y = 0; y < height; y++)
+        {
+            for (var x = 0; x < width; x++)
+            {
+                tiles.Add(new TerrainTile(new GridPoint(x, y), terrain[y, x]));
+            }
+        }
+
+        var campObjects = new[]
+        {
+            new CampObject("bedroll", "bedroll", new GridPoint(1, 0)),
+            new CampObject("campfire", "cooking", new GridPoint(2, 0)),
+            new CampObject("founder-scout", "founder", new GridPoint(0, 0)),
+            new CampObject("shelter", "shelter", new GridPoint(0, 1)),
+            new CampObject("storage", "storage", new GridPoint(1, 1)),
+        };
+        var resources = new[]
+        {
+            new MapResource("berry-patch", "food", new GridPoint(4, 1), true),
+            new MapResource("timber-tree", "construction", new GridPoint(4, 3), false),
+        };
+        var withoutDigest = new SeededMap(width, height, attempt, tiles, campObjects, resources, string.Empty);
+        return withoutDigest with { ManifestDigest = MapManifestCodec.Digest(withoutDigest) };
+    }
+}
+
+/// <summary>
+/// Explicit canonical bytes for the genesis map manifest. The digest is not
+/// included in its own input, avoiding self-referential serialization.
+/// </summary>
+public static class MapManifestCodec
+{
+    private const string Header = "agentworld.seeded-map/v1";
+
+    public static byte[] Encode(SeededMap map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        var builder = new StringBuilder();
+        builder.Append(Header).Append('\n');
+        builder.Append("dimensions=").Append(map.Width).Append('x').Append(map.Height).Append('\n');
+        builder.Append("generation_attempt=").Append(map.GenerationAttempt).Append('\n');
+        foreach (var tile in map.Tiles.OrderBy(tile => tile.Position.Y).ThenBy(tile => tile.Position.X))
+        {
+            builder.Append("tile=")
+                .Append(tile.Position.X).Append(',').Append(tile.Position.Y).Append('|')
+                .Append(ToWireValue(tile.Terrain)).Append('\n');
+        }
+
+        foreach (var mapObject in map.CampObjects.OrderBy(mapObject => mapObject.Id, StringComparer.Ordinal))
+        {
+            builder.Append("object=")
+                .Append(mapObject.Id).Append('|').Append(mapObject.Kind).Append('|')
+                .Append(mapObject.Position.X).Append(',').Append(mapObject.Position.Y).Append('\n');
+        }
+
+        foreach (var resource in map.Resources.OrderBy(resource => resource.Id, StringComparer.Ordinal))
+        {
+            builder.Append("resource=")
+                .Append(resource.Id).Append('|').Append(resource.Kind).Append('|')
+                .Append(resource.Position.X).Append(',').Append(resource.Position.Y).Append('|')
+                .Append(resource.IsRenewable ? "renewable" : "finite").Append('\n');
+        }
+
+        return Encoding.UTF8.GetBytes(builder.ToString());
+    }
+
+    public static string Digest(SeededMap map) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encode(map)));
+
+    private static string ToWireValue(TerrainKind terrain) => terrain switch
+    {
+        TerrainKind.Meadow => "meadow",
+        TerrainKind.Water => "water",
+        TerrainKind.Mountain => "mountain",
+        _ => throw new ArgumentOutOfRangeException(nameof(terrain)),
+    };
+}
+
+public sealed record MapValidationResult(bool IsValid, string? Failure)
+{
+    public static MapValidationResult Valid { get; } = new(true, null);
+
+    public static MapValidationResult Invalid(string failure) => new(false, failure);
+}
+
+/// <summary>
+/// The first-world generated-map acceptance checks used by the seed corpus.
+/// </summary>
+public static class MapAcceptance
+{
+    public static MapValidationResult Validate(SeededMap map)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (map.Width <= 0 || map.Height <= 0 || map.GenerationAttempt < 0 ||
+            map.GenerationAttempt >= SeededMapGenerator.MaximumAttempts)
+        {
+            return MapValidationResult.Invalid("The map dimensions or generation attempt are invalid.");
+        }
+
+        if (map.Tiles.Count != map.Width * map.Height ||
+            map.Tiles.Select(tile => tile.Position).Distinct().Count() != map.Tiles.Count ||
+            map.Tiles.Any(tile => !map.Contains(tile.Position)))
+        {
+            return MapValidationResult.Invalid("The logical grid is not a complete bounded rectangle.");
+        }
+
+        var founder = map.CampObjects.SingleOrDefault(mapObject =>
+            string.Equals(mapObject.Kind, "founder", StringComparison.Ordinal));
+        if (founder is null || !map.IsPassable(founder.Position))
+        {
+            return MapValidationResult.Invalid("The founder must occupy passable ground.");
+        }
+
+        var requiredKinds = new[] { "shelter", "bedroll", "storage", "cooking" };
+        if (requiredKinds.Any(kind => !map.CampObjects.Any(mapObject =>
+                string.Equals(mapObject.Kind, kind, StringComparison.Ordinal))))
+        {
+            return MapValidationResult.Invalid("A required camp-start placement is missing.");
+        }
+
+        if (map.CampObjects.Select(mapObject => mapObject.Id).Distinct(StringComparer.Ordinal).Count() != map.CampObjects.Count ||
+            map.CampObjects.Select(mapObject => mapObject.Position).Distinct().Count() != map.CampObjects.Count ||
+            map.CampObjects.Any(mapObject => !map.IsPassable(mapObject.Position)))
+        {
+            return MapValidationResult.Invalid("Camp-start objects are duplicated or overlap impassable terrain.");
+        }
+
+        if (map.Resources.Select(resource => resource.Id).Distinct(StringComparer.Ordinal).Count() != map.Resources.Count ||
+            map.Resources.Any(resource => !map.IsPassable(resource.Position)))
+        {
+            return MapValidationResult.Invalid("Resource placements are invalid.");
+        }
+
+        if (!map.Resources.Any(resource => resource.IsRenewable &&
+                string.Equals(resource.Kind, "food", StringComparison.Ordinal)) ||
+            !map.Resources.Any(resource => string.Equals(resource.Kind, "construction", StringComparison.Ordinal)))
+        {
+            return MapValidationResult.Invalid("Reachable food or construction resources are missing.");
+        }
+
+        var reachable = ReachableFrom(map, founder.Position);
+        if (map.CampObjects.Any(mapObject => !reachable.Contains(mapObject.Position)) ||
+            map.Resources.Any(resource => !reachable.Contains(resource.Position)))
+        {
+            return MapValidationResult.Invalid("A required camp-start route crosses an impassable boundary.");
+        }
+
+        if (!string.Equals(MapManifestCodec.Digest(map), map.ManifestDigest, StringComparison.Ordinal))
+        {
+            return MapValidationResult.Invalid("The manifest digest does not match the selected map.");
+        }
+
+        return MapValidationResult.Valid;
+    }
+
+    private static HashSet<GridPoint> ReachableFrom(SeededMap map, GridPoint origin)
+    {
+        var visited = new HashSet<GridPoint> { origin };
+        var queue = new Queue<GridPoint>();
+        queue.Enqueue(origin);
+        while (queue.TryDequeue(out var current))
+        {
+            foreach (var next in CardinalNeighbors(current))
+            {
+                if (map.IsPassable(next) && visited.Add(next))
+                {
+                    queue.Enqueue(next);
+                }
+            }
+        }
+
+        return visited;
+    }
+
+    internal static IReadOnlyList<GridPoint> CardinalNeighbors(GridPoint point) =>
+    [
+        new GridPoint(point.X, point.Y - 1),
+        new GridPoint(point.X + 1, point.Y),
+        new GridPoint(point.X, point.Y + 1),
+        new GridPoint(point.X - 1, point.Y),
+    ];
+}
+
+/// <summary>
+/// Four-direction A* with the contract's deterministic queue-key ordering.
+/// </summary>
+public static class DeterministicRouteFinder
+{
+    public static IReadOnlyList<GridPoint> Find(SeededMap map, GridPoint origin, GridPoint destination)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (!map.IsPassable(origin) || !map.IsPassable(destination))
+        {
+            throw new InvalidOperationException("Routing endpoints must be passable.");
+        }
+
+        var open = new PriorityQueue<RouteNode, RoutePriority>();
+        var predecessor = new Dictionary<GridPoint, GridPoint>();
+        var best = new Dictionary<GridPoint, RouteRecord>();
+        var nodeId = 0;
+        var start = new RouteNode(origin, origin, 0, nodeId++);
+        open.Enqueue(start, ToPriority(start, destination));
+        best.Add(origin, new RouteRecord(0, origin));
+
+        while (open.TryDequeue(out var node, out _))
+        {
+            var record = best[node.Position];
+            if (node.G != record.Cost || node.Predecessor != record.Predecessor)
+            {
+                continue;
+            }
+
+            if (node.Position == destination)
+            {
+                return Reconstruct(predecessor, origin, destination);
+            }
+
+            foreach (var next in MapAcceptance.CardinalNeighbors(node.Position))
+            {
+                if (!map.IsPassable(next))
+                {
+                    continue;
+                }
+
+                var candidate = new RouteRecord(checked(node.G + 100), node.Position);
+                if (best.TryGetValue(next, out var old) && Compare(candidate, old) >= 0)
+                {
+                    continue;
+                }
+
+                best[next] = candidate;
+                predecessor[next] = node.Position;
+                var nextNode = new RouteNode(next, node.Position, candidate.Cost, nodeId++);
+                open.Enqueue(nextNode, ToPriority(nextNode, destination));
+            }
+        }
+
+        throw new InvalidOperationException("No passable route exists between the requested points.");
+    }
+
+    private static int Compare(RouteRecord left, RouteRecord right)
+    {
+        var result = left.Cost.CompareTo(right.Cost);
+        if (result != 0)
+        {
+            return result;
+        }
+
+        result = left.Predecessor.Y.CompareTo(right.Predecessor.Y);
+        return result != 0 ? result : left.Predecessor.X.CompareTo(right.Predecessor.X);
+    }
+
+    private static List<GridPoint> Reconstruct(
+        Dictionary<GridPoint, GridPoint> predecessor,
+        GridPoint origin,
+        GridPoint destination)
+    {
+        var route = new List<GridPoint> { destination };
+        var current = destination;
+        while (current != origin)
+        {
+            current = predecessor[current];
+            route.Add(current);
+        }
+
+        route.Reverse();
+        return route;
+    }
+
+    private static RoutePriority ToPriority(RouteNode node, GridPoint destination)
+    {
+        var heuristic = checked((Math.Abs(node.Position.X - destination.X) +
+            Math.Abs(node.Position.Y - destination.Y)) * 100);
+        return new RoutePriority(
+            checked(node.G + heuristic),
+            heuristic,
+            node.G,
+            node.Position.Y,
+            node.Position.X,
+            node.Predecessor.Y,
+            node.Predecessor.X,
+            node.NodeId);
+    }
+
+    private sealed record RouteNode(GridPoint Position, GridPoint Predecessor, int G, int NodeId);
+
+    private readonly record struct RouteRecord(int Cost, GridPoint Predecessor);
+
+    private readonly record struct RoutePriority(
+        int F,
+        int H,
+        int G,
+        int Y,
+        int X,
+        int PredecessorY,
+        int PredecessorX,
+        int NodeId) : IComparable<RoutePriority>
+    {
+        public int CompareTo(RoutePriority other)
+        {
+            var result = F.CompareTo(other.F);
+            result = result != 0 ? result : H.CompareTo(other.H);
+            result = result != 0 ? result : G.CompareTo(other.G);
+            result = result != 0 ? result : Y.CompareTo(other.Y);
+            result = result != 0 ? result : X.CompareTo(other.X);
+            result = result != 0 ? result : PredecessorY.CompareTo(other.PredecessorY);
+            result = result != 0 ? result : PredecessorX.CompareTo(other.PredecessorX);
+            return result != 0 ? result : NodeId.CompareTo(other.NodeId);
+        }
+    }
+}
+
+public sealed record HarnessActor(
+    string Id,
+    GridPoint Position,
+    int HungerBasisPoints,
+    int EnergyBasisPoints,
+    int FoodItems,
+    int WoodItems);
+
+public sealed record RuntimeResource(string Id, ResourceState State);
+
+/// <summary>
+/// The complete small state for the #88 fixture. The map manifest stays
+/// immutable; resource availability and the actor live in the tick state.
+/// </summary>
+public sealed record HarnessWorld(
+    WorldIdentity Identity,
+    SeededMap Map,
+    HarnessActor Actor,
+    IReadOnlyList<RuntimeResource> Resources,
+    IReadOnlyList<PersistenceEvent> Events)
+{
+    public RuntimeResource GetResource(string id) =>
+        Resources.Single(resource => string.Equals(resource.Id, id, StringComparison.Ordinal));
+}
+
+/// <summary>
+/// One deliberately small ordered kernel path: needs first, then exactly one
+/// movement/work action, then a durable event for the completed tick.
+/// </summary>
+public static class ScriptedHarness
+{
+    private const int NeedDrainPerTick = 100;
+    private const int FoodRecovery = 2_000;
+    private const int SleepRecovery = 2_500;
+    private const string ActorId = "actor-scout";
+
+    public static HarnessWorld CreateGenesis(string worldSeed)
+    {
+        var map = SeededMapGenerator.Generate(worldSeed);
+        var identity = CreateIdentity(worldSeed, map);
+        return CreateGenesis(identity);
+    }
+
+    public static HarnessWorld CreateGenesis(WorldIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        var map = SeededMapGenerator.Generate(identity.WorldSeed);
+        if (map.GenerationAttempt != identity.GenerationAttempt ||
+            !string.Equals(map.ManifestDigest, identity.InitialMapManifestDigest, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The saved map identity does not reproduce the selected manifest.");
+        }
+
+        var founder = map.GetObject("founder-scout");
+        var actor = new HarnessActor(ActorId, founder.Position, 5_000, 4_000, 0, 0);
+        var resources = map.Resources
+            .OrderBy(resource => resource.Id, StringComparer.Ordinal)
+            .Select(resource => new RuntimeResource(resource.Id, ResourceState.Available))
+            .ToArray();
+        return new HarnessWorld(identity with { WorldTick = 0 }, map, actor, resources, []);
+    }
+
+    public static HarnessWorld RunToFoodConsumed(HarnessWorld world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        var berry = world.Map.GetResource("berry-patch");
+        var current = MoveUntilAt(world, berry.Position);
+        current = Harvest(current, berry.Id);
+        return Consume(current);
+    }
+
+    public static HarnessWorld FinishAfterFood(HarnessWorld world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        var bedroll = world.Map.GetObject("bedroll");
+        return Sleep(MoveUntilAt(world, bedroll.Position));
+    }
+
+    public static HarnessWorld RunEntireSequence(string worldSeed) =>
+        FinishAfterFood(RunToFoodConsumed(CreateGenesis(worldSeed)));
+
+    public static HarnessWorld ReplayFromGenesis(WorldIdentity identity, IReadOnlyList<PersistenceEvent> events)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        ArgumentNullException.ThrowIfNull(events);
+        var replay = CreateGenesis(identity with { WorldTick = 0 });
+        foreach (var expected in events.OrderBy(worldEvent => worldEvent.EventId))
+        {
+            replay = ReplayOne(replay, expected);
+        }
+
+        return replay;
+    }
+
+    private static HarnessWorld ReplayOne(HarnessWorld world, PersistenceEvent expected)
+    {
+        if (expected.Detail is null)
+        {
+            throw new InvalidDataException("Harness events must include an action detail.");
+        }
+
+        HarnessWorld replayed;
+        if (expected.Detail.StartsWith("move:", StringComparison.Ordinal))
+        {
+            var components = expected.Detail.Split(':', StringSplitOptions.None);
+            if (components.Length != 3 || !string.Equals(components[1], ActorId, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("The move event detail is invalid.");
+            }
+
+            replayed = MoveOneStep(world, ParsePoint(components[2]));
+        }
+        else if (expected.Detail.StartsWith("harvest:", StringComparison.Ordinal))
+        {
+            replayed = Harvest(world, expected.Detail["harvest:".Length..]);
+        }
+        else if (string.Equals(expected.Detail, $"consume:{ActorId}", StringComparison.Ordinal))
+        {
+            replayed = Consume(world);
+        }
+        else if (string.Equals(expected.Detail, $"sleep:{ActorId}", StringComparison.Ordinal))
+        {
+            replayed = Sleep(world);
+        }
+        else
+        {
+            throw new InvalidDataException("The harness event action is not recognized.");
+        }
+
+        var actual = replayed.Events[^1];
+        if (actual != expected)
+        {
+            throw new InvalidDataException("Replaying the action log produced a different committed event.");
+        }
+
+        return replayed;
+    }
+
+    private static HarnessWorld MoveUntilAt(HarnessWorld world, GridPoint destination)
+    {
+        var current = world;
+        while (current.Actor.Position != destination)
+        {
+            current = MoveOneStep(current, destination);
+        }
+
+        return current;
+    }
+
+    private static HarnessWorld MoveOneStep(HarnessWorld world, GridPoint destination)
+    {
+        var route = DeterministicRouteFinder.Find(world.Map, world.Actor.Position, destination);
+        if (route.Count < 2)
+        {
+            throw new InvalidOperationException("A movement event must advance to a different tile.");
+        }
+
+        var next = route[1];
+        return Commit(
+            world,
+            actor => actor with { Position = next },
+            resources => resources,
+            1,
+            $"move:{ActorId}:{next.X},{next.Y}");
+    }
+
+    private static HarnessWorld Harvest(HarnessWorld world, string resourceId)
+    {
+        var source = world.Map.GetResource(resourceId);
+        if (world.Actor.Position != source.Position || world.GetResource(resourceId).State != ResourceState.Available)
+        {
+            throw new InvalidOperationException("Harvesting requires an available source at the actor's position.");
+        }
+
+        return Commit(
+            world,
+            actor => source.Kind switch
+            {
+                "food" => actor with { FoodItems = checked(actor.FoodItems + 1) },
+                "construction" => actor with { WoodItems = checked(actor.WoodItems + 1) },
+                _ => throw new InvalidOperationException("The resource kind is not harvestable by this fixture."),
+            },
+            resources => resources
+                .Select(resource => string.Equals(resource.Id, resourceId, StringComparison.Ordinal)
+                    ? resource with { State = ResourceState.Depleted }
+                    : resource)
+                .ToArray(),
+            2,
+            $"harvest:{resourceId}");
+    }
+
+    private static HarnessWorld Consume(HarnessWorld world)
+    {
+        if (world.Actor.FoodItems <= 0)
+        {
+            throw new InvalidOperationException("Consuming requires an available food item.");
+        }
+
+        return Commit(
+            world,
+            actor => actor with
+            {
+                FoodItems = actor.FoodItems - 1,
+                HungerBasisPoints = ClampBasisPoints(actor.HungerBasisPoints + FoodRecovery),
+            },
+            resources => resources,
+            3,
+            $"consume:{ActorId}");
+    }
+
+    private static HarnessWorld Sleep(HarnessWorld world)
+    {
+        if (world.Actor.Position != world.Map.GetObject("bedroll").Position)
+        {
+            throw new InvalidOperationException("Sleeping requires the actor to be at the bedroll.");
+        }
+
+        return Commit(
+            world,
+            actor => actor with { EnergyBasisPoints = ClampBasisPoints(actor.EnergyBasisPoints + SleepRecovery) },
+            resources => resources,
+            4,
+            $"sleep:{ActorId}");
+    }
+
+    private static HarnessWorld Commit(
+        HarnessWorld world,
+        Func<HarnessActor, HarnessActor> action,
+        Func<IReadOnlyList<RuntimeResource>, IReadOnlyList<RuntimeResource>> resourceAction,
+        int counterDelta,
+        string detail)
+    {
+        var nextTick = checked(world.Identity.WorldTick + 1);
+        var needsApplied = world.Actor with
+        {
+            HungerBasisPoints = ClampBasisPoints(world.Actor.HungerBasisPoints - NeedDrainPerTick),
+            EnergyBasisPoints = ClampBasisPoints(world.Actor.EnergyBasisPoints - NeedDrainPerTick),
+        };
+        var actor = action(needsApplied);
+        var worldEvent = new PersistenceEvent(
+            checked(world.Events.Count + 1L),
+            nextTick,
+            PersistenceEventKind.CounterAdjusted,
+            counterDelta,
+            null,
+            detail);
+        return world with
+        {
+            Identity = world.Identity with { WorldTick = nextTick },
+            Actor = actor,
+            Resources = resourceAction(world.Resources),
+            Events = world.Events.Append(worldEvent).ToArray(),
+        };
+    }
+
+    private static WorldIdentity CreateIdentity(string worldSeed, SeededMap map) => new(
+        $"harness-{worldSeed}",
+        "deterministic-kernel-contract/phase-1",
+        "phase-1-harness/v1",
+        "1",
+        "one-tick-per-minute/v1",
+        0,
+        worldSeed,
+        SeededMapGenerator.GeneratorId,
+        SeededMapGenerator.GeneratorVersion,
+        SeededMapGenerator.GeneratorConfigDigest,
+        map.GenerationAttempt,
+        map.ManifestDigest,
+        "content-lock/empty-v1",
+        "asset-lock/empty-v1");
+
+    private static int ClampBasisPoints(int value) => Math.Clamp(value, 0, 10_000);
+
+    private static GridPoint ParsePoint(string value)
+    {
+        var parts = value.Split(',', StringSplitOptions.None);
+        if (parts.Length != 2 ||
+            !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var x) ||
+            !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var y))
+        {
+            throw new InvalidDataException("A grid coordinate must use invariant x,y integers.");
+        }
+
+        return new GridPoint(x, y);
+    }
+}
+
+/// <summary>
+/// Persists #88 through the #87 envelope. The payload is canonical state inside
+/// the existing snapshot; the outer event log remains the append-only authority.
+/// </summary>
+public static class HarnessPersistence
+{
+    public static PersistedWorld Save(HarnessWorld world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return new PersistedWorld(
+            CanonicalPersistenceCodec.EncodeSnapshot(new WorldSnapshot(ToMiniatureState(world))),
+            CanonicalPersistenceCodec.EncodeEventLog(world.Events));
+    }
+
+    public static HarnessWorld Load(PersistedWorld save)
+    {
+        ArgumentNullException.ThrowIfNull(save);
+        var snapshot = CanonicalPersistenceCodec.DecodeSnapshot(save.SnapshotBytes);
+        var events = CanonicalPersistenceCodec.DecodeEventLog(save.EventLogBytes);
+        var genericReplay = WorldReplay.ReplayGenesis(
+            snapshot.State.Identity with { WorldTick = 0 },
+            events);
+        if (genericReplay.Counter != snapshot.State.Counter ||
+            genericReplay.LastEventId != snapshot.State.LastEventId ||
+            genericReplay.Identity.WorldTick != snapshot.State.Identity.WorldTick)
+        {
+            throw new InvalidDataException("The snapshot does not agree with its ordered event suffix.");
+        }
+
+        var decoded = HarnessStateCodec.Decode(snapshot.State.Identity, snapshot.State.CanonicalStatePayload, events);
+        var physicalReplay = ScriptedHarness.ReplayFromGenesis(snapshot.State.Identity, events);
+        if (!string.Equals(StateDigest(decoded), StateDigest(physicalReplay), StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The canonical state payload does not match replayed actions.");
+        }
+
+        return decoded;
+    }
+
+    public static string StateDigest(HarnessWorld world) =>
+        CanonicalPersistenceCodec.StateDigest(ToMiniatureState(world));
+
+    public static string EventDigest(HarnessWorld world) =>
+        CanonicalPersistenceCodec.EventDigest(world.Events);
+
+    private static MiniatureWorldState ToMiniatureState(HarnessWorld world) => new(
+        world.Identity,
+        checked(world.Events.Sum(worldEvent => worldEvent.CounterDelta)),
+        world.Events.Count == 0 ? 0 : world.Events[^1].EventId,
+        HarnessStateCodec.Encode(world));
+}
+
+public static class HarnessStateCodec
+{
+    private const string Header = "agentworld.seeded-harness-state/v1";
+
+    public static string Encode(HarnessWorld world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        var builder = new StringBuilder();
+        builder.Append(Header).Append('\n');
+        builder.Append("map_manifest_base64=")
+            .Append(Convert.ToBase64String(MapManifestCodec.Encode(world.Map))).Append('\n');
+        builder.Append("actor=")
+            .Append(world.Actor.Id).Append('|')
+            .Append(world.Actor.Position.X).Append('|').Append(world.Actor.Position.Y).Append('|')
+            .Append(world.Actor.HungerBasisPoints).Append('|').Append(world.Actor.EnergyBasisPoints).Append('|')
+            .Append(world.Actor.FoodItems).Append('|').Append(world.Actor.WoodItems).Append('\n');
+        foreach (var resource in world.Resources.OrderBy(resource => resource.Id, StringComparer.Ordinal))
+        {
+            builder.Append("resource=").Append(resource.Id).Append('|')
+                .Append(resource.State == ResourceState.Available ? "available" : "depleted").Append('\n');
+        }
+
+        return builder.ToString();
+    }
+
+    public static HarnessWorld Decode(
+        WorldIdentity identity,
+        string? payload,
+        IReadOnlyList<PersistenceEvent> events)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        ArgumentNullException.ThrowIfNull(events);
+        if (string.IsNullOrEmpty(payload))
+        {
+            throw new InvalidDataException("The harness snapshot does not contain canonical state payload.");
+        }
+
+        var lines = payload.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        if (lines.Length < 3 || !string.Equals(lines[0], Header, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The harness state format is not supported.");
+        }
+
+        var encodedManifest = ValueAfterPrefix(lines[1], "map_manifest_base64=");
+        byte[] manifest;
+        try
+        {
+            manifest = Convert.FromBase64String(encodedManifest);
+        }
+        catch (FormatException exception)
+        {
+            throw new InvalidDataException("The harness map manifest is not base64.", exception);
+        }
+
+        var genesis = ScriptedHarness.CreateGenesis(identity);
+        var expectedManifest = MapManifestCodec.Encode(genesis.Map);
+        if (!manifest.SequenceEqual(expectedManifest) ||
+            !string.Equals(MapManifestCodec.Digest(genesis.Map), identity.InitialMapManifestDigest, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The saved map manifest does not match the world identity.");
+        }
+
+        var actorParts = ValueAfterPrefix(lines[2], "actor=").Split('|', StringSplitOptions.None);
+        if (actorParts.Length != 7 || !string.Equals(actorParts[0], genesis.Actor.Id, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The saved actor state is invalid.");
+        }
+
+        var actor = new HarnessActor(
+            actorParts[0],
+            new GridPoint(ParseInteger(actorParts[1]), ParseInteger(actorParts[2])),
+            ParseBasisPoints(actorParts[3]),
+            ParseBasisPoints(actorParts[4]),
+            ParseNonNegativeInteger(actorParts[5]),
+            ParseNonNegativeInteger(actorParts[6]));
+        if (!genesis.Map.IsPassable(actor.Position))
+        {
+            throw new InvalidDataException("The saved actor is not on passable ground.");
+        }
+
+        var savedResources = lines.Skip(3)
+            .Select(ParseResource)
+            .OrderBy(resource => resource.Id, StringComparer.Ordinal)
+            .ToArray();
+        if (savedResources.Length != genesis.Resources.Count ||
+            !savedResources.Select(resource => resource.Id).SequenceEqual(
+                genesis.Resources.Select(resource => resource.Id),
+                StringComparer.Ordinal))
+        {
+            throw new InvalidDataException("The saved resource state does not match the manifest.");
+        }
+
+        return new HarnessWorld(identity, genesis.Map, actor, savedResources, events.ToArray());
+    }
+
+    private static RuntimeResource ParseResource(string line)
+    {
+        var parts = ValueAfterPrefix(line, "resource=").Split('|', StringSplitOptions.None);
+        if (parts.Length != 2 || string.IsNullOrWhiteSpace(parts[0]))
+        {
+            throw new InvalidDataException("The saved resource line is invalid.");
+        }
+
+        return parts[1] switch
+        {
+            "available" => new RuntimeResource(parts[0], ResourceState.Available),
+            "depleted" => new RuntimeResource(parts[0], ResourceState.Depleted),
+            _ => throw new InvalidDataException("The saved resource state is invalid."),
+        };
+    }
+
+    private static string ValueAfterPrefix(string line, string prefix) =>
+        line.StartsWith(prefix, StringComparison.Ordinal)
+            ? line[prefix.Length..]
+            : throw new InvalidDataException($"Expected canonical payload line '{prefix}'.");
+
+    private static int ParseInteger(string value)
+    {
+        if (!int.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var result))
+        {
+            throw new InvalidDataException("The saved integer value is invalid.");
+        }
+
+        return result;
+    }
+
+    private static int ParseNonNegativeInteger(string value)
+    {
+        var result = ParseInteger(value);
+        return result >= 0 ? result : throw new InvalidDataException("The saved quantity must not be negative.");
+    }
+
+    private static int ParseBasisPoints(string value)
+    {
+        var result = ParseNonNegativeInteger(value);
+        return result <= 10_000 ? result : throw new InvalidDataException("The saved need must be basis points.");
+    }
+}
+
+/// <summary>
+/// Portable PCG32 XSH-RR with HMAC-SHA-256 stream derivation for the fixture's
+/// attempt-local worldgen stream.
+/// </summary>
+internal sealed class Pcg32
+{
+    private const ulong Multiplier = 6_364_136_223_846_793_005UL;
+    private ulong state;
+    private readonly ulong increment;
+
+    private Pcg32(ulong initialState, ulong initialIncrement)
+    {
+        increment = initialIncrement | 1UL;
+        state = 0;
+        _ = NextUInt();
+        state = unchecked(state + initialState);
+        _ = NextUInt();
+    }
+
+    public static Pcg32 Create(string worldSeed, string streamName)
+    {
+        var key = Encoding.UTF8.GetBytes(worldSeed);
+        var stateBytes = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes($"{streamName}/state"));
+        var incrementBytes = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes($"{streamName}/increment"));
+        return new Pcg32(
+            BinaryPrimitives.ReadUInt64BigEndian(stateBytes),
+            BinaryPrimitives.ReadUInt64BigEndian(incrementBytes));
+    }
+
+    public uint NextUInt()
+    {
+        var oldState = state;
+        state = unchecked((oldState * Multiplier) + increment);
+        var xorshifted = (uint)(((oldState >> 18) ^ oldState) >> 27);
+        var rotation = (int)(oldState >> 59);
+        return (xorshifted >> rotation) | (xorshifted << ((-rotation) & 31));
+    }
+}
