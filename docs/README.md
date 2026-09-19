@@ -27,6 +27,7 @@ project happened to ask questions.
 ## Planning
 
 - [Architecture direction](planning/architecture.md)
+- [Phase 1 C# toolchain](planning/csharp-toolchain.md)
 - [Feature scope](planning/feature-scope.md)
 - [Roadmap](planning/roadmap.md)
 - [Versioning and releases](planning/versioning-and-releases.md)

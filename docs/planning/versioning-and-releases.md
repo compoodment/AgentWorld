@@ -36,15 +36,15 @@ experimental milestone, not a promise that only a patch-sized change occurred.
 
 ## Runtime and package versions
 
-The Phase 1 toolchain is intentionally undecided. Once selected, its canonical
-runtime/package manifest becomes the single source of truth for the
-runtime/package version, and `agentworld --version` must print both the public
-release label and source revision. Do not create competing hand-maintained
-version constants.
+Phase 1 uses the [C#/.NET 10 toolchain](csharp-toolchain.md). The shared
+[`Directory.Build.props`](../../Directory.Build.props) file is the canonical
+source for .NET package/runtime metadata: it defines `VersionPrefix` and
+`VersionSuffix`, which currently evaluate to `0.1.0-alpha.1`. This metadata
+does not create a public release or tag by itself.
 
-If the selected toolchain is Python, `pyproject.toml` is that manifest and its
-package version follows PEP 440 where required. For example, public tags and
-release notes use `v0.1.0-alpha.1`, while Python metadata may use `0.1.0a1`.
+When the first executable host exists, `agentworld --version` must print that
+metadata and the source revision. Do not create competing hand-maintained
+version constants.
 
 ## Compatibility is separate from release numbering
 

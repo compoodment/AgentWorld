@@ -376,6 +376,20 @@ contract.
 The complete operational policy is
 [Versioning and releases](../planning/versioning-and-releases.md).
 
+## 2026-09-19 — Phase 1 C# toolchain
+
+- The authoritative Phase 1 simulation is C# 14 on .NET 10 LTS, pinned to the
+  `10.0.401` SDK baseline with patch roll-forward in
+  [`global.json`](../../global.json).
+- xUnit is the initial test framework; NuGet lock files are committed and
+  verification runs with locked dependencies.
+- The core is a pure, headless .NET library. A later Godot viewer may use C#,
+  but it has no project or runtime dependency on the authoritative simulation
+  and cannot mutate state directly.
+- This settles toolchain choice only. Persistence, fixtures, the map/actor
+  harness, and the first full deterministic kernel remain separately tracked
+  Phase 1 work.
+
 ## 2026-09-19 — Contract remediation decisions
 
 The post-freeze review exposed implementation-critical ambiguity, not a need

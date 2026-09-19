@@ -530,3 +530,21 @@ this later” bullet. Fancy phrasing is not a state machine. Sad but true.
 People need to know whether a build is an experimental game release, while the
 simulation needs to know whether a world can safely load. Those are related,
 but they are not the same bloody number.
+
+## 2026-09-19 — Phase 1 C# toolchain
+
+### Current decisions
+
+- The Phase 1 authoritative kernel uses C# 14 on .NET 10 LTS, with an exact
+  `10.0.401` SDK baseline and committed NuGet dependency locks.
+- xUnit provides the initial `dotnet test` path; formatting and tests run in
+  GitHub Actions using the same locked dependency commands as a fresh clone.
+- The core is a normal headless .NET library. Godot remains a potential later
+  viewer rather than a simulation dependency, even though C# lets both layers
+  share a language if that viewer direction survives prototyping.
+
+### Design principle
+
+One language should reduce friction between the world brain and its future
+body, not let the body quietly become reality. The deterministic kernel stays
+boringly headless on purpose.

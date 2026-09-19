@@ -15,11 +15,10 @@ evidence. Do not create new interview batches for speculative future systems.
 
 The behavioral contract and fixture categories are settled in the
 [deterministic kernel contract](../planning/deterministic-kernel-contract.md).
-Only implementation choices remain:
+The C#/.NET 10 toolchain and xUnit test path are settled in the
+[Phase 1 C# toolchain](../planning/csharp-toolchain.md). The remaining
+implementation choices are:
 
-- Which implementation language and test toolchain produce the smallest
-  reproducible headless kernel on the target host? Track and resolve this in
-  [#86](https://github.com/compoodment/AgentWorld/issues/86).
 - What event, snapshot, and migration storage format is sufficient for the
   first replay fixtures without prematurely choosing the long-term database?
   Collect prototype evidence in

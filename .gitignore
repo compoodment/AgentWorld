@@ -18,6 +18,11 @@ venv/
 export/
 build/
 
+# .NET build and test output
+bin/
+obj/
+TestResults/
+
 # Local saves, logs, and generated experiments
 saves/
 logs/

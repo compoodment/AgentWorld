@@ -25,13 +25,14 @@ the [deterministic kernel contract](../planning/deterministic-kernel-contract.md
 
 ## Capability ledger
 
-All rows begin as `specified`: this repository has no executable kernel yet.
-The linked issue is the live-work source; replace `none` with a merged PR and
-test or CI command only when evidence exists.
+All kernel rows begin as `specified`. The toolchain foundation is verified, but
+that does not mean any world behavior exists. The linked issue is the
+live-work source; replace `none` with a merged PR and test or CI command only
+when evidence exists.
 
 | Contract area | Delivery issue | Evidence status | Code / test evidence |
 | --- | --- | --- | --- |
-| Runtime, test framework, dependency and CI entrypoint | [#86](https://github.com/compoodment/AgentWorld/issues/86) | specified | none |
+| Runtime, test framework, dependency and CI entrypoint | [#86](https://github.com/compoodment/AgentWorld/issues/86) | verified | [C# toolchain](../planning/csharp-toolchain.md); `dotnet restore --locked-mode && dotnet format --verify-no-changes --no-restore && dotnet test --configuration Release --no-restore` |
 | World identity, events, snapshots, migrations, and replay persistence | [#87](https://github.com/compoodment/AgentWorld/issues/87) | specified | none |
 | Seed corpus, generated-map acceptance, scripted actor, and canonical digest harness | [#88](https://github.com/compoodment/AgentWorld/issues/88) | specified | none |
 | Integral tick loop, clock, pause/resume, ordered ingress, and deterministic randomness | [#89](https://github.com/compoodment/AgentWorld/issues/89) | specified | none |

@@ -10,13 +10,14 @@ systems for the world itself.
 The long-term idea is a world that can become more complex because its
 inhabitants choose to make it so.
 
-> **Status: concept freeze; preparing the first deterministic vertical slice.**
-> There is no playable game yet.
+> **Status: Phase 1 deterministic-kernel foundation.**
+> There is no playable game or visual client yet.
 
 This repository deliberately captured the concept before implementation. The
-first-world rules are now settled enough to build and test; new design changes
-should come from prototype evidence or a deliberate decision, not an endless
-questionnaire.
+first-world rules are now settled enough to build and test, and the C# solution
+foundation establishes that boundary without claiming a finished kernel. New
+design changes should come from prototype evidence or a deliberate decision,
+not an endless questionnaire.
 
 ## The core idea
 
@@ -82,6 +83,9 @@ The [Phase 1 implementation ledger](docs/implementation/phase-1.md) records
 which deterministic-kernel capabilities have executable evidence. GitHub owns
 active work; the [document-authority guide](docs/governance/document-authority.md)
 defines the boundary between design, delivery tracking, and proof.
+
+Phase 1's headless core uses [C#/.NET 10](docs/planning/csharp-toolchain.md).
+The viewer is deliberately not part of that project boundary.
 
 The decision register is the current authority; the
 [design log](docs/decisions/design-log.md) is the chronological record of why
