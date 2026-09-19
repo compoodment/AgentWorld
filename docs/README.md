@@ -57,6 +57,8 @@ project happened to ask questions.
   executable map, actor, action, and save/replay acceptance slice.
 - [Staged kernel evidence](implementation/staged-kernel.md) — atomic tick,
   clock, pause/resume, recovery, and deterministic-randomness fixtures.
+- [Deterministic movement evidence](implementation/deterministic-movement.md)
+  — movement claims, swaps, blocking, and route-cache invalidation fixtures.
 
 ## Maintenance rule
 

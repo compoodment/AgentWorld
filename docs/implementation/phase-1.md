@@ -36,7 +36,7 @@ a merged PR and test or CI command only when evidence exists.
 | World identity, events, snapshots, migrations, and replay persistence | [#87](https://github.com/compoodment/AgentWorld/issues/87) | verified spike | [Persistence spike evidence](persistence-spike.md); `dotnet test --configuration Release --no-restore` |
 | Seed corpus, generated-map acceptance, scripted actor, and canonical digest harness | [#88](https://github.com/compoodment/AgentWorld/issues/88) | verified harness | [Seeded harness evidence](seeded-harness.md); `dotnet test --configuration Release --no-restore` |
 | Integral tick loop, clock, pause/resume, ordered ingress, and deterministic randomness | [#90](https://github.com/compoodment/AgentWorld/issues/90) | verified fixture | [Staged kernel evidence](staged-kernel.md); `dotnet test --configuration Release --no-restore` |
-| Routing, reservations, movement contention, and cache invalidation | [#89](https://github.com/compoodment/AgentWorld/issues/89) | specified | none |
+| Routing, reservations, movement contention, and cache invalidation | [#91](https://github.com/compoodment/AgentWorld/issues/91) | verified fixture | [Deterministic movement evidence](deterministic-movement.md); `dotnet test --configuration Release --no-restore` |
 | Needs, resources, lots, reservations, ownership, commands, and messages | [#89](https://github.com/compoodment/AgentWorld/issues/89) | specified | none |
 | Contract fixture matrix and end-to-end acceptance gate | [#89](https://github.com/compoodment/AgentWorld/issues/89) | specified | none |
 

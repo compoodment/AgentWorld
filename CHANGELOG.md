@@ -15,3 +15,6 @@ published a release yet.
 - Added a staged atomic tick fixture with integer clock arithmetic, durable
   pause/resume epochs, crash-boundary recovery proof, and a shared pinned PCG32
   random-stream implementation.
+- Added deterministic multi-actor movement resolution with stable destination
+  claims, legal direct swaps, rejected longer cycles, and non-authoritative
+  route-cache invalidation keys.
