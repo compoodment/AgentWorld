@@ -30,11 +30,11 @@ LLM inhabitant runtime
 validated creation and modding system
 ```
 
-A first world should begin with one to three founders. They may name
-themselves, have distinct personalities and aspirations, and develop social
-roles through what they actually do. They must satisfy needs such as hunger,
-health, rest, and shelter. Population grows through limited family formation,
-not arbitrary agent spawning.
+A first world should begin with a small group of multiple, unrelated founders.
+They may name themselves, have distinct personalities and aspirations, and
+develop social roles through what they actually do. They must satisfy needs
+such as hunger, health, rest, and shelter. Population grows through limited
+family formation, not arbitrary agent spawning.
 
 The world itself continues in a long-running process. It does not depend on a
 cron job or a human issuing every action. Routine movement and survival can be
