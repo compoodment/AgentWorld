@@ -35,10 +35,15 @@ verify_sha256() {
 
 mkdir -p "${scratch_root}"
 printf 'Downloading Godot %s and its required .NET runtime\n' "${GODOT_VERSION}"
+printf 'Fetching Godot archive\n'
 curl --fail --location --retry 3 --retry-all-errors --silent --show-error --output "${archive_path}" "${GODOT_URL}"
+printf 'Checking Godot archive SHA-256\n'
 verify_sha256 "${GODOT_SHA256}" "${archive_path}" "Godot archive"
+printf 'Fetching .NET runtime archive\n'
 curl --fail --location --retry 3 --retry-all-errors --silent --show-error --output "${dotnet_archive_path}" "${DOTNET_RUNTIME_URL}"
+printf 'Checking .NET runtime archive SHA-256\n'
 verify_sha256 "${DOTNET_RUNTIME_SHA256}" "${dotnet_archive_path}" ".NET runtime archive"
+printf 'Extracting verification toolchain\n'
 unzip -qq "${archive_path}" -d "${tool_root}"
 mkdir -p "${dotnet_root}"
 tar -xzf "${dotnet_archive_path}" -C "${dotnet_root}"
@@ -46,5 +51,6 @@ tar -xzf "${dotnet_archive_path}" -C "${dotnet_root}"
 godot_bin="$(find "${tool_root}" -type f -name "Godot_v${GODOT_VERSION}-stable_mono_linux_x86_64" -print -quit)"
 test -n "${godot_bin}"
 
+printf 'Building Godot C# scripts and starting the scene headlessly\n'
 DOTNET_ROOT="${dotnet_root}" "${godot_bin}" --headless --path "${repo_root}/src/AgentWorld.GodotClient" --build-solutions --quit
 DOTNET_ROOT="${dotnet_root}" "${godot_bin}" --headless --path "${repo_root}/src/AgentWorld.GodotClient" --quit-after 120
