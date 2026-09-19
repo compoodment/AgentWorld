@@ -424,3 +424,34 @@ than smuggle nondeterminism into pathfinding.
 
 The game should be highly moddable without requiring a hosted server to trust
 arbitrary packages with its filesystem, network, credentials, or process.
+
+## 2026-09-19 — Batch 6B mod packages and safety defaults
+
+### Current decisions
+
+- Mods use versioned packages with manifests, dependencies, declared
+  capabilities, compatibility ranges, optional declarative rules, and
+  migration/rollback metadata. Private packages may be loaded from a local
+  folder, archive, or repository without requiring a fork.
+- New mods apply only at world creation or during an explicitly paused,
+  previewed migration. Active worlds do not change silently.
+- Updates checkpoint the world, test in an isolated copy, run compatibility and
+  representative simulation checks, and retain rollback metadata.
+- Kernel quotas limit entities per tick, event queues, resource creation,
+  computation, memory/storage, and recursion depth. A violation rejects or
+  disables the mod, rolls back the current transaction, and records an error.
+- Inhabitants may author objects, items, recipes, buildings, customs, events,
+  and potentially world-rule proposals. Their creations use the same
+  validation and application path and can later be exported as normal mod
+  packages.
+
+### Deliberately not decided
+
+- The authority inhabitants have to activate or export their own creations is
+  still open; authorship does not itself grant kernel or executable privileges.
+
+### Design principle
+
+Modding is not only an external developer feature. The world itself should be
+able to invent and preserve new content without turning creativity into an
+unvalidated back door.

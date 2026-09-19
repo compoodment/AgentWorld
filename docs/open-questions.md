@@ -316,11 +316,30 @@ WebAssembly sandbox, but that technology choice is still provisional. A private
 fork can change host code directly; that is separate from the installed-mod
 contract.
 
+### Batch 6B — accepted mod package and safety defaults
+
+- Mods use versioned packages with manifests, dependencies, declared
+  capabilities, compatibility ranges, optional declarative rules, and
+  migration/rollback metadata. Private packages may be loaded from a local
+  folder, archive, or repository without requiring a fork.
+- New mods apply only at world creation or during an explicitly paused,
+  previewed migration. Active worlds do not change silently.
+- Updates checkpoint the world, test in an isolated copy, run compatibility and
+  representative simulation checks, and retain rollback metadata.
+- Kernel quotas limit entities per tick, event queues, resource creation,
+  computation, memory/storage, and recursion depth. A violation rejects or
+  disables the mod, rolls back the current transaction, and records an error.
+- Inhabitants may author the same kinds of content and rule proposals. Their
+  creations use the same validation and application path and can later be
+  exported as normal mod packages.
+
 ### Remaining kernel and modding questions
 
 - How are mods migrated when the simulation version changes?
 - How do we prove that a mod cannot create runaway resources, entities, or
   computation?
+- How much authority should inhabitants have to activate or export their own
+  creations?
 
 ## Economy and assets
 

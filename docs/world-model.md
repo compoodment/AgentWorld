@@ -148,3 +148,10 @@ target. Future executable mods may use a capability-limited sandbox—WebAssembl
 is the current candidate—but that runtime is not locked yet. A private fork may
 change host code directly; that is a deployment fork, not a regular installed
 mod, and it carries the fork owner's security responsibility.
+
+Inhabitants are also allowed to author proposals for objects, items, recipes,
+buildings, customs, events, and potentially new world rules. Their creations
+use the same validation, approval, migration, and rollback path as human-made
+mods. Accepted creations can preserve their provenance and be exported as a
+normal mod package; authorship does not grant an inhabitant direct executable
+or kernel privileges.
