@@ -43,8 +43,9 @@ printf 'Fetching .NET runtime archive\n'
 curl --fail --location --retry 3 --retry-all-errors --silent --show-error --output "${dotnet_archive_path}" "${DOTNET_RUNTIME_URL}"
 printf 'Checking .NET runtime archive SHA-256\n'
 verify_sha256 "${DOTNET_RUNTIME_SHA256}" "${dotnet_archive_path}" ".NET runtime archive"
-printf 'Extracting verification toolchain\n'
-unzip -qq "${archive_path}" -d "${tool_root}"
+printf 'Extracting Godot archive\n'
+unzip -q "${archive_path}" -d "${tool_root}"
+printf 'Extracting .NET runtime archive\n'
 mkdir -p "${dotnet_root}"
 tar -xzf "${dotnet_archive_path}" -C "${dotnet_root}"
 
