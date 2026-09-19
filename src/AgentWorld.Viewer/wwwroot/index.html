@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentWorld · Observation</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">read-only deterministic inspection</p>
+      <h1>AgentWorld</h1>
+      <p id="connection-status" aria-live="polite">Loading observation…</p>
+    </header>
+    <section class="layout" aria-label="World inspection">
+      <section class="panel map-panel">
+        <h2>Seeded world</h2>
+        <div id="world-map" class="world-map" aria-label="Seeded world map"></div>
+        <p class="caption">Tiles are authoritative snapshot data. This client cannot move the actor.</p>
+      </section>
+      <aside class="side-column">
+        <section class="panel">
+          <h2>Actor</h2>
+          <dl id="actor-details"></dl>
+        </section>
+        <section class="panel">
+          <h2>Resources</h2>
+          <ul id="resource-list" class="resource-list"></ul>
+        </section>
+      </aside>
+    </section>
+    <section class="panel event-panel">
+      <h2>Ordered event history</h2>
+      <ol id="event-log" class="event-log"></ol>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

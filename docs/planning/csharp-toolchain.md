@@ -21,14 +21,15 @@ simulation project.
 
 ```text
 src/AgentWorld.Simulation/        pure authoritative simulation library
-tests/AgentWorld.Simulation.Tests/ deterministic and replay test suite
-future viewer/                    separate project; no authority over state
+src/AgentWorld.Viewer/            separate ASP.NET Core observation host
+tests/AgentWorld.Simulation.Tests/ deterministic, replay, and viewer-contract tests
 ```
 
 `AgentWorld.Simulation` must remain runnable and testable without Godot, a
 window manager, an LLM provider, or a network connection after dependencies are
-restored. Any future client asks the simulation to validate and commit an
-action; it does not mutate world state directly.
+restored. The browser viewer references the simulation, never the reverse, and
+projects its own read-only DTOs. Any future client asks the simulation to
+validate and commit an action; it does not mutate world state directly.
 
 ## Test and dependency policy
 

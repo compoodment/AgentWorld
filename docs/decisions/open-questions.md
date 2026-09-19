@@ -35,8 +35,11 @@ evidence.
 
 ## Later roadmap-phase implementation choices
 
-- Phase 2: whether Godot is the viewer, client only, or a discarded prototype
-  tool; native versus web client.
+- Phase 2: the first browser viewer is a deliberately read-only debugging
+  baseline. Whether Godot is the production viewer, client only, or a
+  discarded prototype tool remains open; choose between native and web after
+  observation-protocol evidence rather than assuming the debugging surface is
+  the final rendering engine.
 - Phase 3: measured observation, memory, inhabitant-capacity, and provider-usage
   budgets under the [cognition and society contract](../planning/cognition-and-society-contract.md);
   the contract's admission, backpressure, pause, and emergency-stop behavior is

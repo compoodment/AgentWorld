@@ -32,7 +32,7 @@ later phases are not commitments to build every feature.
 can be judged against it. Further changes require deliberate decisions or
 prototype evidence.
 
-## Phase 1 — Deterministic simulation kernel (current)
+## Phase 1 — Deterministic simulation kernel (complete)
 
 The exact Phase 1 semantics and replay fixtures are in the
 [deterministic kernel contract](deterministic-kernel-contract.md).
@@ -57,7 +57,7 @@ capability evidence. Neither replaces this roadmap's gate.
 **Gate:** the world remains correct and reproducible without any LLM or visual
 client.
 
-## Phase 2 — World viewer and observation boundary
+## Phase 2 — World viewer and observation boundary (current)
 
 The protocol and client-correction baseline are defined in the
 [deterministic kernel contract](deterministic-kernel-contract.md).
