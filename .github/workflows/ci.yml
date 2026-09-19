@@ -22,3 +22,16 @@ jobs:
         run: bash scripts/verify-godot-client.sh
       - run: dotnet format --verify-no-changes --no-restore
       - run: dotnet test --configuration Release --no-restore
+      - name: Restore pinned Godot export downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/agentworld-godot
+          key: godot-4.7.2-mono-linux-x64-export-templates-v1
+      - name: Verify Windows 11 x64 Godot release export
+        run: bash scripts/verify-godot-windows-export.sh
+      - name: Upload Windows 11 x64 Godot release export
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentworld-windows-11-x64
+          path: export/windows-x64
+          if-no-files-found: error

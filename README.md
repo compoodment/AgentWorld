@@ -10,11 +10,14 @@ systems for the world itself.
 The long-term idea is a world that can become more complex because its
 inhabitants choose to make it so.
 
-> **Status: Phase 2 observation baseline.**
-> The repository includes a small read-only browser debugger and a thin Godot
-> observer for the deterministic seeded harness. Neither client can directly
-> mutate authoritative state. The Godot observer is a proven protocol/rendering
-> slice, not the final game UI or a packaged desktop release.
+> **Status: Phase 2 owner-bound interaction delivery is in progress.**
+> The repository has a headless live-fixture host, durable world and
+> paired-device authority state, a browser protocol-discovery page, and a
+> Godot owner client. The browser deliberately receives no world projection;
+> a paired device makes signed requests for observation and for server-validated
+> control requests. Neither client owns or directly mutates authoritative
+> state. The Godot UI and Windows export path are prototype infrastructure,
+> not the final game UI or a released desktop build.
 
 This repository deliberately captured the concept before implementation. The
 first-world rules are now settled enough to build and test, and the C# solution
@@ -89,57 +92,103 @@ defines the boundary between design, delivery tracking, and proof.
 
 Phase 1's headless core uses [C#/.NET 10](docs/planning/csharp-toolchain.md).
 The browser viewer is deliberately a separate, non-authoritative diagnostic
-project. The Godot client is separately non-authoritative and consumes the
-same versioned observation boundary; it is the intended player-facing client.
+project. The Godot client is separately non-authoritative, consumes the
+versioned owner-observation boundary, and is the intended player-facing
+client. [Device pairing](docs/planning/device-pairing.md) defines why private
+Tailnet transport is not itself owner permission.
 
-## Browser observation baseline
+## Browser protocol discovery
 
 Run the seeded-world debugger locally with:
 
     dotnet run --project src/AgentWorld.Viewer/AgentWorld.Viewer.csproj
 
-It serves a dependency-free static browser UI and three read-only protocol
-endpoints:
+The dependency-free browser page is intentionally a **discovery-only**
+diagnostic surface. It can show the public versioned handshake and explain that
+a paired owner device is required; it does not receive world state, inhabitants,
+or event history. The legacy unauthenticated world/event/reconnect routes
+explicitly refuse observation, and an accidental write to the old world route
+still receives `405`.
 
-- `GET /api/v1/handshake`
-- `GET /api/v1/world`
-- `GET /api/v1/events?afterEventId=…`
-- `GET /api/v1/reconnect?afterEventId=…`
+An unpaired device may start, poll, and activate its own short-lived pairing
+record. Full observation is a signed `POST /api/v1/owner/reconnect` request
+from an active paired device. Pause, resume, instructions, paused authoring,
+and device management are likewise signed owner requests that the server
+validates before it commits anything. A paired device can request the signed
+registry of paired-device lifecycle records, approve a pending device, or
+revoke another device; that registry contains public identifiers, fingerprints,
+and lifecycle state, never a private key, pairing code, or reusable challenge.
+See the
+[pairing policy](docs/planning/device-pairing.md) for the bootstrap and recovery
+boundary rather than treating the browser page as an owner console.
 
-By default the initial sample is the completed deterministic `camp-alpha`
-harness. Set `AgentWorld__Runtime__AdvanceScript=true` when starting the host
-to begin at genesis and advance its small scripted path at the configured
-server clock. The viewer projects snapshots and events into its own DTOs; it
-cannot mutate the simulation, issue actions, or advance ticks.
+By default the host serves the completed deterministic `camp-alpha` fixture.
+Set `AgentWorld__Runtime__AdvanceScript=true` to start from genesis and advance
+the small scripted path on the server clock. Runtime state and paired-device
+authority state are stored separately and atomically; a configured seed checks
+the identity of an existing saved world rather than silently replacing it.
+
+Paused authoring can attach an asset reference only when its exact `assetId`
+and lowercase `sha256:<64-hex>` digest appear in the host-owned approved-asset
+catalog. The deployed service reads
+`/etc/agentworld-viewer/approved-assets.json`; a missing catalog is an empty,
+deny-all catalog, and an invalid existing catalog prevents startup rather than
+silently trusting a partial file. Owner requests cannot add catalog entries or
+upload asset bytes.
 
 The decision register is the current authority; the
 [design log](docs/decisions/design-log.md) is the chronological record of why
 those decisions were made. The retired Batch 5 worksheet has been removed:
 every one of its policy proposals was accepted or superseded.
 
-## Godot observation baseline
+## Godot owner-client prototype
 
-`src/AgentWorld.GodotClient` is a deliberately plain 2D inspector. It reads
-the handshake and atomic reconnect baseline, renders the map, actor, resources,
-tick, and ordered event suffix, and holds the last good projection if a refresh
-fails. It contains no action-submission route, client prediction, pause button,
-or simulation reference.
+`src/AgentWorld.GodotClient` is a deliberately plain 2D owner inspector. After
+device pairing it renders the server-issued map, inhabitants, needs, inventory,
+decision factors, route, spatial knowledge, authoring state, instructions, and
+ordered event suffix. It keeps the last coherent server projection if refresh
+fails. Its controls only submit one-use, device-key-signed requests; the
+headless server validates and records pause/resume, instructions, and paused
+authoring batches.
 
-The project defaults to a loopback world host. Developers can override that
-endpoint with `--world-url=<https-url>` after the Godot command separator. A
-future platform-specific package will make that configuration normal-user
-friendly; users do not need the Godot editor for that eventual build.
+The app presents a world-server URL for first pairing and retains the
+non-secret registration metadata locally; the corresponding Windows
+current-user device key is non-exportable. Developers can supply an initial
+endpoint with `--world-url=<https-url>` after the Godot command separator.
+Once paired, the client pins that server origin; changing it requires
+forgetting the local registration and pairing again, rather than silently
+retargeting an owner key. Users do not need the Godot editor.
+
+The pending pairing is pinned too: its poll and activation steps stay at the
+canonical origin where the pairing began. The client accepts activation only
+when the expected authority, device, and public-key fingerprint still match.
+If a network response is lost after submitting an instruction or paused
+authoring batch, the app retains one non-secret request locally, bound to that
+same authority, device, fingerprint, and origin. It can explicitly retry the
+same server idempotency key or batch ID with a fresh signed request; it is not
+an offline command queue, and the user can explicitly forget the retained
+request. Private keys, pairing codes, signatures, and challenges are never
+kept in that recovery record.
 
 Verify the pinned Godot engine and scene without installing it globally:
 
     bash scripts/verify-godot-client.sh
+
+The first export target is an **unsigned Windows 11 x64 portable bundle**.
+`bash scripts/verify-godot-windows-export.sh` checks the pinned Godot editor and
+export templates, produces a manifest-checked PE bundle, and is configured as a
+GitHub Actions artifact. That is an export-path check, not a signed release,
+installer choice, or proof of final Windows playtesting. Phase 2 still requires
+an actual Windows 11 x64 smoke test: launch the bundle, create the current-user
+device key, pair it with the private host, and complete a paired reconnect.
 
 ## What AgentWorld is not yet
 
 It is not currently:
 
 - a finished game
-- a packaged Godot desktop client or final game UI
+- a finished or final-art Godot game UI
+- a signed Windows installer or public desktop release
 - an OpenClaw plugin
 - an MMO or public server
 - a free-form code execution environment for agents

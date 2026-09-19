@@ -69,9 +69,10 @@ public sealed class WorldObservationSession
 
     public long EventCursor => Current?.Baseline.Snapshot.LatestEventId ?? 0;
 
-    public bool TryAccept(WorldObservation observation, out string failure)
+    public bool TryAccept(WorldObservation observation, long expectedAfterEventId, out string failure)
     {
         ArgumentNullException.ThrowIfNull(observation);
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedAfterEventId);
         if (observation.Handshake.Protocol.Major != SupportedProtocolMajor)
         {
             failure = $"Protocol major {observation.Handshake.Protocol.Major} is not supported.";
@@ -87,7 +88,7 @@ public sealed class WorldObservationSession
 
         var baseline = observation.Baseline;
         if (baseline.Events.SnapshotTick != baseline.Snapshot.WorldTick ||
-            baseline.Events.AfterEventId < 0 ||
+            baseline.Events.AfterEventId != expectedAfterEventId ||
             baseline.Snapshot.LatestEventId < baseline.Events.AfterEventId)
         {
             failure = "Reconnect baseline does not describe one coherent snapshot.";
@@ -97,7 +98,7 @@ public sealed class WorldObservationSession
         var expectedMinimumEventId = checked(baseline.Events.AfterEventId + 1);
         foreach (var worldEvent in baseline.Events.Events)
         {
-            if (worldEvent.EventId < expectedMinimumEventId ||
+            if (worldEvent.EventId != expectedMinimumEventId ||
                 worldEvent.EventId > baseline.Snapshot.LatestEventId ||
                 worldEvent.WorldTick > baseline.Snapshot.WorldTick)
             {
@@ -108,10 +109,30 @@ public sealed class WorldObservationSession
             expectedMinimumEventId = checked(worldEvent.EventId + 1);
         }
 
+        if (expectedMinimumEventId - 1 != baseline.Snapshot.LatestEventId)
+        {
+            failure = "Reconnect event suffix is incomplete for its snapshot.";
+            return false;
+        }
+
+        if (Current is { } current &&
+            (baseline.Snapshot.WorldTick < current.Baseline.Snapshot.WorldTick ||
+             baseline.Snapshot.LatestEventId < current.Baseline.Snapshot.LatestEventId))
+        {
+            failure = "Reconnect baseline regresses the last accepted authoritative world.";
+            return false;
+        }
+
         Current = observation;
         failure = string.Empty;
         return true;
     }
+
+    public bool TryAccept(WorldObservation observation, out string failure) =>
+        TryAccept(
+            observation,
+            Current?.Baseline.Snapshot.LatestEventId ?? observation.Baseline.Events.AfterEventId,
+            out failure);
 }
 
 /// <summary>

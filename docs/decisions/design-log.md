@@ -580,3 +580,20 @@ The first intended user confirmed Windows 11. Fixing that first package target
 lets the project validate export and handoff on the platform that will actually
 be used, without promising cross-platform distribution before the client is
 worth packaging.
+
+## 2026-09-19 — Phase 2 owner device pairing
+
+### Decision
+
+Phase 2 owner controls use explicit device pairing. A Windows client owns a
+device key; a host-local bootstrap approval confirms the first pending device;
+then every observation or control request proves possession of that key.
+Tailscale stays the private transport boundary rather than becoming an implicit
+application login. There are no accounts, passwords, or multiplayer roles.
+
+### Reason
+
+The owner needs a normal app-pairing flow without treating mere Tailnet
+membership as permission to see or change the complete private world. A paired
+device is revocable, auditable, and compatible with later role expansion while
+keeping the private first-world workflow small.

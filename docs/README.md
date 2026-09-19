@@ -14,8 +14,8 @@ project happened to ask questions.
    — the Phase 1 executable-design boundary.
 5. [Phase 1 implementation ledger](implementation/phase-1.md) — deterministic
    kernel capability evidence.
-6. [Phase 2 implementation ledger](implementation/phase-2.md) — viewer and
-   observation-boundary capability evidence.
+6. [Phase 2 implementation ledger](implementation/phase-2.md) — active
+   owner-observation, interaction-boundary, and Windows-export evidence.
 7. [Roadmap](planning/roadmap.md) — gated implementation sequence.
 
 ## Concept
@@ -30,6 +30,7 @@ project happened to ask questions.
 
 - [Architecture direction](planning/architecture.md)
 - [C# and Godot toolchain](planning/csharp-toolchain.md)
+- [Phase 2 owner device pairing](planning/device-pairing.md)
 - [Feature scope](planning/feature-scope.md)
 - [Roadmap](planning/roadmap.md)
 - [Versioning and releases](planning/versioning-and-releases.md)
@@ -53,8 +54,10 @@ project happened to ask questions.
 - [Phase 1 implementation ledger](implementation/phase-1.md) — capability
   evidence for the deterministic vertical slice. GitHub owns its active-work
   state.
-- [Phase 2 implementation ledger](implementation/phase-2.md) — capability
-  evidence for the read-only browser and Godot observation baseline.
+- [Phase 2 implementation ledger](implementation/phase-2.md) — active
+  evidence for paired owner observation, server-validated interaction, and the
+  Windows 11 x64 export path. It is not a Phase 2 completion claim until the
+  final delivery evidence is recorded.
 - [Persistence spike evidence](implementation/persistence-spike.md) — the
   bounded save/replay/migration feasibility result, not a database commitment.
 - [Seeded harness evidence](implementation/seeded-harness.md) — the first

@@ -19,27 +19,41 @@ Godot observer uses Godot 4.7.2's .NET project SDK and targets `net8.0`, the
 desktop script target supported by that engine. That target is intentionally
 local to the client; the authoritative projects remain on .NET 10.
 
-The first end-user export target is **Windows 11 x64**. It will be packaged as
-a normal runnable client; the Godot editor is a development-only tool. This
-does not yet select an installer format, code-signing provider, or additional
-desktop platforms.
+The first end-user export target is **Windows 11 x64**. The repository now has
+an unsigned portable-export path and a CI artifact configuration for that
+target; the Godot editor remains a development-only tool. This is not yet an
+installer choice, code-signing provider, public release, or proof of Windows
+playtesting.
+
+The export check proves that a reproducible bundle is produced, not that a
+person can use it on Windows. Before Phase 2 can be claimed complete, a Windows
+11 x64 smoke test must launch that bundle, create its current-user device key,
+complete device pairing with the private host, and make a paired reconnect. The
+tester needs the portable bundle and Tailnet reachability, not the Godot editor.
 
 ## Project boundary
 
 ```text
 src/AgentWorld.Simulation/        pure authoritative simulation library
 src/AgentWorld.Viewer/            separate ASP.NET Core observation host
-src/AgentWorld.GodotClient/       separate Godot read-only projection client
+src/AgentWorld.GodotClient/       separate Godot paired-owner projection/request client
 tests/AgentWorld.Simulation.Tests/ deterministic, replay, and viewer-contract tests
 ```
 
 `AgentWorld.Simulation` must remain runnable and testable without Godot, a
 window manager, an LLM provider, or a network connection after dependencies are
 restored. The browser viewer references the simulation, never the reverse, and
-projects its own read-only DTOs. The Godot client does not reference the
-simulation; it uses the browser host's versioned HTTP projection contract. Any
-future client asks the server to validate and commit an action; it does not
-mutate world state directly.
+projects its own diagnostic DTOs. The Godot client does not reference the
+simulation; it uses the headless host's versioned paired-owner HTTP contract.
+It signs requests with a device key, but every observation, pause/resume,
+instruction, and authoring result still comes from server validation and commit.
+No client mutates world state directly.
+
+The Windows client uses a non-exportable current-user CNG P-256 device key for
+normal pairing. Its saved registration contains only non-secret metadata; the
+private key is never bundled into an export or written into a world save. The
+full bootstrap, revocation, and transport policy lives in
+[Phase 2 owner device pairing](device-pairing.md).
 
 ## Test and dependency policy
 
@@ -63,9 +77,14 @@ dotnet restore --locked-mode
 dotnet format --verify-no-changes --no-restore
 dotnet test --configuration Release --no-restore
 bash scripts/verify-godot-client.sh
+bash scripts/verify-godot-windows-export.sh
 ```
 
-The final command downloads the exact Godot 4.7.2 .NET engine archive, checks
-its SHA-256, builds the C# scripts, and starts the scene headlessly. GitHub
-Actions runs the same checks for pushes and pull requests using the pinned .NET
-10 SDK/runtime host.
+`verify-godot-client.sh` downloads the exact Godot 4.7.2 .NET engine archive,
+checks its SHA-256, builds the C# scripts, and starts the scene headlessly.
+`verify-godot-windows-export.sh` separately verifies the pinned editor and
+export-template archives, emits an unsigned Windows x64 PE bundle, and writes a
+SHA-256 manifest. It proves export reproducibility on the build host; it does
+not substitute for running the bundle on Windows 11. GitHub Actions is
+configured to run these checks and upload the Windows bundle as an artifact for
+pushes and pull requests using the pinned .NET 10 SDK/runtime host.

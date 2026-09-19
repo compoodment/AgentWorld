@@ -59,6 +59,52 @@ public sealed class GodotWorldObservationProtocolTests
         Assert.Same(accepted, session.Current);
     }
 
+    [Fact]
+    public void RejectsIncompleteOrWrongCursorReconnectAndKeepsLastWorld()
+    {
+        var session = new WorldObservationSession();
+        var accepted = CreateValidObservation();
+        Assert.True(session.TryAccept(accepted, expectedAfterEventId: 3, out _));
+
+        var incomplete = accepted with
+        {
+            Baseline = accepted.Baseline with
+            {
+                Events = accepted.Baseline.Events with { Events = [accepted.Baseline.Events.Events[0]] },
+            },
+        };
+
+        Assert.False(session.TryAccept(incomplete, expectedAfterEventId: 3, out var incompleteFailure));
+        Assert.Contains("incomplete", incompleteFailure, StringComparison.Ordinal);
+        Assert.Same(accepted, session.Current);
+
+        Assert.False(session.TryAccept(accepted, expectedAfterEventId: 2, out var cursorFailure));
+        Assert.Contains("coherent snapshot", cursorFailure, StringComparison.Ordinal);
+        Assert.Same(accepted, session.Current);
+    }
+
+    [Fact]
+    public void RejectsRegressedSnapshotWithoutDiscardingLastWorld()
+    {
+        var session = new WorldObservationSession();
+        var accepted = CreateValidObservation();
+        Assert.True(session.TryAccept(accepted, expectedAfterEventId: 3, out _));
+        var regressed = accepted with
+        {
+            Baseline = accepted.Baseline with
+            {
+                Snapshot = accepted.Baseline.Snapshot with { WorldTick = 4, LatestEventId = 4 },
+                Events = new WorldEventSlice(4, 3, [new WorldEvent(4, 4, "move", "south")]),
+            },
+        };
+
+        var wasAccepted = session.TryAccept(regressed, expectedAfterEventId: 3, out var failure);
+
+        Assert.False(wasAccepted);
+        Assert.Contains("regresses", failure, StringComparison.Ordinal);
+        Assert.Same(accepted, session.Current);
+    }
+
     private static WorldObservation CreateValidObservation()
     {
         var handshake = new WorldHandshake(

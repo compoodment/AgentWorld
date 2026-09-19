@@ -63,22 +63,34 @@ The protocol and client-correction baseline are defined in the
 [deterministic kernel contract](deterministic-kernel-contract.md).
 
 - use Godot as the intended player-facing rendering/client engine; keep the
-  browser as a read-only diagnostic surface
-- prove a thin read-only Godot observer against the versioned handshake and
+  browser as a protocol-discovery and diagnostic surface
+- bind full-world observation and control to a revocable paired owner device;
+  Tailnet/private-network reachability is transport only, not application
+  authority
+- prove a Godot paired-owner inspector against the versioned handshake and
   atomic reconnect baseline before committing to production rendering or
   authoring workflows
 - render a seeded world and active entities
 - inspect the complete world, selected inhabitants, summarized decision factors,
   spatial knowledge, and event history
 - show current-tile knowledge, local perception, destinations, and active routes
-- expose suggestive/must-do instructions and the full paused authoring surface:
+- persist the live runtime and owner-authority state separately, with validated
+  restart/reconnect behavior
+- expose server-validated suggestive/must-do instructions and the full paused
+  authoring request surface:
   terrain, water, resources, plants, buildings, inhabitants, weather/seasons,
   and checked human assets
-- define the observation and action protocol
+- define and test the signed observation/action protocol, including replay
+  resistance and revocation
+- establish an unsigned Windows 11 x64 portable export path for later owner
+  testing; do not mistake that path for a released or final UI
 - run the server headlessly on a development machine or VPS
 
-**Gate:** a human can understand what happened, and a client cannot directly
-mutate authoritative state.
+**Gate:** a human can understand what happened through a paired client, and no
+client can directly mutate authoritative state. The browser must remain useful
+for diagnosis without becoming an unauthenticated owner console. Phase 2 stays
+current while [#99](https://github.com/compoodment/AgentWorld/issues/99) receives
+its final verification, deployment, and evidence ledger.
 
 ## Phase 3 — One LLM inhabitant
 

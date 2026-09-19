@@ -429,8 +429,11 @@ design-log entry, with migration/fixture impact considered alongside prose.
 - The first end-user Godot package targets **Windows 11 x64**. It is a normal
   runnable client, not an editor requirement; other platforms and distribution
   mechanics remain future packaging work.
-- App-level owner authentication is deferred until a client can submit
-  privileged controls such as pause, directives, or paused-world edits.
+- Phase 2 owner access uses explicit device pairing. Tailnet access supplies
+  private transport, not owner authority: a paired device proves possession of
+  its own key for reads and controls, while first-device approval remains a
+  host-local bootstrap operation. No account, password, or multiplayer role
+  system is introduced.
 
 ### Design principle
 

@@ -26,6 +26,60 @@ public sealed record ViewerActor(
     int FoodItems,
     int WoodItems);
 
+public sealed record ViewerInventoryEntry(string Kind, int Quantity);
+
+public sealed record ViewerDecisionFactor(string Key, string Detail);
+
+public sealed record ViewerRoute(
+    string Status,
+    string? DestinationId,
+    ViewerPosition? Destination,
+    IReadOnlyList<ViewerPosition> Steps,
+    string TopologyManifestDigest);
+
+public sealed record ViewerSpatialKnowledge(
+    ViewerPosition CurrentTile,
+    IReadOnlyList<ViewerPosition> PerceivedTiles,
+    IReadOnlyList<ViewerPosition> KnownTiles);
+
+/// <summary>
+/// An inspection projection, never an editable actor record. A founder draft
+/// is visible as such but is not a living simulation actor yet.
+/// </summary>
+public sealed record ViewerInhabitant(
+    string Id,
+    string DisplayName,
+    string Lifecycle,
+    ViewerPosition Position,
+    int HungerBasisPoints,
+    int EnergyBasisPoints,
+    IReadOnlyList<ViewerInventoryEntry> Inventory,
+    IReadOnlyList<ViewerDecisionFactor> DecisionFactors,
+    ViewerRoute Route,
+    ViewerSpatialKnowledge SpatialKnowledge,
+    bool IsDraft);
+
+public sealed record ViewerInstruction(
+    string InstructionId,
+    string TargetInhabitantId,
+    string Kind,
+    string Text,
+    string State,
+    long SubmittedTick,
+    long RunEpoch,
+    long SubmissionSequence);
+
+public sealed record ViewerAuthoringState(
+    bool IsPaused,
+    long RunEpoch,
+    long Revision,
+    long TopologyRevision,
+    string InitialMapManifestDigest,
+    string CurrentMapManifestDigest,
+    string Weather,
+    string Season,
+    IReadOnlyList<string> ApprovedAssetReferences);
+
 public sealed record ViewerEvent(long EventId, long WorldTick, string Kind, string Detail);
 
 public sealed record ViewerWorldSnapshot(
@@ -36,7 +90,22 @@ public sealed record ViewerWorldSnapshot(
     IReadOnlyList<ViewerMapObject> Objects,
     IReadOnlyList<ViewerResource> Resources,
     ViewerActor Actor,
-    long LatestEventId);
+    long LatestEventId)
+{
+    /// <summary>
+    /// The inspectable population projection. <see cref="Actor"/> remains for
+    /// backwards-compatible Phase 2 diagnostic clients.
+    /// </summary>
+    public IReadOnlyList<ViewerInhabitant> Inhabitants { get; init; } = [];
+
+    /// <summary>
+    /// Present for the Phase 2 composite host. Its separate topology revision
+    /// makes it clear when paused authoring differs from the protected fixture.
+    /// </summary>
+    public ViewerAuthoringState? Authoring { get; init; }
+
+    public IReadOnlyList<ViewerInstruction> Instructions { get; init; } = [];
+}
 
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events);
 

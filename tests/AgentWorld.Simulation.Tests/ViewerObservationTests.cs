@@ -98,4 +98,33 @@ public sealed class ViewerObservationTests
         Assert.Equal([2L, 3L], baseline.Events.Events.Select(worldEvent => worldEvent.EventId));
         Assert.All(baseline.Events.Events, worldEvent => Assert.True(worldEvent.EventId > baseline.Events.AfterEventId));
     }
+
+    [Fact]
+    public void PhaseTwoInhabitantKnowledgeIsBoundedToLocalPerceptionAndItsCommittedRoute()
+    {
+        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var store = new PhaseTwoWorldObservationStore(runtime);
+
+        var snapshot = store.GetSnapshot();
+        var inhabitant = Assert.Single(snapshot.Inhabitants);
+        var knowledge = inhabitant.SpatialKnowledge;
+
+        Assert.Equal(inhabitant.Position, knowledge.CurrentTile);
+        Assert.All(knowledge.PerceivedTiles, tile => Assert.Contains(tile, knowledge.KnownTiles));
+        Assert.All(inhabitant.Route.Steps, step => Assert.Contains(step, knowledge.KnownTiles));
+        if (inhabitant.Route.Destination is not null)
+        {
+            Assert.Contains(inhabitant.Route.Destination, knowledge.KnownTiles);
+        }
+
+        Assert.Equal(
+            knowledge.KnownTiles
+                .Distinct()
+                .OrderBy(tile => tile.Y)
+                .ThenBy(tile => tile.X),
+            knowledge.KnownTiles);
+        Assert.True(
+            knowledge.KnownTiles.Count < snapshot.Tiles.Count,
+            "The fixture must not project the complete server map as inhabitant knowledge.");
+    }
 }

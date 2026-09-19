@@ -1,0 +1,299 @@
+using AgentWorld.Simulation.Harness;
+
+namespace AgentWorld.Viewer.Observation;
+
+/// <summary>
+/// Server-side projection of the Phase 2 composite runtime. It converts the
+/// protected simulation records into stable viewer DTOs while retaining the
+/// distinction between the live fixture topology and paused authoring state.
+/// </summary>
+public sealed class PhaseTwoWorldObservationStore
+{
+    private static readonly string[] OwnerServerCapabilities =
+    [
+        "snapshot.read.v1",
+        "event-replay.read.v1",
+        "reconnect-baseline.read.v1",
+        "seeded-map.read.v1",
+        "inhabitant-inspection.read.v1",
+        "spatial-knowledge.read.v1",
+        "owner-device-pairing.v1",
+        "owner-observation.read.v1",
+        "owner-control.request.v1",
+        "paused-authoring.request.v1",
+    ];
+
+    private static readonly string[] OwnerClientCapabilities =
+    [
+        "snapshot.read.v1",
+        "event-replay.read.v1",
+        "reconnect-baseline.read.v1",
+        "owner-device-pairing.v1",
+    ];
+
+    private readonly PhaseTwoWorldRuntime runtime;
+
+    public PhaseTwoWorldObservationStore(PhaseTwoWorldRuntime runtime)
+    {
+        this.runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+    }
+
+    public ViewerHandshake GetOwnerHandshake() => new(
+        new ProtocolVersion(Major: 1, Minor: 1),
+        OwnerServerCapabilities.ToArray(),
+        OwnerClientCapabilities.ToArray());
+
+    public ViewerWorldSnapshot GetSnapshot() => ToSnapshot(runtime.Capture(0).Snapshot);
+
+    public ViewerEventSlice GetEventsAfter(long afterEventId)
+    {
+        var capture = runtime.Capture(afterEventId);
+        return new ViewerEventSlice(
+            capture.Snapshot.World.Identity.WorldTick,
+            capture.AfterEventId,
+            capture.Events.Select(ToEvent).ToArray());
+    }
+
+    public ViewerReconnectBaseline GetReconnectBaseline(long afterEventId)
+    {
+        var capture = runtime.Capture(afterEventId);
+        var snapshot = ToSnapshot(capture.Snapshot);
+        return new ViewerReconnectBaseline(
+            snapshot,
+            new ViewerEventSlice(
+                snapshot.WorldTick,
+                capture.AfterEventId,
+                capture.Events.Select(ToEvent).ToArray()));
+    }
+
+    private static ViewerWorldSnapshot ToSnapshot(PhaseTwoWorldSnapshot state)
+    {
+        var map = state.CurrentMap;
+        var resourceStates = state.World.Resources.ToDictionary(resource => resource.Id, StringComparer.Ordinal);
+        var actor = ToActor(state.World.Actor);
+        return new ViewerWorldSnapshot(
+            state.World.Identity.WorldId,
+            state.World.Identity.WorldTick,
+            state.CurrentMapManifestDigest,
+            map.Tiles
+                .OrderBy(tile => tile.Position.Y)
+                .ThenBy(tile => tile.Position.X)
+                .Select(tile => new ViewerTile(tile.Position.X, tile.Position.Y, ToWireValue(tile.Terrain)))
+                .ToArray(),
+            map.CampObjects
+                .OrderBy(mapObject => mapObject.Id, StringComparer.Ordinal)
+                .Select(mapObject => new ViewerMapObject(mapObject.Id, mapObject.Kind, ToPosition(mapObject.Position)))
+                .ToArray(),
+            map.Resources
+                .OrderBy(resource => resource.Id, StringComparer.Ordinal)
+                .Select(resource => new ViewerResource(
+                    resource.Id,
+                    resource.Kind,
+                    ToPosition(resource.Position),
+                    resource.IsRenewable,
+                    resourceStates.TryGetValue(resource.Id, out var runtimeResource)
+                        ? ToWireValue(runtimeResource.State)
+                        : "available"))
+                .ToArray(),
+            actor,
+            state.LatestGlobalEventId)
+        {
+            Inhabitants = CreateInhabitants(state),
+            Authoring = new ViewerAuthoringState(
+                state.IsPaused,
+                state.RunEpoch,
+                state.Revision,
+                state.TopologyRevision,
+                state.InitialMapManifestDigest,
+                state.CurrentMapManifestDigest,
+                state.Climate.Weather,
+                state.Climate.Season,
+                state.ApprovedAssetReferences
+                    .OrderBy(reference => reference.AssetId, StringComparer.Ordinal)
+                    .Select(reference => $"{reference.AssetId}@{reference.AssetDigest}")
+                    .ToArray()),
+            Instructions = state.Instructions
+                .OrderBy(instruction => instruction.SubmissionSequence)
+                .Select(instruction => new ViewerInstruction(
+                    instruction.InstructionId,
+                    instruction.TargetInhabitantId,
+                    ToWireValue(instruction.Kind),
+                    instruction.Text,
+                    ToWireValue(instruction.State),
+                    instruction.SubmittedTick,
+                    instruction.RunEpoch,
+                    instruction.SubmissionSequence))
+                .ToArray(),
+        };
+    }
+
+    private static List<ViewerInhabitant> CreateInhabitants(PhaseTwoWorldSnapshot state)
+    {
+        var inhabitants = new List<ViewerInhabitant>
+        {
+            ToProtectedActor(state.World),
+        };
+        inhabitants.AddRange(state.FounderDrafts
+            .OrderBy(draft => draft.Id, StringComparer.Ordinal)
+            .Select(ToFounderDraft));
+        return inhabitants;
+    }
+
+    private static ViewerInhabitant ToProtectedActor(HarnessWorld world)
+    {
+        var actor = world.Actor;
+        var route = DetermineFixtureRoute(world);
+        var perceived = KnownNearby(world.Map, actor.Position).ToArray();
+        var known = KnownFixtureTopology(actor.Position, perceived, route);
+        return new ViewerInhabitant(
+            actor.Id,
+            "Scout",
+            "active_fixture",
+            ToPosition(actor.Position),
+            actor.HungerBasisPoints,
+            actor.EnergyBasisPoints,
+            [
+                new ViewerInventoryEntry("food", actor.FoodItems),
+                new ViewerInventoryEntry("wood", actor.WoodItems),
+            ],
+            [
+                new ViewerDecisionFactor("decision-source", "deterministic fixture; cognition is intentionally not active yet"),
+                new ViewerDecisionFactor("hunger", $"{actor.HungerBasisPoints} basis points"),
+                new ViewerDecisionFactor("energy", $"{actor.EnergyBasisPoints} basis points"),
+                new ViewerDecisionFactor("fixture-topology", world.Map.ManifestDigest),
+            ],
+            route,
+            new ViewerSpatialKnowledge(ToPosition(actor.Position), perceived, known),
+            IsDraft: false);
+    }
+
+    private static ViewerInhabitant ToFounderDraft(PhaseTwoFounderDraft draft) => new(
+        draft.Id,
+        draft.DisplayName,
+        "authoring_draft",
+        ToPosition(draft.Position),
+        0,
+        0,
+        [],
+        [
+            new ViewerDecisionFactor("status", "paused authoring draft; not active in the protected fixture"),
+            new ViewerDecisionFactor("created-revision", draft.CreatedRevision.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+        ],
+        new ViewerRoute("not_active", null, null, [], string.Empty),
+        new ViewerSpatialKnowledge(ToPosition(draft.Position), [ToPosition(draft.Position)], [ToPosition(draft.Position)]),
+        IsDraft: true);
+
+    private static ViewerRoute DetermineFixtureRoute(HarnessWorld world)
+    {
+        var actor = world.Actor;
+        if (actor.FoodItems > 0)
+        {
+            return new ViewerRoute("consume", null, null, [], world.Map.ManifestDigest);
+        }
+
+        var berry = world.Map.GetResource("berry-patch");
+        if (world.GetResource(berry.Id).State == ResourceState.Available)
+        {
+            return RouteTo(world.Map, actor.Position, berry.Position, "harvest", berry.Id);
+        }
+
+        var bedroll = world.Map.GetObject("bedroll");
+        if (actor.Position != bedroll.Position)
+        {
+            return RouteTo(world.Map, actor.Position, bedroll.Position, "sleep", bedroll.Id);
+        }
+
+        return new ViewerRoute("fixture_complete", null, null, [], world.Map.ManifestDigest);
+    }
+
+    private static ViewerRoute RouteTo(
+        SeededMap map,
+        GridPoint origin,
+        GridPoint destination,
+        string status,
+        string destinationId)
+    {
+        var steps = origin == destination
+            ? []
+            : DeterministicRouteFinder.Find(map, origin, destination)
+                .Skip(1)
+                .Select(ToPosition)
+                .ToArray();
+        return new ViewerRoute(status, destinationId, ToPosition(destination), steps, map.ManifestDigest);
+    }
+
+    private static IEnumerable<ViewerPosition> KnownNearby(SeededMap map, GridPoint origin) => map.Tiles
+        .Where(tile => Math.Abs(tile.Position.X - origin.X) <= 1 && Math.Abs(tile.Position.Y - origin.Y) <= 1)
+        .OrderBy(tile => tile.Position.Y)
+        .ThenBy(tile => tile.Position.X)
+        .Select(tile => ToPosition(tile.Position));
+
+    /// <summary>
+    /// The deterministic fixture has no persistent cognitive map. Its truthful
+    /// knowledge is therefore limited to the current local perception and the
+    /// route/destination it has already committed to follow. The server still
+    /// owns the full map for routing, but must not accidentally project that
+    /// omniscience as inhabitant knowledge.
+    /// </summary>
+    private static ViewerPosition[] KnownFixtureTopology(
+        GridPoint currentPosition,
+        IReadOnlyList<ViewerPosition> perceived,
+        ViewerRoute route)
+    {
+        var routeKnowledge = route.Destination is null
+            ? route.Steps
+            : route.Steps.Append(route.Destination);
+
+        return perceived
+            .Append(ToPosition(currentPosition))
+            .Concat(routeKnowledge)
+            .Distinct()
+            .OrderBy(position => position.Y)
+            .ThenBy(position => position.X)
+            .ToArray();
+    }
+
+    private static ViewerActor ToActor(HarnessActor actor) => new(
+        actor.Id,
+        ToPosition(actor.Position),
+        actor.HungerBasisPoints,
+        actor.EnergyBasisPoints,
+        actor.FoodItems,
+        actor.WoodItems);
+
+    private static ViewerEvent ToEvent(PhaseTwoWorldEvent worldEvent) => new(
+        worldEvent.EventId,
+        worldEvent.WorldTick,
+        worldEvent.Kind,
+        worldEvent.Detail);
+
+    private static ViewerPosition ToPosition(GridPoint point) => new(point.X, point.Y);
+
+    private static string ToWireValue(TerrainKind terrain) => terrain switch
+    {
+        TerrainKind.Meadow => "meadow",
+        TerrainKind.Water => "water",
+        TerrainKind.Mountain => "mountain",
+        _ => throw new ArgumentOutOfRangeException(nameof(terrain)),
+    };
+
+    private static string ToWireValue(ResourceState state) => state switch
+    {
+        ResourceState.Available => "available",
+        ResourceState.Depleted => "depleted",
+        _ => throw new ArgumentOutOfRangeException(nameof(state)),
+    };
+
+    private static string ToWireValue(PhaseTwoInstructionKind kind) => kind switch
+    {
+        PhaseTwoInstructionKind.Suggestive => "suggestive",
+        PhaseTwoInstructionKind.MustDo => "must_do",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
+
+    private static string ToWireValue(PhaseTwoInstructionState state) => state switch
+    {
+        PhaseTwoInstructionState.Queued => "queued",
+        _ => throw new ArgumentOutOfRangeException(nameof(state)),
+    };
+}

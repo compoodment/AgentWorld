@@ -11,28 +11,17 @@
     <header>
       <p class="eyebrow">read-only deterministic inspection</p>
       <h1>AgentWorld</h1>
-      <p id="connection-status" aria-live="polite">Loading observation…</p>
+      <p id="connection-status" aria-live="polite">Checking protocol discovery…</p>
     </header>
-    <section class="layout" aria-label="World inspection">
-      <section class="panel map-panel">
-        <h2>Seeded world</h2>
-        <div id="world-map" class="world-map" aria-label="Seeded world map"></div>
-        <p class="caption">Tiles are authoritative snapshot data. This client cannot move the actor.</p>
-      </section>
-      <aside class="side-column">
-        <section class="panel">
-          <h2>Actor</h2>
-          <dl id="actor-details"></dl>
-        </section>
-        <section class="panel">
-          <h2>Resources</h2>
-          <ul id="resource-list" class="resource-list"></ul>
-        </section>
-      </aside>
-    </section>
-    <section class="panel event-panel">
-      <h2>Ordered event history</h2>
-      <ol id="event-log" class="event-log"></ol>
+    <section class="panel notice" aria-label="Paired owner access">
+      <h2>Paired owner required</h2>
+      <p>This browser page remains a safe protocol diagnostic. World state,
+        inhabitants, and event history are intentionally available only to a
+        paired device making signed requests.</p>
+      <p>Use the Windows AgentWorld client to pair this device and inspect or
+        direct the world. The browser does not hold an owner key or a duplicate
+        authoring interface.</p>
+      <dl id="protocol-details"></dl>
     </section>
   </main>
   <script src="app.js"></script>

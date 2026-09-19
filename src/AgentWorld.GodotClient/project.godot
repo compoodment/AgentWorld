@@ -1,6 +1,6 @@
 ; Engine configuration file.
-; The first Godot slice is intentionally visual-only and reads an authoritative
-; world-server projection. It does not own or mutate simulation state.
+; The Phase 2 Godot client renders signed owner projections and submits paired
+; owner requests. It never owns or directly mutates simulation state.
 config_version=5
 
 [application]

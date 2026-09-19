@@ -23,6 +23,12 @@
 
   <ItemGroup>
     <Compile Include="..\..\src\AgentWorld.GodotClient\Protocol\WorldObservationProtocol.cs" Link="GodotClient\Protocol\WorldObservationProtocol.cs" />
+    <Compile Include="..\..\src\AgentWorld.GodotClient\Pairing\OwnerPairingProtocol.cs" Link="GodotClient\Pairing\OwnerPairingProtocol.cs" />
+    <Compile Include="..\..\src\AgentWorld.GodotClient\Pairing\OwnerDeviceKey.cs" Link="GodotClient\Pairing\OwnerDeviceKey.cs" />
+    <Compile Include="..\..\src\AgentWorld.GodotClient\Pairing\OwnerPairingClient.cs" Link="GodotClient\Pairing\OwnerPairingClient.cs" />
+    <Compile Include="..\..\src\AgentWorld.GodotClient\UI\OwnerWorldApi.cs" Link="GodotClient\UI\OwnerWorldApi.cs" />
+    <Compile Include="..\..\src\AgentWorld.GodotClient\ClientState\WorldServerOrigin.cs" Link="GodotClient\ClientState\WorldServerOrigin.cs" />
+    <Compile Include="..\..\src\AgentWorld.GodotClient\ClientState\OwnerPendingSubmissionStore.cs" Link="GodotClient\ClientState\OwnerPendingSubmissionStore.cs" />
   </ItemGroup>
 
 </Project>
