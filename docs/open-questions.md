@@ -231,6 +231,21 @@ The telemetry, routing, and provider pass accepted these defaults:
   atomic action continues, and stale in-flight responses cannot overwrite the
   new configuration.
 
+### Batch 5C — accepted family and mortality defaults
+
+The family and population pass accepted these defaults:
+
+- Relationships are a typed graph rather than one universal family label.
+  Household membership is separate from biological, social, or legal ties.
+- Adulthood is hybrid: kernel age bands govern protected rules, while cultures
+  may add ceremonies, apprenticeships, and social recognition.
+- Children rely on caregiver networks. Birth readiness considers consent,
+  health, food, sleeping space, care capacity, and safety, without a global
+  population cap or default human approval gate.
+- Death is an authoritative, recorded kernel transition. Future world rules or
+  mods may add constrained resurrection, but revival creates a new explicit
+  event/state and cannot erase the historical death.
+
 ### Survival and cognition tuning
 
 - What exact structured debug schema should the developer view persist and
@@ -240,15 +255,10 @@ The telemetry, routing, and provider pass accepted these defaults:
 
 - What route-cache data survives save/load, and how are future boats or other
   traversal modes added without changing the first grid contract?
-- How are relationships, consent, partnership, care, adolescence, adulthood,
-  and death represented?
-- How do food, housing, care, and social conditions shape population growth
-  without introducing a fixed cap?
 
 ### Provider and content detail
 
-- Which hosted provider APIs and model capabilities should the first registry
-  support, and how are credentials/capabilities validated?
+- How are credentials and model capabilities validated before assignment?
 - Which asset format, performance checks, provenance fields, and preview steps
   are needed for the first client?
 

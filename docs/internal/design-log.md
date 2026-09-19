@@ -312,3 +312,24 @@ cost while preserving meaningful decisions.
 Provider choice belongs to world configuration; deterministic mocks belong to
 the test harness. Neither provider responses nor route caches are allowed to
 become hidden authoritative world state.
+
+## 2026-09-19 — Batch 5C family and mortality defaults
+
+### Current decisions
+
+- Relationships use a typed graph. Household membership is separate from
+  biological, social, or legal ties.
+- Adulthood is hybrid: kernel age bands govern protected rules, while cultures
+  may add ceremonies, apprenticeships, and social recognition.
+- Children rely on caregiver networks. Birth readiness considers consent,
+  health, food, sleeping space, care capacity, and safety. There is no global
+  population cap or default human approval gate for births.
+- Death is an authoritative, recorded kernel transition. Future world rules or
+  validated mods may add constrained resurrection, but revival creates a new
+  explicit event/state and cannot erase the historical death.
+
+### Design principle
+
+The world can expand its metaphysics without making mortality meaningless:
+extraordinary restoration must be an explicit, costly, inspectable rule rather
+than a silent undo button.
