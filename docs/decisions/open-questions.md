@@ -13,33 +13,17 @@ evidence. Do not create new interview batches for speculative future systems.
 
 ## Phase 1 — deterministic simulation kernel
 
-The behavioral contract and fixture categories are settled in the
-[deterministic kernel contract](../planning/deterministic-kernel-contract.md).
-The C#/.NET 10 toolchain and xUnit test path are settled in the
-[Phase 1 C# toolchain](../planning/csharp-toolchain.md). The remaining
-implementation choices are:
-
-- What event, snapshot, and migration storage format is sufficient for the
-  first replay fixtures without prematurely choosing the long-term database?
-  Collect prototype evidence in
-  [#87](https://github.com/compoodment/AgentWorld/issues/87).
-- What compact seeded map, terrain fixture set, and test actors expose movement,
-  needs, ownership, and persistence failures quickly? Build the initial harness
-  through [#88](https://github.com/compoodment/AgentWorld/issues/88).
-
-These are build-spec choices. Resolve them in the first implementation plan and
-record the chosen direction in the [decision register](decision-register.md).
-GitHub owns their live workflow state; the
-[Phase 1 ledger](../implementation/phase-1.md) records only implementation
-evidence.
+Phase 1 is complete. Its fixture-backed storage/replay and seeded-world choices
+are recorded in the [Phase 1 ledger](../implementation/phase-1.md); they do
+not remain open product questions.
 
 ## Later roadmap-phase implementation choices
 
 - Phase 2: Godot is the intended player-facing client, while the browser stays
-  a deliberately read-only diagnostic surface. Prove the live headless host,
-  reconnect baseline, and first Godot protocol client through the Phase 2
-  milestone before selecting production rendering details, packaging, or any
-  authoring workflow.
+  a deliberately read-only diagnostic surface. The live headless host,
+  reconnect baseline, and first Godot protocol client are now proven. Select
+  production rendering details, a target platform for packaging, and any
+  authoring workflow only when the next prototype needs them.
 - Phase 3: measured observation, memory, inhabitant-capacity, and provider-usage
   budgets under the [cognition and society contract](../planning/cognition-and-society-contract.md);
   the contract's admission, backpressure, pause, and emergency-stop behavior is

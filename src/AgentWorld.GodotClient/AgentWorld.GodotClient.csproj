@@ -1,0 +1,8 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+  <PropertyGroup>
+    <RootNamespace>AgentWorld.GodotClient</RootNamespace>
+    <!-- The authoritative projects stay on the repository-wide .NET 10 target.
+         Godot 4.7 loads its desktop C# scripts through the .NET 8 runtime. -->
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+</Project>

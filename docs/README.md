@@ -29,7 +29,7 @@ project happened to ask questions.
 ## Planning
 
 - [Architecture direction](planning/architecture.md)
-- [Phase 1 C# toolchain](planning/csharp-toolchain.md)
+- [C# and Godot toolchain](planning/csharp-toolchain.md)
 - [Feature scope](planning/feature-scope.md)
 - [Roadmap](planning/roadmap.md)
 - [Versioning and releases](planning/versioning-and-releases.md)
@@ -54,7 +54,7 @@ project happened to ask questions.
   evidence for the deterministic vertical slice. GitHub owns its active-work
   state.
 - [Phase 2 implementation ledger](implementation/phase-2.md) — capability
-  evidence for the read-only browser observation baseline.
+  evidence for the read-only browser and Godot observation baseline.
 - [Persistence spike evidence](implementation/persistence-spike.md) — the
   bounded save/replay/migration feasibility result, not a database commitment.
 - [Seeded harness evidence](implementation/seeded-harness.md) — the first

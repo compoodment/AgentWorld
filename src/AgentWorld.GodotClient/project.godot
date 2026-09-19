@@ -1,0 +1,26 @@
+; Engine configuration file.
+; The first Godot slice is intentionally visual-only and reads an authoritative
+; world-server projection. It does not own or mutate simulation state.
+config_version=5
+
+[application]
+config/name="AgentWorld"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[agentworld]
+world_url="http://127.0.0.1:5188"
+
+[dotnet]
+project/assembly_name="AgentWorld.GodotClient"
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=800
+window/size/window_width_override=1280
+window/size/window_height_override=800
+window/stretch/mode="canvas_items"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

@@ -64,6 +64,9 @@ The protocol and client-correction baseline are defined in the
 
 - use Godot as the intended player-facing rendering/client engine; keep the
   browser as a read-only diagnostic surface
+- prove a thin read-only Godot observer against the versioned handshake and
+  atomic reconnect baseline before committing to production rendering or
+  authoring workflows
 - render a seeded world and active entities
 - inspect the complete world, selected inhabitants, summarized decision factors,
   spatial knowledge, and event history

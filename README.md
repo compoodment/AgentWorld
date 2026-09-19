@@ -11,9 +11,10 @@ The long-term idea is a world that can become more complex because its
 inhabitants choose to make it so.
 
 > **Status: Phase 2 observation baseline.**
-> The repository includes a small read-only browser debugger for the deterministic
-> seeded harness. Godot is the intended player-facing client, but it is not yet
-> implemented; neither client can directly mutate authoritative state.
+> The repository includes a small read-only browser debugger and a thin Godot
+> observer for the deterministic seeded harness. Neither client can directly
+> mutate authoritative state. The Godot observer is a proven protocol/rendering
+> slice, not the final game UI or a packaged desktop release.
 
 This repository deliberately captured the concept before implementation. The
 first-world rules are now settled enough to build and test, and the C# solution
@@ -88,7 +89,8 @@ defines the boundary between design, delivery tracking, and proof.
 
 Phase 1's headless core uses [C#/.NET 10](docs/planning/csharp-toolchain.md).
 The browser viewer is deliberately a separate, non-authoritative diagnostic
-project; Godot is the intended player-facing client.
+project. The Godot client is separately non-authoritative and consumes the
+same versioned observation boundary; it is the intended player-facing client.
 
 ## Browser observation baseline
 
@@ -115,12 +117,29 @@ The decision register is the current authority; the
 those decisions were made. The retired Batch 5 worksheet has been removed:
 every one of its policy proposals was accepted or superseded.
 
+## Godot observation baseline
+
+`src/AgentWorld.GodotClient` is a deliberately plain 2D inspector. It reads
+the handshake and atomic reconnect baseline, renders the map, actor, resources,
+tick, and ordered event suffix, and holds the last good projection if a refresh
+fails. It contains no action-submission route, client prediction, pause button,
+or simulation reference.
+
+The project defaults to a loopback world host. Developers can override that
+endpoint with `--world-url=<https-url>` after the Godot command separator. A
+future platform-specific package will make that configuration normal-user
+friendly; users do not need the Godot editor for that eventual build.
+
+Verify the pinned Godot engine and scene without installing it globally:
+
+    bash scripts/verify-godot-client.sh
+
 ## What AgentWorld is not yet
 
 It is not currently:
 
 - a finished game
-- a working Godot project
+- a packaged Godot desktop client or final game UI
 - an OpenClaw plugin
 - an MMO or public server
 - a free-form code execution environment for agents

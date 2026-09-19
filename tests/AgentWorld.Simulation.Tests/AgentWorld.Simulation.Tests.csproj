@@ -21,4 +21,8 @@
     <ProjectReference Include="..\..\src\AgentWorld.Viewer\AgentWorld.Viewer.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\..\src\AgentWorld.GodotClient\Protocol\WorldObservationProtocol.cs" Link="GodotClient\Protocol\WorldObservationProtocol.cs" />
+  </ItemGroup>
+
 </Project>
