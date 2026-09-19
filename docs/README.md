@@ -12,9 +12,11 @@ project happened to ask questions.
    first-world decisions.
 4. [Deterministic kernel contract](planning/deterministic-kernel-contract.md)
    — the Phase 1 executable-design boundary.
-5. [Implementation ledger](implementation/phase-1.md) — which Phase 1
-   capabilities are specified, implemented, or verified.
-6. [Roadmap](planning/roadmap.md) — gated implementation sequence.
+5. [Phase 1 implementation ledger](implementation/phase-1.md) — deterministic
+   kernel capability evidence.
+6. [Phase 2 implementation ledger](implementation/phase-2.md) — viewer and
+   observation-boundary capability evidence.
+7. [Roadmap](planning/roadmap.md) — gated implementation sequence.
 
 ## Concept
 
@@ -51,6 +53,8 @@ project happened to ask questions.
 - [Phase 1 implementation ledger](implementation/phase-1.md) — capability
   evidence for the deterministic vertical slice. GitHub owns its active-work
   state.
+- [Phase 2 implementation ledger](implementation/phase-2.md) — capability
+  evidence for the read-only browser observation baseline.
 - [Persistence spike evidence](implementation/persistence-spike.md) — the
   bounded save/replay/migration feasibility result, not a database commitment.
 - [Seeded harness evidence](implementation/seeded-harness.md) — the first
