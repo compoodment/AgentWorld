@@ -55,6 +55,8 @@ project happened to ask questions.
   bounded save/replay/migration feasibility result, not a database commitment.
 - [Seeded harness evidence](implementation/seeded-harness.md) — the first
   executable map, actor, action, and save/replay acceptance slice.
+- [Staged kernel evidence](implementation/staged-kernel.md) — atomic tick,
+  clock, pause/resume, recovery, and deterministic-randomness fixtures.
 
 ## Maintenance rule
 

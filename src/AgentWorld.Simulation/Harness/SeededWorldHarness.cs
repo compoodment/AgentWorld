@@ -1,7 +1,7 @@
-using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using AgentWorld.Simulation.Kernel;
 using AgentWorld.Simulation.Persistence;
 
 namespace AgentWorld.Simulation.Harness;
@@ -112,7 +112,7 @@ public static class SeededMapGenerator
             new GridPoint(0, 4),
             new GridPoint(4, 4),
         };
-        var random = Pcg32.Create(worldSeed, $"worldgen/attempt:{attempt}");
+        var random = Pcg32XshRrV1.Create(worldSeed, $"worldgen/attempt:{attempt}");
         var waterIndex = (int)(random.NextUInt() % (uint)safeObstacles.Length);
         var mountainIndex = (waterIndex + 1 + (int)(random.NextUInt() % (uint)(safeObstacles.Length - 1))) %
             safeObstacles.Length;
@@ -907,44 +907,5 @@ public static class HarnessStateCodec
     {
         var result = ParseNonNegativeInteger(value);
         return result <= 10_000 ? result : throw new InvalidDataException("The saved need must be basis points.");
-    }
-}
-
-/// <summary>
-/// Portable PCG32 XSH-RR with HMAC-SHA-256 stream derivation for the fixture's
-/// attempt-local worldgen stream.
-/// </summary>
-internal sealed class Pcg32
-{
-    private const ulong Multiplier = 6_364_136_223_846_793_005UL;
-    private ulong state;
-    private readonly ulong increment;
-
-    private Pcg32(ulong initialState, ulong initialIncrement)
-    {
-        increment = initialIncrement | 1UL;
-        state = 0;
-        _ = NextUInt();
-        state = unchecked(state + initialState);
-        _ = NextUInt();
-    }
-
-    public static Pcg32 Create(string worldSeed, string streamName)
-    {
-        var key = Encoding.UTF8.GetBytes(worldSeed);
-        var stateBytes = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes($"{streamName}/state"));
-        var incrementBytes = HMACSHA256.HashData(key, Encoding.UTF8.GetBytes($"{streamName}/increment"));
-        return new Pcg32(
-            BinaryPrimitives.ReadUInt64BigEndian(stateBytes),
-            BinaryPrimitives.ReadUInt64BigEndian(incrementBytes));
-    }
-
-    public uint NextUInt()
-    {
-        var oldState = state;
-        state = unchecked((oldState * Multiplier) + increment);
-        var xorshifted = (uint)(((oldState >> 18) ^ oldState) >> 27);
-        var rotation = (int)(oldState >> 59);
-        return (xorshifted >> rotation) | (xorshifted << ((-rotation) & 31));
     }
 }
