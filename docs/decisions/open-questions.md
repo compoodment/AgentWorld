@@ -18,14 +18,21 @@ The behavioral contract and fixture categories are settled in the
 Only implementation choices remain:
 
 - Which implementation language and test toolchain produce the smallest
-  reproducible headless kernel on the target host?
+  reproducible headless kernel on the target host? Track and resolve this in
+  [#86](https://github.com/compoodment/AgentWorld/issues/86).
 - What event, snapshot, and migration storage format is sufficient for the
   first replay fixtures without prematurely choosing the long-term database?
+  Collect prototype evidence in
+  [#87](https://github.com/compoodment/AgentWorld/issues/87).
 - What compact seeded map, terrain fixture set, and test actors expose movement,
-  needs, ownership, and persistence failures quickly?
+  needs, ownership, and persistence failures quickly? Build the initial harness
+  through [#88](https://github.com/compoodment/AgentWorld/issues/88).
 
 These are build-spec choices. Resolve them in the first implementation plan and
 record the chosen direction in the [decision register](decision-register.md).
+GitHub owns their live workflow state; the
+[Phase 1 ledger](../implementation/phase-1.md) records only implementation
+evidence.
 
 ## Later roadmap-phase implementation choices
 

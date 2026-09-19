@@ -1,7 +1,7 @@
 ---
 title: Inhabitants
 type: concept
-status: draft
+status: frozen
 updated: 2026-09-19
 ---
 

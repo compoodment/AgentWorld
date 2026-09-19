@@ -1,7 +1,7 @@
 ---
 title: Design and Implementation Roadmap
 type: roadmap
-status: draft
+status: active
 updated: 2026-09-19
 ---
 
@@ -36,6 +36,10 @@ prototype evidence.
 
 The exact Phase 1 semantics and replay fixtures are in the
 [deterministic kernel contract](deterministic-kernel-contract.md).
+Its live delivery work is tracked by the
+[P1 milestone](https://github.com/compoodment/AgentWorld/milestone/1), while
+the [Phase 1 implementation ledger](../implementation/phase-1.md) records
+capability evidence. Neither replaces this roadmap's gate.
 
 - world time and logical coordinates
 - 365-day calendar, simple seasons, day/night, and pause state

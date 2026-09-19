@@ -1,7 +1,7 @@
 ---
 title: AgentWorld Design Log
 type: decision-history
-status: active
+status: history
 updated: 2026-09-19
 ---
 

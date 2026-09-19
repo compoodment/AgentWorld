@@ -26,3 +26,9 @@ prototype finding or changes an explicit decision.
 
 Issues and pull requests should say whether they are changing the concept,
 testing feasibility, or implementing an already-agreed design.
+
+For delivery work, GitHub issues and milestones own the changing task state.
+Every implementation pull request should link its issue, governing contract or
+decision, and reproducible verification evidence. Update the implementation
+ledger only when merged evidence changes a capability's status; do not duplicate
+daily GitHub activity in design documents.

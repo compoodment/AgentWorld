@@ -78,6 +78,11 @@ The implementation-level boundaries for the next phases live in the
 [cognition and society contract](docs/planning/cognition-and-society-contract.md),
 and [content-governance contract](docs/planning/content-governance-contract.md).
 
+The [Phase 1 implementation ledger](docs/implementation/phase-1.md) records
+which deterministic-kernel capabilities have executable evidence. GitHub owns
+active work; the [document-authority guide](docs/governance/document-authority.md)
+defines the boundary between design, delivery tracking, and proof.
+
 The decision register is the current authority; the
 [design log](docs/decisions/design-log.md) is the chronological record of why
 those decisions were made. The retired Batch 5 worksheet has been removed:

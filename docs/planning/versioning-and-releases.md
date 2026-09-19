@@ -36,15 +36,15 @@ experimental milestone, not a promise that only a patch-sized change occurred.
 
 ## Runtime and package versions
 
-When the Python project is scaffolded, `pyproject.toml` becomes the single
-source of truth for the runtime/package version. The command-line
-`agentworld --version` command must print both the public release label and the
-source revision.
-
-Python package metadata follows PEP 440 when its tooling requires it. For
-example, the public Git tag and release notes use `v0.1.0-alpha.1`, while the
-equivalent package version is `0.1.0a1`. Do not create competing hand-maintained
+The Phase 1 toolchain is intentionally undecided. Once selected, its canonical
+runtime/package manifest becomes the single source of truth for the
+runtime/package version, and `agentworld --version` must print both the public
+release label and source revision. Do not create competing hand-maintained
 version constants.
+
+If the selected toolchain is Python, `pyproject.toml` is that manifest and its
+package version follows PEP 440 where required. For example, public tags and
+release notes use `v0.1.0-alpha.1`, while Python metadata may use `0.1.0a1`.
 
 ## Compatibility is separate from release numbering
 
