@@ -1,4 +1,6 @@
-const endpoints = ["/api/v1/handshake", "/api/v1/world", "/api/v1/events"];
+let afterEventId = 0;
+let eventHistory = [];
+let isLoading = false;
 
 async function fetchJson(url) {
   const response = await fetch(url, { headers: { Accept: "application/json" } });
@@ -78,18 +80,31 @@ function renderEvents(events) {
 }
 
 async function load() {
+  if (isLoading) return;
+  isLoading = true;
   const status = document.querySelector("#connection-status");
   try {
-    const [handshake, snapshot, eventSlice] = await Promise.all(endpoints.map(fetchJson));
+    const [handshake, baseline] = await Promise.all([
+      fetchJson("/api/v1/handshake"),
+      fetchJson("/api/v1/reconnect?afterEventId=" + afterEventId),
+    ]);
+    const snapshot = baseline.snapshot;
+    const eventSlice = baseline.events;
+    eventHistory = eventHistory.concat(eventSlice.events);
+    afterEventId = snapshot.latestEventId;
     renderMap(snapshot);
     renderActor(snapshot.actor);
     renderResources(snapshot.resources);
-    renderEvents(eventSlice.events);
+    renderEvents(eventHistory);
     status.textContent = "Protocol " + handshake.protocol.major + "." + handshake.protocol.minor + " · tick " + snapshot.worldTick + " · read-only";
+    status.classList.remove("error");
   } catch (error) {
     status.textContent = "Unable to load observation: " + error.message;
     status.classList.add("error");
+  } finally {
+    isLoading = false;
   }
 }
 
 load();
+setInterval(load, 1000);

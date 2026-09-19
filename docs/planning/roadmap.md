@@ -62,7 +62,8 @@ client.
 The protocol and client-correction baseline are defined in the
 [deterministic kernel contract](deterministic-kernel-contract.md).
 
-- choose the rendering/client engine
+- use Godot as the intended player-facing rendering/client engine; keep the
+  browser as a read-only diagnostic surface
 - render a seeded world and active entities
 - inspect the complete world, selected inhabitants, summarized decision factors,
   spatial knowledge, and event history

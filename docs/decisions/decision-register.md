@@ -383,9 +383,9 @@ The complete operational policy is
   [`global.json`](../../global.json).
 - xUnit is the initial test framework; NuGet lock files are committed and
   verification runs with locked dependencies.
-- The core is a pure, headless .NET library. A later Godot viewer may use C#,
-  but it has no project or runtime dependency on the authoritative simulation
-  and cannot mutate state directly.
+- The core is a pure, headless .NET library. Godot is the intended
+  player-facing client and may use C#, but it has no project or runtime
+  dependency on the authoritative simulation and cannot mutate state directly.
 - This settles toolchain choice only. Persistence, fixtures, the map/actor
   harness, and the first full deterministic kernel remain separately tracked
   Phase 1 work.
@@ -413,3 +413,23 @@ governance.
 
 The contract documents may be changed only through an explicit decision and
 design-log entry, with migration/fixture impact considered alongside prose.
+
+## 2026-09-19 — Phase 2 client boundary
+
+### Current decisions
+
+- Godot is the intended player-facing rendering and interaction client for the
+  private first world.
+- The browser observation host remains a deliberately sparse, read-only
+  diagnostic surface. It is not the production game UI and will not grow a
+  duplicate authoring interface.
+- Both clients consume the same versioned, non-authoritative observation and
+  action protocol from a separate headless .NET world server. This decision
+  does not make Godot a simulation dependency or change server authority.
+- App-level owner authentication is deferred until a client can submit
+  privileged controls such as pause, directives, or paused-world edits.
+
+### Design principle
+
+The debugger proves the wire; the game client owns the experience. Neither is
+allowed to rewrite the world brain.

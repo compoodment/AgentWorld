@@ -20,10 +20,10 @@ public sealed class ViewerObservationTests
 
         Assert.Equal(new ProtocolVersion(1, 0), handshake.Protocol);
         Assert.Equal(
-            ["event-replay.read.v1", "seeded-map.read.v1", "snapshot.read.v1"],
+            ["event-replay.read.v1", "reconnect-baseline.read.v1", "seeded-map.read.v1", "snapshot.read.v1"],
             handshake.ServerCapabilities.OrderBy(capability => capability, StringComparer.Ordinal));
         Assert.Equal(
-            ["event-replay.read.v1", "snapshot.read.v1"],
+            ["event-replay.read.v1", "reconnect-baseline.read.v1", "snapshot.read.v1"],
             handshake.ClientCapabilities.OrderBy(capability => capability, StringComparer.Ordinal));
     }
 
@@ -80,5 +80,22 @@ public sealed class ViewerObservationTests
         var store = new SeededWorldObservationStore();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => store.GetEventsAfter(-1));
+    }
+
+    [Fact]
+    public void ReconnectBaselineProjectsOneCoherentLiveRuntimeCapture()
+    {
+        var runtime = new LiveSeededWorldRuntime(SeededWorldObservationStore.SampleSeed);
+        Assert.True(runtime.TryAdvanceOneAction());
+        Assert.True(runtime.TryAdvanceOneAction());
+        Assert.True(runtime.TryAdvanceOneAction());
+        var store = new SeededWorldObservationStore(runtime);
+
+        var baseline = store.GetReconnectBaseline(afterEventId: 1);
+
+        Assert.Equal(baseline.Snapshot.WorldTick, baseline.Events.SnapshotTick);
+        Assert.Equal(3, baseline.Snapshot.LatestEventId);
+        Assert.Equal([2L, 3L], baseline.Events.Events.Select(worldEvent => worldEvent.EventId));
+        Assert.All(baseline.Events.Events, worldEvent => Assert.True(worldEvent.EventId > baseline.Events.AfterEventId));
     }
 }

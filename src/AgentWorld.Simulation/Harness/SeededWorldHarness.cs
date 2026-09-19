@@ -513,6 +513,47 @@ public static class ScriptedHarness
     public static HarnessWorld RunEntireSequence(string worldSeed) =>
         FinishAfterFood(RunToFoodConsumed(CreateGenesis(worldSeed)));
 
+    /// <summary>
+    /// Advances exactly one committed action from the small scripted fixture.
+    /// This lets a host own the world clock without teaching a client how to
+    /// mutate or replay simulation state.
+    /// </summary>
+    public static bool TryAdvanceOneAction(HarnessWorld world, out HarnessWorld advanced)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+
+        if (world.Actor.FoodItems > 0)
+        {
+            advanced = Consume(world);
+            return true;
+        }
+
+        var berry = world.Map.GetResource("berry-patch");
+        if (world.GetResource(berry.Id).State == ResourceState.Available)
+        {
+            advanced = world.Actor.Position == berry.Position
+                ? Harvest(world, berry.Id)
+                : MoveOneStep(world, berry.Position);
+            return true;
+        }
+
+        var bedroll = world.Map.GetObject("bedroll");
+        if (world.Actor.Position != bedroll.Position)
+        {
+            advanced = MoveOneStep(world, bedroll.Position);
+            return true;
+        }
+
+        if (!world.Events.Any(worldEvent => string.Equals(worldEvent.Detail, $"sleep:{ActorId}", StringComparison.Ordinal)))
+        {
+            advanced = Sleep(world);
+            return true;
+        }
+
+        advanced = world;
+        return false;
+    }
+
     public static HarnessWorld ReplayFromGenesis(WorldIdentity identity, IReadOnlyList<PersistenceEvent> events)
     {
         ArgumentNullException.ThrowIfNull(identity);

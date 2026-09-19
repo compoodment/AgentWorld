@@ -548,3 +548,20 @@ but they are not the same bloody number.
 One language should reduce friction between the world brain and its future
 body, not let the body quietly become reality. The deterministic kernel stays
 boringly headless on purpose.
+
+## 2026-09-19 — Phase 2 Godot client direction
+
+### Decision
+
+The first browser viewer proved the observation boundary and remains a
+read-only diagnostic tool. The intended player-facing renderer and interaction
+client is Godot, consuming the same versioned protocol from a separate
+headless .NET world server. The server remains authoritative; Godot is not a
+simulation dependency. Browser authoring controls are deliberately deferred so
+the project does not build the eventual Godot UI twice.
+
+### Reason
+
+The browser is fast and useful for protocol inspection, but it is plainly not
+the product experience. Keeping it narrow preserves its debugging value while
+spending UI work on the client users will actually run.

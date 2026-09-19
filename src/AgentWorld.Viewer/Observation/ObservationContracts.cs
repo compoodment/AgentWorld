@@ -41,6 +41,12 @@ public sealed record ViewerWorldSnapshot(
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events);
 
 /// <summary>
+/// A reconnect response is one server-side capture, not a race between a
+/// client's separate snapshot and event-history requests.
+/// </summary>
+public sealed record ViewerReconnectBaseline(ViewerWorldSnapshot Snapshot, ViewerEventSlice Events);
+
+/// <summary>
 /// Owns the static deterministic sample exposed by the first browser slice.
 /// It creates protocol DTOs from the core's immutable harness state rather than
 /// exposing simulation records to clients.
@@ -53,6 +59,7 @@ public sealed class SeededWorldObservationStore
     [
         "snapshot.read.v1",
         "event-replay.read.v1",
+        "reconnect-baseline.read.v1",
         "seeded-map.read.v1",
     ];
 
@@ -60,10 +67,11 @@ public sealed class SeededWorldObservationStore
     [
         "snapshot.read.v1",
         "event-replay.read.v1",
+        "reconnect-baseline.read.v1",
     ];
 
-    private readonly ViewerWorldSnapshot snapshot;
-    private readonly ViewerEvent[] events;
+    private readonly HarnessWorld? staticWorld;
+    private readonly LiveSeededWorldRuntime? runtime;
 
     public SeededWorldObservationStore()
         : this(ScriptedHarness.RunEntireSequence(SampleSeed))
@@ -73,11 +81,12 @@ public sealed class SeededWorldObservationStore
     public SeededWorldObservationStore(HarnessWorld world)
     {
         ArgumentNullException.ThrowIfNull(world);
-        snapshot = ToSnapshot(world);
-        events = world.Events
-            .OrderBy(worldEvent => worldEvent.EventId)
-            .Select(ToEvent)
-            .ToArray();
+        staticWorld = world;
+    }
+
+    public SeededWorldObservationStore(LiveSeededWorldRuntime runtime)
+    {
+        this.runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
     }
 
     public ViewerHandshake GetHandshake() => new(
@@ -85,20 +94,44 @@ public sealed class SeededWorldObservationStore
         ServerCapabilities.ToArray(),
         ClientCapabilities.ToArray());
 
-    public ViewerWorldSnapshot GetSnapshot() => snapshot with
-    {
-        Tiles = snapshot.Tiles.ToArray(),
-        Objects = snapshot.Objects.ToArray(),
-        Resources = snapshot.Resources.ToArray(),
-    };
+    public ViewerWorldSnapshot GetSnapshot() => ToSnapshot(Capture(0).World);
 
     public ViewerEventSlice GetEventsAfter(long afterEventId)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(afterEventId);
+        var capture = Capture(afterEventId);
         return new ViewerEventSlice(
+            capture.World.Identity.WorldTick,
+            capture.AfterEventId,
+            capture.Events.Select(ToEvent).ToArray());
+    }
+
+    public ViewerReconnectBaseline GetReconnectBaseline(long afterEventId)
+    {
+        var capture = Capture(afterEventId);
+        var snapshot = ToSnapshot(capture.World);
+        var events = new ViewerEventSlice(
             snapshot.WorldTick,
+            capture.AfterEventId,
+            capture.Events.Select(ToEvent).ToArray());
+        return new ViewerReconnectBaseline(snapshot, events);
+    }
+
+    private LiveWorldCapture Capture(long afterEventId)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(afterEventId);
+        if (runtime is not null)
+        {
+            return runtime.Capture(afterEventId);
+        }
+
+        var world = staticWorld ?? throw new InvalidOperationException("An observation store needs a world source.");
+        return new LiveWorldCapture(
+            world,
             afterEventId,
-            events.Where(worldEvent => worldEvent.EventId > afterEventId).ToArray());
+            world.Events
+                .Where(worldEvent => worldEvent.EventId > afterEventId)
+                .OrderBy(worldEvent => worldEvent.EventId)
+                .ToArray());
     }
 
     private static ViewerWorldSnapshot ToSnapshot(HarnessWorld world) => new(

@@ -12,8 +12,8 @@ inhabitants choose to make it so.
 
 > **Status: Phase 2 observation baseline.**
 > The repository includes a small read-only browser debugger for the deterministic
-> seeded harness. It is not yet a playable game, a live world server, or a Godot
-> client.
+> seeded harness. Godot is the intended player-facing client, but it is not yet
+> implemented; neither client can directly mutate authoritative state.
 
 This repository deliberately captured the concept before implementation. The
 first-world rules are now settled enough to build and test, and the C# solution
@@ -87,7 +87,8 @@ active work; the [document-authority guide](docs/governance/document-authority.m
 defines the boundary between design, delivery tracking, and proof.
 
 Phase 1's headless core uses [C#/.NET 10](docs/planning/csharp-toolchain.md).
-The browser viewer is deliberately a separate, non-authoritative project.
+The browser viewer is deliberately a separate, non-authoritative diagnostic
+project; Godot is the intended player-facing client.
 
 ## Browser observation baseline
 
@@ -101,10 +102,13 @@ endpoints:
 - `GET /api/v1/handshake`
 - `GET /api/v1/world`
 - `GET /api/v1/events?afterEventId=…`
+- `GET /api/v1/reconnect?afterEventId=…`
 
-The initial sample is the completed deterministic `camp-alpha` harness. The
-viewer projects snapshots and events into its own DTOs; it cannot mutate the
-simulation, issue actions, or advance ticks.
+By default the initial sample is the completed deterministic `camp-alpha`
+harness. Set `AgentWorld__Runtime__AdvanceScript=true` when starting the host
+to begin at genesis and advance its small scripted path at the configured
+server clock. The viewer projects snapshots and events into its own DTOs; it
+cannot mutate the simulation, issue actions, or advance ticks.
 
 The decision register is the current authority; the
 [design log](docs/decisions/design-log.md) is the chronological record of why

@@ -15,16 +15,22 @@ public sealed class ViewerHttpTests(WebApplicationFactory<Program> factory) : IC
         var handshake = await client.GetFromJsonAsync<ViewerHandshake>("/api/v1/handshake");
         var snapshot = await client.GetFromJsonAsync<ViewerWorldSnapshot>("/api/v1/world");
         var events = await client.GetFromJsonAsync<ViewerEventSlice>("/api/v1/events?afterEventId=3");
+        var reconnect = await client.GetFromJsonAsync<ViewerReconnectBaseline>("/api/v1/reconnect?afterEventId=3");
         var page = await client.GetStringAsync("/");
+        var script = await client.GetStringAsync("/app.js");
         using var attemptedWrite = await client.PostAsync("/api/v1/world", content: null);
 
         Assert.NotNull(handshake);
         Assert.NotNull(snapshot);
         Assert.NotNull(events);
+        Assert.NotNull(reconnect);
         Assert.Equal(new ProtocolVersion(1, 0), handshake.Protocol);
         Assert.Equal(snapshot.WorldTick, events.SnapshotTick);
+        Assert.Equal(reconnect.Snapshot.WorldTick, reconnect.Events.SnapshotTick);
+        Assert.Equal(events.Events, reconnect.Events.Events);
         Assert.All(events.Events, worldEvent => Assert.True(worldEvent.EventId > events.AfterEventId));
         Assert.Contains("read-only deterministic inspection", page, StringComparison.Ordinal);
+        Assert.Contains("/api/v1/reconnect", script, StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.MethodNotAllowed, attemptedWrite.StatusCode);
     }
 
@@ -33,7 +39,7 @@ public sealed class ViewerHttpTests(WebApplicationFactory<Program> factory) : IC
     {
         using var client = factory.CreateClient();
 
-        using var response = await client.GetAsync("/api/v1/events?afterEventId=-1");
+        using var response = await client.GetAsync("/api/v1/reconnect?afterEventId=-1");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);

@@ -9,6 +9,7 @@ User=clanker
 Group=clanker
 WorkingDirectory=/opt/agentworld-viewer
 Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=AgentWorld__Runtime__AdvanceScript=true
 Environment=DOTNET_NOLOGO=1
 ExecStart=/home/clanker/.local/bin/dotnet /opt/agentworld-viewer/AgentWorld.Viewer.dll --urls http://127.0.0.1:5188
 Restart=on-failure

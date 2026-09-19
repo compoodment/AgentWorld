@@ -13,9 +13,8 @@ simulation kernel. The exact SDK baseline is `10.0.401`, selected by
 permitted. .NET 10 is an LTS release supported through November 2028.
 
 This choice concerns the world brain, not the player-facing renderer. Godot is
-still a later viewer candidate. If it remains the best fit, it can share C#
-with the core, but it must never become a dependency of the authoritative
-simulation project.
+the intended player-facing client and may share C# with the core, but it must
+never become a dependency of the authoritative simulation project.
 
 ## Project boundary
 

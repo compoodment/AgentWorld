@@ -35,16 +35,16 @@ and expensive cognition cannot directly corrupt simulation state.
 
 ## Engine direction
 
-Godot is currently the leading client/rendering candidate because it provides a
+Godot is the intended player-facing client/rendering engine because it provides a
 strong 2D and pixel-art workflow, tile-based rendering, animation, and a path
 toward a headless server and later multiplayer. A logical tile is a world cell,
 not one physical screen pixel, so a 256×256 logical map can use 16×16 or
 32×32-pixel artwork per cell.
 
-Godot is not yet locked as the simulation engine. Before committing, we should
-test whether the simulation core, persistence, headless operation, and
-networking boundaries remain clean. A separate simulation service with Godot as
-a client is also possible.
+Godot is not the simulation engine. The separate headless simulation service
+remains authoritative, while Godot consumes its versioned protocol as a client.
+Phase 2 still needs to prove the live host, reconnect behavior, and first
+Godot adapter before selecting production rendering details.
 
 ## Server authority
 
