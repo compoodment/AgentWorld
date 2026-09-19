@@ -217,6 +217,20 @@ The first survival and cognition pass accepted the worksheet's baseline:
 The numerical constants remain prototype tuning targets and may change after
 measurement without reopening these policy decisions.
 
+### Batch 5B — accepted prototype defaults
+
+The telemetry, routing, and provider pass accepted these defaults:
+
+- Developer saves retain full structured decision telemetry and raw structured
+  model responses; ordinary saves may retain summaries and hashes.
+- Route caches are rebuildable performance data and are discarded/rebuilt on
+  load rather than treated as authoritative world state.
+- The first user-configurable hosted providers are Ollama Cloud API and OpenAI
+  API. A deterministic mock provider remains part of the test harness.
+- Provider/model changes apply at the next cognition boundary. The current
+  atomic action continues, and stale in-flight responses cannot overwrite the
+  new configuration.
+
 ### Survival and cognition tuning
 
 - What exact structured debug schema should the developer view persist and
@@ -235,7 +249,6 @@ measurement without reopening these policy decisions.
 
 - Which hosted provider APIs and model capabilities should the first registry
   support, and how are credentials/capabilities validated?
-- How are provider/model changes applied to an active inhabitant and recorded?
 - Which asset format, performance checks, provenance fields, and preview steps
   are needed for the first client?
 

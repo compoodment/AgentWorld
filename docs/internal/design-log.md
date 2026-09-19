@@ -291,3 +291,24 @@ should change around it.
 The first world should feel alive without turning every small stimulus into an
 LLM invoice. Deterministic filtering and coalescing protect both legibility and
 cost while preserving meaningful decisions.
+
+## 2026-09-19 — Batch 5B telemetry, routing, and providers
+
+### Current decisions
+
+- Developer saves retain full structured cognition telemetry and raw structured
+  model responses; ordinary saves may retain summaries and hashes.
+- Route caches are rebuildable performance data and are discarded/rebuilt on
+  load rather than treated as authoritative world state.
+- The first user-configurable hosted providers are Ollama Cloud API and OpenAI
+  API. A deterministic mock provider remains available for tests and offline
+  development.
+- Provider/model changes apply at the next cognition boundary. The current
+  atomic action continues, and stale in-flight responses are discarded rather
+  than applied under the new configuration.
+
+### Design principle
+
+Provider choice belongs to world configuration; deterministic mocks belong to
+the test harness. Neither provider responses nor route caches are allowed to
+become hidden authoritative world state.
