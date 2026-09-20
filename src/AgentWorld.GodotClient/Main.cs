@@ -42,6 +42,7 @@ public partial class Main : Control
     private readonly PanelContainer selectedInhabitantCard = new();
     private readonly Label selectedActorNameLabel = new();
     private readonly Label selectedActorSummaryLabel = new();
+    private readonly Button clearSelectionButton = new();
     private readonly ItemList inhabitantList = new();
     private readonly RichTextLabel inhabitantDetails = new();
     private readonly RichTextLabel worldDetails = new();
@@ -1102,6 +1103,10 @@ public partial class Main : Control
         selectedActorSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(selectedActorSummaryLabel);
 
+        clearSelectionButton.Text = "Clear selection";
+        clearSelectionButton.Pressed += ClearInhabitantSelection;
+        body.AddChild(clearSelectionButton);
+
         var instructionHeading = new Label { Text = "Give them a direction" };
         instructionHeading.AddThemeFontSizeOverride("font_size", 13);
         body.AddChild(instructionHeading);
@@ -1257,6 +1262,7 @@ public partial class Main : Control
     private void RenderInhabitantList(OwnerWorldSnapshot snapshot)
     {
         var previousSelection = selectedInhabitantId;
+        var selectionFound = false;
         inhabitantList.Clear();
         for (var index = 0; index < snapshot.Inhabitants.Count; index++)
         {
@@ -1265,14 +1271,15 @@ public partial class Main : Control
             inhabitantList.SetItemMetadata(index, inhabitant.Id);
             if (string.Equals(inhabitant.Id, previousSelection, StringComparison.Ordinal))
             {
+                selectionFound = true;
                 inhabitantList.Select(index);
             }
         }
 
-        if (selectedInhabitantId is null && snapshot.Inhabitants.Count > 0)
+        if (!selectionFound)
         {
-            selectedInhabitantId = snapshot.Inhabitants[0].Id;
-            inhabitantList.Select(0);
+            selectedInhabitantId = null;
+            inhabitantList.DeselectAll();
         }
     }
 
@@ -1380,7 +1387,14 @@ public partial class Main : Control
             return;
         }
 
-        selectedInhabitantId = inhabitantList.GetItemMetadata((int)index).AsString();
+        var inhabitantId = inhabitantList.GetItemMetadata((int)index).AsString();
+        if (string.Equals(inhabitantId, selectedInhabitantId, StringComparison.Ordinal))
+        {
+            ClearInhabitantSelection();
+            return;
+        }
+
+        selectedInhabitantId = inhabitantId;
         if (observationSession.Current is { } current)
         {
             RenderInhabitantDetails(current.Baseline.Snapshot);
@@ -1391,6 +1405,12 @@ public partial class Main : Control
 
     private void SelectInhabitant(string inhabitantId)
     {
+        if (string.Equals(inhabitantId, selectedInhabitantId, StringComparison.Ordinal))
+        {
+            ClearInhabitantSelection();
+            return;
+        }
+
         selectedInhabitantId = inhabitantId;
         for (var index = 0; index < inhabitantList.ItemCount; index++)
         {
@@ -1401,6 +1421,18 @@ public partial class Main : Control
             }
         }
 
+        if (observationSession.Current is { } current)
+        {
+            RenderInhabitantDetails(current.Baseline.Snapshot);
+            RenderSelectedInhabitantCard(current.Baseline.Snapshot);
+            RenderMap(current.Baseline.Snapshot);
+        }
+    }
+
+    private void ClearInhabitantSelection()
+    {
+        selectedInhabitantId = null;
+        inhabitantList.DeselectAll();
         if (observationSession.Current is { } current)
         {
             RenderInhabitantDetails(current.Baseline.Snapshot);
