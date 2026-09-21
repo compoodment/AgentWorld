@@ -12,7 +12,7 @@ namespace AgentWorld.GodotClient;
 /// </summary>
 public partial class Main : Control
 {
-    private const int TileSize = 46;
+    private const int TileSize = 72;
     private const int RefreshSeconds = 1;
 
     private readonly System.Net.Http.HttpClient httpClient = new();
@@ -39,6 +39,12 @@ public partial class Main : Control
     private readonly GridContainer worldGrid = new();
     private readonly Control mapCanvas = new();
     private readonly Control entityLayer = new();
+    private readonly PanelContainer worldHud = new();
+    private readonly Label hudWorldLabel = new();
+    private readonly Label hudTickLabel = new();
+    private readonly Label hudStateLabel = new();
+    private readonly Label hudSelectionLabel = new();
+    private readonly Label mapLegendLabel = new();
     private readonly PanelContainer selectedInhabitantCard = new();
     private readonly Label selectedActorNameLabel = new();
     private readonly Label selectedActorSummaryLabel = new();
@@ -813,6 +819,14 @@ public partial class Main : Control
 
     private void BuildLayout()
     {
+        var backdrop = new ColorRect
+        {
+            Color = new Color("101820"),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        backdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        AddChild(backdrop);
+
         var margin = new MarginContainer();
         margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         margin.AddThemeConstantOverride("margin_left", 18);
@@ -827,7 +841,7 @@ public partial class Main : Control
 
         var titleRow = new HBoxContainer();
         titleRow.AddThemeConstantOverride("separation", 10);
-        var title = new Label { Text = "AGENTWORLD" };
+        var title = new Label { Text = "AGENTWORLD  ·  OUTPOST" };
         title.AddThemeFontSizeOverride("font_size", 24);
         title.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         titleRow.AddChild(title);
@@ -851,8 +865,15 @@ public partial class Main : Control
         root.AddChild(content);
 
         BuildWorldColumn(content);
-        BuildInspectorColumn(content);
-        BuildOwnerColumn(content);
+        var sidebar = new VBoxContainer
+        {
+            CustomMinimumSize = new Vector2(286, 0),
+            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
+        };
+        sidebar.AddThemeConstantOverride("separation", 10);
+        BuildInspectorColumn(sidebar);
+        BuildOwnerColumn(sidebar);
+        content.AddChild(sidebar);
     }
 
     private void BuildConnectionPanel()
@@ -933,9 +954,9 @@ public partial class Main : Control
         pairingPanel.Hide();
     }
 
-    private void BuildWorldColumn(HBoxContainer content)
+    private void BuildWorldColumn(Control content)
     {
-        mapCanvas.CustomMinimumSize = new Vector2(520, 420);
+        mapCanvas.CustomMinimumSize = new Vector2(760, 420);
         mapCanvas.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         mapCanvas.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 
@@ -948,22 +969,33 @@ public partial class Main : Control
         entityLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         entityLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapCanvas.AddChild(entityLayer);
+
+        BuildWorldHud();
         BuildSelectedInhabitantCard();
 
-        var panel = NewPanel("World map · click a character to inspect and direct them", mapCanvas);
+        var panel = NewPanel("THE OUTPOST  ·  click a person to inspect and direct them", mapCanvas);
         panel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         panel.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         content.AddChild(panel);
     }
 
-    private void BuildInspectorColumn(HBoxContainer content)
+    private void BuildInspectorColumn(Control content)
     {
         var body = new VBoxContainer
         {
-            CustomMinimumSize = new Vector2(260, 0),
+            CustomMinimumSize = new Vector2(286, 0),
             SizeFlagsVertical = Control.SizeFlags.ExpandFill,
         };
         body.AddThemeConstantOverride("separation", 8);
+
+        var hint = new Label
+        {
+            Text = "The world is the interface. Click a person on the map; the terrain underneath is only context.",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
+        hint.Modulate = new Color("B3C2CC");
+        body.AddChild(NewPanel("HOW TO PLAY", hint));
+
         inhabitantList.CustomMinimumSize = new Vector2(0, 110);
         inhabitantList.ItemSelected += index => SelectInhabitantFromList(index);
         rosterToggleButton.Text = "Show inhabitant roster";
@@ -976,19 +1008,14 @@ public partial class Main : Control
         rosterPanel.AddChild(inhabitantList);
         rosterPanel.Hide();
         body.AddChild(rosterPanel);
-
-        ConfigureTextPanel(inhabitantDetails, 300);
-        body.AddChild(NewPanel("Selected inhabitant", inhabitantDetails));
-        var panel = NewPanel("Inhabitant", body);
-        panel.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-        content.AddChild(panel);
+        content.AddChild(NewPanel("PEOPLE", body));
     }
 
-    private void BuildOwnerColumn(HBoxContainer content)
+    private void BuildOwnerColumn(Control content)
     {
         var body = new VBoxContainer
         {
-            CustomMinimumSize = new Vector2(220, 0),
+            CustomMinimumSize = new Vector2(286, 0),
             SizeFlagsVertical = Control.SizeFlags.ExpandFill,
         };
         body.AddThemeConstantOverride("separation", 8);
@@ -1094,6 +1121,39 @@ public partial class Main : Control
         UpdateAuthoringHint();
     }
 
+    private void BuildWorldHud()
+    {
+        var body = new VBoxContainer();
+        body.AddThemeConstantOverride("separation", 2);
+
+        hudWorldLabel.Text = "OUTPOST";
+        hudWorldLabel.AddThemeFontSizeOverride("font_size", 17);
+        body.AddChild(hudWorldLabel);
+
+        var statusRow = new HBoxContainer();
+        statusRow.AddThemeConstantOverride("separation", 12);
+        hudTickLabel.Text = "Day 1 · tick 0";
+        hudStateLabel.Text = "CONNECTING";
+        hudSelectionLabel.Text = "No one selected";
+        hudSelectionLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        statusRow.AddChild(hudTickLabel);
+        statusRow.AddChild(hudStateLabel);
+        statusRow.AddChild(hudSelectionLabel);
+        body.AddChild(statusRow);
+
+        mapLegendLabel.Text = "MEADOW   WATER   MOUNTAIN   ·   people are separate from terrain";
+        mapLegendLabel.Modulate = new Color("B3C2CC");
+        body.AddChild(mapLegendLabel);
+
+        worldHud.AddThemeStyleboxOverride("panel", PanelStyle());
+        AddPanelContents(worldHud, body);
+        worldHud.CustomMinimumSize = new Vector2(480, 0);
+        worldHud.Position = new Vector2(14, 14);
+        worldHud.ZIndex = 30;
+        worldHud.MouseFilter = Control.MouseFilterEnum.Ignore;
+        mapCanvas.AddChild(worldHud);
+    }
+
     private void BuildSelectedInhabitantCard()
     {
         var body = new VBoxContainer();
@@ -1180,6 +1240,7 @@ public partial class Main : Control
 
         RenderInhabitantList(snapshot);
         RenderMap(snapshot);
+        RenderWorldHud(snapshot);
         RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
         RenderWorldDetails(snapshot);
@@ -1214,10 +1275,18 @@ public partial class Main : Control
             var key = $"{tile.X},{tile.Y}";
             var cell = new Button
             {
-                Text = drafts.ContainsKey(key) ? "◇" : resources.ContainsKey(key) ? "•" : objects.ContainsKey(key) ? "◆" : string.Empty,
+                Text = drafts.ContainsKey(key)
+                    ? "DRAFT"
+                    : resources.TryGetValue(key, out var resource)
+                        ? ResourceMarker(resource.Kind)
+                        : objects.TryGetValue(key, out var mapObject)
+                            ? ObjectMarker(mapObject.Kind)
+                            : TerrainMarker(tile.Terrain),
                 CustomMinimumSize = new Vector2(TileSize, TileSize),
                 TooltipText = $"{tile.Terrain} at {key}",
             };
+            cell.AddThemeFontSizeOverride("font_size", 13);
+            cell.AddThemeColorOverride("font_color", new Color("E6F0E8"));
             cell.AddThemeStyleboxOverride("normal", TileStyle(TerrainColor(tile.Terrain)));
             cell.AddThemeStyleboxOverride("hover", TileStyle(TerrainColor(tile.Terrain).Lightened(0.15f)));
             if (drafts.TryGetValue(key, out var draft))
@@ -1239,14 +1308,14 @@ public partial class Main : Control
                 var offsetY = (index / 2) * 30 + 7;
                 var actorButton = new Button
                 {
-                    Text = ActorInitial(inhabitant.DisplayName),
+                    Text = $"●\n{ActorLabel(inhabitant.DisplayName)}",
                     TooltipText = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)}",
                     Position = new Vector2(inhabitant.Position.X * TileSize + offsetX, inhabitant.Position.Y * TileSize + offsetY),
-                    CustomMinimumSize = new Vector2(50, 50),
+                    CustomMinimumSize = new Vector2(64, 64),
                     ZIndex = 10,
                 };
                 actorButton.AddThemeColorOverride("font_color", Colors.White);
-                actorButton.AddThemeFontSizeOverride("font_size", 18);
+                actorButton.AddThemeFontSizeOverride("font_size", 15);
                 actorButton.AddThemeStyleboxOverride(
                     "normal",
                     ActorStyle(string.Equals(inhabitant.Id, selectedInhabitantId, StringComparison.Ordinal)));
@@ -1257,6 +1326,18 @@ public partial class Main : Control
         }
 
         CallDeferred(nameof(PositionSelectedInhabitantCard));
+    }
+
+    private void RenderWorldHud(OwnerWorldSnapshot snapshot)
+    {
+        hudWorldLabel.Text = Pretty(snapshot.WorldId).ToUpperInvariant();
+        hudTickLabel.Text = $"TICK {snapshot.WorldTick}";
+        var paused = snapshot.Authoring?.IsPaused == true;
+        hudStateLabel.Text = paused ? "PAUSED" : "RUNNING";
+        hudStateLabel.Modulate = new Color(paused ? "F3C77B" : "B9E8C5");
+        hudSelectionLabel.Text = selectedInhabitantId is null
+            ? "No one selected"
+            : $"Selected: {snapshot.Inhabitants.FirstOrDefault(item => string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal))?.DisplayName ?? "unknown"}";
     }
 
     private void RenderInhabitantList(OwnerWorldSnapshot snapshot)
@@ -1501,6 +1582,7 @@ public partial class Main : Control
     private static PanelContainer NewPanel(string title, Control content)
     {
         var panel = new PanelContainer();
+        panel.AddThemeStyleboxOverride("panel", PanelStyle());
         AddPanelContents(panel, title, content);
         return panel;
     }
@@ -1535,11 +1617,25 @@ public partial class Main : Control
         BorderWidthTop = 1,
         BorderWidthRight = 1,
         BorderWidthBottom = 1,
-        BorderColor = color.Darkened(0.25f),
-        CornerRadiusTopLeft = 3,
-        CornerRadiusTopRight = 3,
-        CornerRadiusBottomLeft = 3,
-        CornerRadiusBottomRight = 3,
+        BorderColor = color.Darkened(0.3f),
+        CornerRadiusTopLeft = 8,
+        CornerRadiusTopRight = 8,
+        CornerRadiusBottomLeft = 8,
+        CornerRadiusBottomRight = 8,
+    };
+
+    private static StyleBoxFlat PanelStyle() => new()
+    {
+        BgColor = new Color("192631"),
+        BorderWidthLeft = 1,
+        BorderWidthTop = 1,
+        BorderWidthRight = 1,
+        BorderWidthBottom = 1,
+        BorderColor = new Color("345363"),
+        CornerRadiusTopLeft = 10,
+        CornerRadiusTopRight = 10,
+        CornerRadiusBottomLeft = 10,
+        CornerRadiusBottomRight = 10,
     };
 
     private Uri ResolveWorldUri()
@@ -1610,10 +1706,44 @@ public partial class Main : Control
 
     private static string PositionKey(OwnerWorldPosition position) => $"{position.X},{position.Y}";
 
-    private static string ActorInitial(string displayName)
+    private static string ActorLabel(string displayName)
     {
         var trimmed = displayName.Trim();
-        return string.IsNullOrEmpty(trimmed) ? "?" : trimmed[..1].ToUpperInvariant();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return "?";
+        }
+
+        return trimmed.Length <= 8 ? trimmed : $"{trimmed[..7]}…";
+    }
+
+    private static string TerrainMarker(string terrain) => terrain switch
+    {
+        "water" => "≈",
+        "mountain" => "▲",
+        _ => string.Empty,
+    };
+
+    private static string ResourceMarker(string kind) => kind switch
+    {
+        "food" => "FOOD",
+        "construction" => "WOOD",
+        _ => ShortMarker(kind),
+    };
+
+    private static string ObjectMarker(string kind) => kind switch
+    {
+        "bedroll" => "REST",
+        "campfire" => "FIRE",
+        "shelter" => "HOME",
+        "tree" => "TREE",
+        _ => ShortMarker(kind),
+    };
+
+    private static string ShortMarker(string value)
+    {
+        var compact = value.Trim().Replace('_', ' ');
+        return compact.Length <= 6 ? compact.ToUpperInvariant() : $"{compact[..5].ToUpperInvariant()}…";
     }
 
     private static string Pretty(string value) => string.IsNullOrWhiteSpace(value)
