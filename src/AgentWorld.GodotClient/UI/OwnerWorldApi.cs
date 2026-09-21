@@ -66,6 +66,16 @@ public sealed record OwnerWorldInstruction(
     long RunEpoch,
     long SubmissionSequence);
 
+public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
+
+public sealed record OwnerWorldCognition(
+    string Provider,
+    bool IsPaused,
+    string? InFlightRequestId,
+    string? CurrentCandidateId,
+    string? CurrentDecisionProvider,
+    IReadOnlyList<OwnerWorldCognitionEvent> Events);
+
 public sealed record OwnerWorldAuthoringState(
     bool IsPaused,
     long RunEpoch,
@@ -100,6 +110,8 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldAuthoringState? Authoring { get; init; }
 
     public IReadOnlyList<OwnerWorldInstruction> Instructions { get; init; } = [];
+
+    public OwnerWorldCognition? Cognition { get; init; }
 }
 
 public sealed record OwnerWorldEvent(long EventId, long WorldTick, string Kind, string Detail);

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AgentWorld.Simulation.Cognition;
 using AgentWorld.Simulation.Harness;
 
 namespace AgentWorld.Viewer.Observation;
@@ -17,10 +18,12 @@ public sealed class PhaseTwoWorldStateFile
 
     private readonly object gate = new();
     private readonly IPhaseTwoApprovedAssetReferencePolicy approvedAssetReferencePolicy;
+    private readonly IDecisionProvider decisionProvider;
 
     public PhaseTwoWorldStateFile(
         string path,
-        IPhaseTwoApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null)
+        IPhaseTwoApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
+        IDecisionProvider? decisionProvider = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         Path = System.IO.Path.GetFullPath(path);
@@ -29,6 +32,7 @@ public sealed class PhaseTwoWorldStateFile
         // runtime replays its authored history.
         this.approvedAssetReferencePolicy = approvedAssetReferencePolicy ??
             DenyAllPhaseTwoApprovedAssetReferencePolicy.Instance;
+        this.decisionProvider = decisionProvider ?? new DeterministicDecisionProvider();
     }
 
     public string Path { get; }
@@ -45,7 +49,7 @@ public sealed class PhaseTwoWorldStateFile
         {
             if (!File.Exists(Path))
             {
-                var created = new PhaseTwoWorldRuntime(worldSeed, approvedAssetReferencePolicy);
+                var created = new PhaseTwoWorldRuntime(worldSeed, approvedAssetReferencePolicy, decisionProvider);
                 SaveUnsafe(created.ExportState());
                 return created;
             }
@@ -56,7 +60,8 @@ public sealed class PhaseTwoWorldStateFile
             var restored = PhaseTwoWorldRuntime.Restore(
                 state,
                 worldSeed,
-                approvedAssetReferencePolicy);
+                approvedAssetReferencePolicy,
+                decisionProvider);
             // Rewrite the validated canonical projection so later failures are
             // not hidden behind a stale representation.
             SaveUnsafe(restored.ExportState());

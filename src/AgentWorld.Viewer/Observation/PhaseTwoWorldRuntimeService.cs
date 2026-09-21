@@ -4,9 +4,9 @@ using AgentWorld.Simulation.Kernel;
 namespace AgentWorld.Viewer.Observation;
 
 /// <summary>
-/// Drives the existing deterministic fixture only while the host explicitly
-/// opts in. Pause state lives in <see cref="PhaseTwoWorldRuntime"/> so the
-/// scheduler never creates hidden catch-up mutations.
+/// Drives the cognition-aware fixture only while the host explicitly opts in.
+/// Pause state lives in <see cref="PhaseTwoWorldRuntime"/> so the scheduler
+/// never creates hidden catch-up mutations.
 /// </summary>
 public sealed class PhaseTwoWorldRuntimeService(
     PhaseTwoWorldRuntime runtime,
@@ -19,7 +19,8 @@ public sealed class PhaseTwoWorldRuntimeService(
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            if (runtime.TryAdvanceOneAction())
+            var result = await runtime.AdvanceOneActionAsync(stoppingToken);
+            if (result.Advanced)
             {
                 stateFile.Save(runtime);
             }

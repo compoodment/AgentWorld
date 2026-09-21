@@ -1,4 +1,5 @@
 using System.Net;
+using AgentWorld.Simulation.Cognition;
 using AgentWorld.Simulation.Harness;
 using AgentWorld.Viewer.Control;
 using AgentWorld.Viewer.Observation;
@@ -6,6 +7,8 @@ using AgentWorld.Viewer.Observation;
 var builder = WebApplication.CreateBuilder(args);
 var runtimeSeed = builder.Configuration["AgentWorld:Runtime:Seed"] ?? SeededWorldObservationStore.SampleSeed;
 var advanceFixture = builder.Configuration.GetValue<bool>("AgentWorld:Runtime:AdvanceScript");
+var configuredDecisionProvider = builder.Configuration["AgentWorld:Runtime:DecisionProvider"] ?? "deterministic";
+var configuredJevModel = builder.Configuration["AgentWorld:Runtime:JevModel"] ?? "jev-1.13.0";
 var publicPort = builder.Configuration.GetValue("AgentWorld:Http:Port", 5188);
 var localApprovalPort = builder.Configuration.GetValue<int?>("AgentWorld:Pairing:LocalApprovalPort") ?? 0;
 if (publicPort is <= 0 or > 65535 || localApprovalPort is < 0 or > 65535 || localApprovalPort == publicPort)
@@ -37,7 +40,23 @@ var configuredAuthorityId = builder.Configuration["AgentWorld:Pairing:ServerAuth
 var approvedAssetCatalog = ApprovedAssetCatalog.LoadOrDeny(approvedAssetCatalogPath);
 builder.Services.AddSingleton<IPhaseTwoApprovedAssetReferencePolicy>(approvedAssetCatalog);
 builder.Services.AddSingleton(approvedAssetCatalog);
-builder.Services.AddSingleton(new PhaseTwoWorldStateFile(runtimeStatePath, approvedAssetCatalog));
+builder.Services.AddHttpClient("typesafe");
+builder.Services.AddSingleton<IDecisionProvider>(services =>
+{
+    if (!string.Equals(configuredDecisionProvider, "jev", StringComparison.OrdinalIgnoreCase))
+    {
+        return new DeterministicDecisionProvider();
+    }
+
+    return new JevDecisionProvider(
+        services.GetRequiredService<IHttpClientFactory>().CreateClient("typesafe"),
+        () => Environment.GetEnvironmentVariable("TYPESAFE_API_KEY"),
+        model: configuredJevModel);
+});
+builder.Services.AddSingleton<PhaseTwoWorldStateFile>(services => new PhaseTwoWorldStateFile(
+    runtimeStatePath,
+    approvedAssetCatalog,
+    services.GetRequiredService<IDecisionProvider>()));
 builder.Services.AddSingleton<PhaseTwoWorldRuntime>(services => services
     .GetRequiredService<PhaseTwoWorldStateFile>()
     .LoadOrCreate(runtimeSeed));

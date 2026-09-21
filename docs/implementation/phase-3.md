@@ -1,7 +1,7 @@
 ---
 title: Phase 3 Implementation Plan
 type: implementation-plan
-status: active
+status: complete
 updated: 2026-09-22
 ---
 
@@ -15,9 +15,9 @@ the inhabitant or apply model output locally.
 
 Phase 2 is complete. The paired Godot client can observe the seeded world,
 inspect the scripted inhabitant, and submit server-validated instructions. The
-first provider-neutral cognition runtime is now present in the simulation
-layer, while the fixture's movement executor and live hosted provider remain
-the next slices. The owner client still does not run cognition locally.
+provider-neutral runtime, authoritative action executor, owner projection, and
+opt-in Jev adapter now run in the same server-side boundary. The owner client
+still does not run cognition locally.
 
 ## First implementation slice
 
@@ -35,9 +35,10 @@ Build the smallest end-to-end loop for one inhabitant:
 8. prove restart, pause, provider failure, duplicate response, and stale
    response behaviour with a deterministic mock provider.
 
-The first hosted provider integration is deliberately separate from the mock
-runtime gate. Credentials remain installation-local and never enter world
-state, saves, or telemetry.
+The Jev adapter is deliberately optional and separate from the deterministic
+default. Credentials remain installation-local and are read from
+`TYPESAFE_API_KEY` at request time; they never enter world state, saves,
+telemetry, or owner observations.
 
 ## Explicit non-goals
 
@@ -60,6 +61,11 @@ One inhabitant can make a meaningful, inspectable choice and survive while:
 - queue admission, retry, usage, and stop/fallback events are observable;
 - the paired client can explain what the inhabitant decided without exposing
   raw private model reasoning.
+
+Evidence for this checkpoint: 147 .NET tests pass, including deterministic
+movement execution, restart persistence, bounded retry/fallback, provider
+outage pause, and a fake-HTTP Jev contract test. The Godot 4.7.2 headless
+startup and isolated Windows 11 x64 export checks also pass.
 
 The [cognition and society contract](../planning/cognition-and-society-contract.md)
 is the normative boundary for this work.
@@ -90,9 +96,10 @@ authoritative observation + legal candidates
   output can only select a currently legal candidate, never mutate world state
   directly.
 
-The first implementation foundation is complete: typed observations and
-responses, one in-flight request, provider/run/generation/observation-digest
-validation, confidence-based local fallback, pause/supersede rejection,
-provider-failure fallback, and restart-safe cognition state. A live Jev HTTP
-adapter and world-action executor remain the next Phase 3 slices; no Jev key is
+Phase 3 is complete: typed observations and responses, one in-flight request,
+provider/run/generation/observation-digest validation, one bounded retry,
+confidence-based local fallback, pause/supersede rejection, provider-outage
+pause, restart-safe cognition state, authoritative destination movement,
+needs/resource execution, owner projection, usage events, and the opt-in Jev
+HTTP adapter are covered by the implementation and tests. No Jev key is
 required by the default runtime or CI.

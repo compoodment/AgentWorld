@@ -10,7 +10,7 @@ systems for the world itself.
 The long-term idea is a world that can become more complex because its
 inhabitants choose to make it so.
 
-> **Status: Phase 2 is complete; Phase 3 cognition foundation is underway.**
+> **Status: Phase 3 is complete; Phase 4 society work is not started.**
 > The repository has a headless live-fixture host, durable world and
 > paired-device authority state, a browser protocol-discovery page, and a
 > Godot owner client. The browser deliberately receives no world projection;
@@ -124,9 +124,15 @@ boundary rather than treating the browser page as an owner console.
 
 By default the host serves the completed deterministic `camp-alpha` fixture.
 Set `AgentWorld__Runtime__AdvanceScript=true` to start from genesis and advance
-the small scripted path on the server clock. Runtime state and paired-device
-authority state are stored separately and atomically; a configured seed checks
-the identity of an existing saved world rather than silently replacing it.
+the cognition-aware one-inhabitant path on the server clock. Deterministic
+decisions are the default. Set
+`AgentWorld__Runtime__DecisionProvider=jev` to opt into the TypeSafe Jev
+micro-decision adapter and provide `TYPESAFE_API_KEY` through the host
+environment; the key is read at request time and never enters world state.
+`AgentWorld__Runtime__JevModel` defaults to the pinned `jev-1.13.0`. Runtime
+state and paired-device authority state are stored separately and atomically; a
+configured seed checks the identity of an existing saved world rather than
+silently replacing it.
 
 Paused authoring can attach an asset reference only when its exact `assetId`
 and lowercase `sha256:<64-hex>` digest appear in the host-owned approved-asset
@@ -178,9 +184,9 @@ The first export target is an **unsigned Windows 11 x64 portable bundle**.
 `bash scripts/verify-godot-windows-export.sh` checks the pinned Godot editor and
 export templates, produces a manifest-checked PE bundle, and is configured as a
 GitHub Actions artifact. That is an export-path check, not a signed release,
-installer choice, or proof of final Windows playtesting. Phase 2 still requires
-an actual Windows 11 x64 smoke test: launch the bundle, create the current-user
-device key, pair it with the private host, and complete a paired reconnect.
+installer choice, or proof of final Windows playtesting. The Phase 2 Windows
+smoke test and paired reconnect were completed; see the phase ledgers and
+roadmap for evidence.
 
 ## What AgentWorld is not yet
 

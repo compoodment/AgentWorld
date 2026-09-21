@@ -19,13 +19,15 @@ public sealed record CognitionIntention(
     long WorldTick,
     long RunEpoch,
     long DecisionGeneration,
-    string ObservationDigest);
+    string ObservationDigest,
+    CognitionUsage? Usage = null);
 
 public sealed record CognitionRequestRecord(
     CognitionDecisionRequest Request,
     CognitionRequestState State,
     string? Outcome,
-    CognitionIntention? Intention);
+    CognitionIntention? Intention,
+    CognitionUsage? Usage = null);
 
 public sealed record CognitionEvent(
     long EventId,
@@ -45,6 +47,7 @@ public sealed record CognitionRuntimeState(
 
 public sealed record CognitionRuntimeSnapshot(
     string InhabitantId,
+    DecisionProviderKind ProviderKind,
     long RunEpoch,
     bool IsPaused,
     long DecisionGeneration,
@@ -155,19 +158,37 @@ public sealed class CognitionRuntime
         CancellationToken cancellationToken = default)
     {
         var request = IssueRequest(observation);
-        try
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            var response = await provider.DecideAsync(request, cancellationToken).ConfigureAwait(false);
-            return ApplyResponse(response);
+            try
+            {
+                var response = await provider.DecideAsync(request, cancellationToken).ConfigureAwait(false);
+                return ApplyResponse(response);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return FailRequest(request.RequestId, "provider_cancelled");
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                if (attempt == 0)
+                {
+                    lock (sync)
+                    {
+                        AppendEvent(
+                            request.Observation.WorldTick,
+                            "cognition_retry_requested",
+                            exception.GetType().Name);
+                    }
+
+                    continue;
+                }
+
+                return FailRequest(request.RequestId, $"provider_failure:{exception.GetType().Name}");
+            }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            return FailRequest(request.RequestId, "provider_cancelled");
-        }
-        catch (Exception exception) when (exception is not OutOfMemoryException)
-        {
-            return FailRequest(request.RequestId, $"provider_failure:{exception.GetType().Name}");
-        }
+
+        return FailRequest(request.RequestId, "provider_failure:retry_exhausted");
     }
 
     public CognitionAdmissionResult ApplyResponse(CognitionDecisionResponse response)
@@ -209,10 +230,15 @@ public sealed class CognitionRuntime
                 request.Observation.WorldTick,
                 request.Observation.RunEpoch,
                 request.Observation.DecisionGeneration,
-                request.Observation.ObservationDigest);
+                request.Observation.ObservationDigest,
+                response.Usage);
             currentIntention = intention;
-            RetireInFlight(CognitionRequestState.Applied, "provider_decision", intention);
+            RetireInFlight(CognitionRequestState.Applied, "provider_decision", intention, response.Usage);
             AppendEvent(request.Observation.WorldTick, "cognition_decision_applied", $"{response.Provider}:{candidate.Id}");
+            if (response.Usage is not null)
+            {
+                AppendEvent(request.Observation.WorldTick, "cognition_usage_recorded", FormatUsage(response.Usage));
+            }
             return new CognitionAdmissionResult(true, false, "provider_decision", intention);
         }
     }
@@ -278,7 +304,10 @@ public sealed class CognitionRuntime
         {
             if (inFlight is not null)
             {
-                throw new InvalidOperationException("A cognition save cannot contain an in-flight provider request.");
+                retiredRequestIds.Add(inFlight.Request.RequestId);
+                var worldTick = inFlight.Request.Observation.WorldTick;
+                RetireInFlight(CognitionRequestState.Superseded, "saved_before_provider_response", null);
+                AppendEvent(worldTick, "cognition_request_superseded", "saved_before_provider_response");
             }
 
             return new CognitionRuntimeState(
@@ -331,6 +360,7 @@ public sealed class CognitionRuntime
         {
             return new CognitionRuntimeSnapshot(
                 InhabitantId,
+                provider.Kind,
                 runEpoch,
                 isPaused,
                 decisionGeneration,
@@ -420,14 +450,18 @@ public sealed class CognitionRuntime
         return null;
     }
 
-    private void RetireInFlight(CognitionRequestState state, string outcome, CognitionIntention? intention)
+    private void RetireInFlight(
+        CognitionRequestState state,
+        string outcome,
+        CognitionIntention? intention,
+        CognitionUsage? usage = null)
     {
         if (inFlight is null)
         {
             return;
         }
 
-        var retired = inFlight with { State = state, Outcome = outcome, Intention = intention };
+        var retired = inFlight with { State = state, Outcome = outcome, Intention = intention, Usage = usage };
         requests[retired.Request.RequestId] = retired;
         retiredRequestIds.Add(retired.Request.RequestId);
         inFlight = null;
@@ -440,6 +474,9 @@ public sealed class CognitionRuntime
 
     private static CognitionAdmissionResult Rejected(string outcome) =>
         new(false, false, outcome, null);
+
+    private static string FormatUsage(CognitionUsage usage) =>
+        $"model:{usage.ModelId ?? "unknown"}:input_tokens:{usage.InputTokens}:output_tokens:{usage.OutputTokens}";
 
     private void ValidateEvents()
     {

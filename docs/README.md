@@ -17,8 +17,8 @@ project happened to ask questions.
 6. [Phase 2 implementation ledger](implementation/phase-2.md) — completed
    owner-observation, interaction-boundary, and Windows-export evidence.
 7. [Roadmap](planning/roadmap.md) — gated implementation sequence.
-8. [Phase 3 implementation plan](implementation/phase-3.md) — first real
-   inhabitant cognition loop.
+8. [Phase 3 implementation plan](implementation/phase-3.md) — completed
+   one-inhabitant cognition loop and provider boundary.
 
 ## Concept
 
@@ -56,10 +56,9 @@ project happened to ask questions.
 - [Phase 1 implementation ledger](implementation/phase-1.md) — capability
   evidence for the deterministic vertical slice. GitHub owns its active-work
   state.
-- [Phase 2 implementation ledger](implementation/phase-2.md) — active
+- [Phase 2 implementation ledger](implementation/phase-2.md) — completed
   evidence for paired owner observation, server-validated interaction, and the
-  Windows 11 x64 export path. It is not a Phase 2 completion claim until the
-  final delivery evidence is recorded.
+  Windows 11 x64 export path.
 - [Persistence spike evidence](implementation/persistence-spike.md) — the
   bounded save/replay/migration feasibility result, not a database commitment.
 - [Seeded harness evidence](implementation/seeded-harness.md) — the first

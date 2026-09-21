@@ -3,9 +3,10 @@ using AgentWorld.Simulation.Harness;
 namespace AgentWorld.Viewer.Observation;
 
 /// <summary>
-/// Server-side projection of the Phase 2 composite runtime. It converts the
+/// Server-side projection of the Phase 2/3 composite runtime. It converts the
 /// protected simulation records into stable viewer DTOs while retaining the
-/// distinction between the live fixture topology and paused authoring state.
+/// distinction between the live fixture topology, cognition state, and paused
+/// authoring state.
 /// </summary>
 public sealed class PhaseTwoWorldObservationStore
 {
@@ -124,6 +125,23 @@ public sealed class PhaseTwoWorldObservationStore
                     instruction.RunEpoch,
                     instruction.SubmissionSequence))
                 .ToArray(),
+            Cognition = state.Cognition is null
+                ? null
+                : new ViewerCognition(
+                    state.Cognition.ProviderKind.ToString().ToLowerInvariant(),
+                    state.Cognition.IsPaused,
+                    state.Cognition.InFlightRequestId,
+                    state.Cognition.CurrentIntention?.CandidateId,
+                    state.Cognition.CurrentIntention?.Provider.ToString().ToLowerInvariant(),
+                    state.Cognition.Events
+                        .OrderBy(worldEvent => worldEvent.EventId)
+                        .TakeLast(12)
+                        .Select(worldEvent => new ViewerCognitionEvent(
+                            worldEvent.EventId,
+                            worldEvent.WorldTick,
+                            worldEvent.Kind,
+                            worldEvent.Detail))
+                        .ToArray()),
         };
     }
 
@@ -131,7 +149,7 @@ public sealed class PhaseTwoWorldObservationStore
     {
         var inhabitants = new List<ViewerInhabitant>
         {
-            ToProtectedActor(state.World),
+            ToProtectedActor(state),
         };
         inhabitants.AddRange(state.FounderDrafts
             .OrderBy(draft => draft.Id, StringComparer.Ordinal)
@@ -139,12 +157,31 @@ public sealed class PhaseTwoWorldObservationStore
         return inhabitants;
     }
 
-    private static ViewerInhabitant ToProtectedActor(HarnessWorld world)
+    private static ViewerInhabitant ToProtectedActor(PhaseTwoWorldSnapshot state)
     {
+        var world = state.World;
         var actor = world.Actor;
         var route = DetermineFixtureRoute(world);
         var perceived = KnownNearby(world.Map, actor.Position).ToArray();
         var known = KnownFixtureTopology(actor.Position, perceived, route);
+        var cognition = state.Cognition;
+        var decisionFactors = new List<ViewerDecisionFactor>
+        {
+            new(
+                "decision-source",
+                cognition is null
+                    ? "deterministic fixture"
+                    : $"{cognition.ProviderKind.ToString().ToLowerInvariant()} provider"),
+            new("hunger", $"{actor.HungerBasisPoints} basis points"),
+            new("energy", $"{actor.EnergyBasisPoints} basis points"),
+            new("fixture-topology", world.Map.ManifestDigest),
+        };
+        if (cognition?.CurrentIntention is { } intention)
+        {
+            decisionFactors.Add(new ViewerDecisionFactor("current-intention", intention.CandidateId));
+            decisionFactors.Add(new ViewerDecisionFactor("intention-provider", intention.Provider.ToString().ToLowerInvariant()));
+        }
+
         return new ViewerInhabitant(
             actor.Id,
             "Scout",
@@ -156,12 +193,7 @@ public sealed class PhaseTwoWorldObservationStore
                 new ViewerInventoryEntry("food", actor.FoodItems),
                 new ViewerInventoryEntry("wood", actor.WoodItems),
             ],
-            [
-                new ViewerDecisionFactor("decision-source", "deterministic fixture; cognition is intentionally not active yet"),
-                new ViewerDecisionFactor("hunger", $"{actor.HungerBasisPoints} basis points"),
-                new ViewerDecisionFactor("energy", $"{actor.EnergyBasisPoints} basis points"),
-                new ViewerDecisionFactor("fixture-topology", world.Map.ManifestDigest),
-            ],
+            decisionFactors,
             route,
             new ViewerSpatialKnowledge(ToPosition(actor.Position), perceived, known),
             IsDraft: false);

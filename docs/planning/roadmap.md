@@ -2,7 +2,7 @@
 title: Design and Implementation Roadmap
 type: roadmap
 status: active
-updated: 2026-09-21
+updated: 2026-09-22
 ---
 
 # Roadmap
@@ -97,7 +97,7 @@ procedural/readability vocabulary is allowed to make the world legible; the
 formal asset proposal, normalization, provenance, and rollback pipeline remains
 Phase 5 work.
 
-## Phase 3 — One LLM inhabitant (current)
+## Phase 3 — One LLM inhabitant (complete)
 
 The queue, provider, authority, and telemetry semantics are defined in the
 [cognition and society contract](cognition-and-society-contract.md).
@@ -117,11 +117,18 @@ The queue, provider, authority, and telemetry semantics are defined in the
   contract's admission and stop controls with a mock-world harness; choose a
   numeric call/token ceiling only if prototype evidence requires one
 
-**Gate:** one inhabitant can survive and make meaningful choices without making
-the world nondeterministic, silently exceeding declared queue/admission limits,
-or hiding provider usage and stop/fallback events.
+**Gate met:** one inhabitant now makes destination-level and survival choices
+through the authoritative runtime. The default deterministic provider is
+replayable; Jev is an opt-in HTTP adapter; one bounded retry, local fallback,
+provider-outage pause, restart persistence, movement execution, usage events,
+and owner projection are covered by the Phase 3 tests. No credential is saved
+or sent to the owner client.
 
-## Phase 4 — Society, economy, and family growth
+The next phase is the first multi-inhabitant/society experiment. It must not
+silently expand the current one-inhabitant provider boundary into unbounded
+parallel cognition.
+
+## Phase 4 — Society, economy, and family growth (current)
 
 The relationship, consent, family, estate, and access semantics are defined in
 the [cognition and society contract](cognition-and-society-contract.md).

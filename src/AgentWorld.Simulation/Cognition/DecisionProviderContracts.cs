@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 
 namespace AgentWorld.Simulation.Cognition;
 
@@ -119,7 +122,8 @@ public sealed record CognitionDecisionResponse(
     string ObservationDigest,
     string SelectedCandidateId,
     double Confidence,
-    IReadOnlyDictionary<string, double> Probabilities)
+    IReadOnlyDictionary<string, double> Probabilities,
+    CognitionUsage? Usage = null)
 {
     public void Validate()
     {
@@ -145,6 +149,32 @@ public sealed record CognitionDecisionResponse(
             {
                 throw new ArgumentOutOfRangeException(nameof(Probabilities));
             }
+        }
+
+        Usage?.Validate();
+    }
+}
+
+/// <summary>
+/// Provider usage is telemetry only. It is retained with a request record so
+/// an owner can see that a hosted decision happened without storing secrets or
+/// raw provider reasoning in world state.
+/// </summary>
+public sealed record CognitionUsage(
+    string? ModelId,
+    int InputTokens,
+    int OutputTokens)
+{
+    public void Validate()
+    {
+        if (InputTokens < 0 || OutputTokens < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(InputTokens));
+        }
+
+        if (ModelId is not null && string.IsNullOrWhiteSpace(ModelId))
+        {
+            throw new ArgumentException("A provider model ID cannot be blank when supplied.", nameof(ModelId));
         }
     }
 }
@@ -207,3 +237,190 @@ public sealed class DeterministicDecisionProvider : IDecisionProvider
     }
 }
 
+/// <summary>
+/// Optional TypeSafe System One adapter. The API key is obtained at call time
+/// and is never part of a request, save document, telemetry event, or options
+/// record. If it is absent, the cognition runtime treats this as an ordinary
+/// provider failure and uses its deterministic fallback.
+/// </summary>
+public sealed class JevDecisionProvider : IDecisionProvider
+{
+    private const string ChoiceQuestionId = "selected_candidate";
+    private readonly HttpClient httpClient;
+    private readonly Func<string?> apiKeyAccessor;
+    private readonly Uri endpoint;
+    private readonly string model;
+    private readonly TimeSpan requestTimeout;
+
+    public JevDecisionProvider(
+        HttpClient httpClient,
+        Func<string?> apiKeyAccessor,
+        Uri? endpoint = null,
+        string model = "jev-1.13.0",
+        TimeSpan? requestTimeout = null,
+        long providerEpoch = 1)
+    {
+        this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        this.apiKeyAccessor = apiKeyAccessor ?? throw new ArgumentNullException(nameof(apiKeyAccessor));
+        this.endpoint = endpoint ?? new Uri("https://api.typesafe.ai/v1/systemone", UriKind.Absolute);
+        if (!this.endpoint.IsAbsoluteUri || this.endpoint.Scheme != Uri.UriSchemeHttps)
+        {
+            throw new ArgumentException("The Jev endpoint must be an absolute HTTPS URI.", nameof(endpoint));
+        }
+
+        this.model = NormalizeRequiredText(model, nameof(model));
+        this.requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(30);
+        if (this.requestTimeout <= TimeSpan.Zero || this.requestTimeout > TimeSpan.FromMinutes(5))
+        {
+            throw new ArgumentOutOfRangeException(nameof(requestTimeout));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(providerEpoch);
+        ProviderEpoch = providerEpoch;
+    }
+
+    public DecisionProviderKind Kind => DecisionProviderKind.Jev;
+
+    public long ProviderEpoch { get; }
+
+    public async ValueTask<CognitionDecisionResponse> DecideAsync(
+        CognitionDecisionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var apiKey = apiKeyAccessor()?.Trim();
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            throw new InvalidOperationException("Jev is enabled but no TypeSafe API key is configured.");
+        }
+
+        var payload = new JevRequest(
+            new
+            {
+                inhabitant_id = request.Observation.InhabitantId,
+                world_tick = request.Observation.WorldTick,
+                run_epoch = request.Observation.RunEpoch,
+                decision_generation = request.Observation.DecisionGeneration,
+                hunger_basis_points = request.Observation.HungerBasisPoints,
+                energy_basis_points = request.Observation.EnergyBasisPoints,
+                candidates = request.Observation.Candidates.Select(candidate => new
+                {
+                    id = candidate.Id,
+                    description = candidate.Description,
+                    destination_id = candidate.DestinationId,
+                }).ToArray(),
+            },
+            model,
+            new Dictionary<string, JevQuestion>(StringComparer.Ordinal)
+            {
+                [ChoiceQuestionId] = new JevQuestion(
+                    "choice",
+                    "Choose exactly one legal candidate for the inhabitant's next small action.",
+                    request.Observation.Candidates.ToDictionary(
+                        candidate => candidate.Id,
+                        candidate => candidate.Description,
+                        StringComparer.Ordinal)),
+            });
+
+        var json = JsonSerializer.Serialize(payload, JsonOptions);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(requestTimeout);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json"),
+        };
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        using var response = await httpClient.SendAsync(
+            httpRequest,
+            HttpCompletionOption.ResponseHeadersRead,
+            timeout.Token).ConfigureAwait(false);
+        var responseBody = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Jev returned HTTP {(int)response.StatusCode} ({response.StatusCode}).");
+        }
+
+        return ParseResponse(request, responseBody);
+    }
+
+    private static CognitionDecisionResponse ParseResponse(
+        CognitionDecisionRequest request,
+        string responseBody)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(responseBody);
+            var root = document.RootElement;
+            var modelId = root.TryGetProperty("model", out var modelProperty)
+                ? modelProperty.GetString()
+                : null;
+            var answer = root.GetProperty("answers").GetProperty(ChoiceQuestionId);
+            if (!string.Equals(answer.GetProperty("type").GetString(), "choice", StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("Jev returned a non-choice answer for the candidate question.");
+            }
+
+            var selected = answer.GetProperty("choice").GetString();
+            var confidence = answer.GetProperty("confidence").GetDouble();
+            var probabilities = answer.GetProperty("probabilities")
+                .EnumerateObject()
+                .ToDictionary(
+                    property => property.Name,
+                    property => property.Value.GetDouble(),
+                    StringComparer.Ordinal);
+            var usage = root.TryGetProperty("usage", out var usageProperty)
+                ? new CognitionUsage(
+                    modelId,
+                    usageProperty.GetProperty("input_tokens").GetInt32(),
+                    usageProperty.GetProperty("output_tokens").GetInt32())
+                : modelId is null ? null : new CognitionUsage(modelId, 0, 0);
+
+            return new CognitionDecisionResponse(
+                request.RequestId,
+                request.Observation.InhabitantId,
+                DecisionProviderKind.Jev,
+                request.ProviderEpoch,
+                request.Observation.RunEpoch,
+                request.Observation.DecisionGeneration,
+                request.Observation.ObservationDigest,
+                NormalizeRequiredText(selected ?? string.Empty, "choice"),
+                confidence,
+                probabilities,
+                usage);
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("Jev returned malformed JSON.", exception);
+        }
+        catch (KeyNotFoundException exception)
+        {
+            throw new InvalidDataException("Jev returned an incomplete choice response.", exception);
+        }
+    }
+
+    private static string NormalizeRequiredText(string? value, string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, name);
+        return value.Trim();
+    }
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    private sealed record JevRequest(
+        object State,
+        string Model,
+        IReadOnlyDictionary<string, JevQuestion> Questions);
+
+    private sealed record JevQuestion(
+        string Type,
+        string Instructions,
+        IReadOnlyDictionary<string, string> Criteria);
+}

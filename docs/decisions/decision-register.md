@@ -457,5 +457,18 @@ one candidate, but cannot invent an action or mutate authoritative state.
   state, save data, or authority.
 
 This is an implementation policy, not a commitment to make Jev the default
-provider. The first live Jev adapter must be evaluated against replayable
+provider. The live adapter is now opt-in and is evaluated through replayable
 scenarios before it is enabled for normal worlds.
+
+The Phase 3 implementation adds the following executable decisions:
+
+- One provider request may be retried once. An individual failure uses local
+  fallback; three consecutive hosted-provider failures pause the world and
+  create an owner-visible outage event. Resume creates a new run epoch.
+- Jev uses the HTTPS System One endpoint with a pinned model ID by default.
+  `TYPESAFE_API_KEY` is installation-local and read at request time. It is not
+  serialized, emitted in telemetry, or sent to the owner client. Provider model
+  and token usage are safe telemetry fields.
+- The first world keeps one active inhabitant and one cognition request in
+  flight. Multi-inhabitant scheduling, durable memory, and social cognition are
+  Phase 4 experiments rather than hidden Phase 3 scope.

@@ -1484,6 +1484,10 @@ public partial class Main : Control
             ? "none"
             : string.Join("\n", snapshot.Instructions.Select(instruction =>
                 $"#{instruction.SubmissionSequence} {instruction.Kind} → {instruction.TargetInhabitantId}: {instruction.Text} [{instruction.State}]"));
+        var cognition = snapshot.Cognition is null
+            ? "not reported"
+            : $"{snapshot.Cognition.Provider} · " +
+              $"{snapshot.Cognition.CurrentCandidateId ?? "no current intention"}";
         if (authoring is null)
         {
             worldDetails.AppendText($"tick {snapshot.WorldTick}\nworld {snapshot.WorldId}\nNo authoring projection returned.");
@@ -1496,6 +1500,7 @@ public partial class Main : Control
             $"weather/season: {authoring.Weather} / {authoring.Season}\n" +
             $"current topology: {authoring.CurrentMapManifestDigest}\n" +
             $"initial fixture topology: {authoring.InitialMapManifestDigest}\n" +
+            $"cognition: {cognition}\n" +
             $"approved assets: {(authoring.ApprovedAssetReferences.Count == 0 ? "none" : string.Join(", ", authoring.ApprovedAssetReferences))}\n\n" +
             $"queued instructions:\n{instructions}");
     }

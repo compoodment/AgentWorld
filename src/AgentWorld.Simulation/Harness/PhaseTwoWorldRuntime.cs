@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
+using AgentWorld.Simulation.Cognition;
+using AgentWorld.Simulation.Kernel;
 
 namespace AgentWorld.Simulation.Harness;
 
@@ -15,9 +17,10 @@ public enum PhaseTwoInstructionKind
 }
 
 /// <summary>
-/// The minimal durable lifecycle needed before a cognition queue exists.
-/// Later phases may add active, completed, and rejected states without making
-/// a client responsible for changing a queued instruction's state.
+/// The minimal durable lifecycle for an owner instruction entering the
+/// cognition-aware fixture. Later phases may add active, completed, and
+/// rejected states without making a client responsible for changing a queued
+/// instruction's state.
 /// </summary>
 public enum PhaseTwoInstructionState
 {
@@ -302,7 +305,14 @@ public sealed record PhaseTwoWorldSnapshot(
     IReadOnlyList<PhaseTwoFounderDraft> FounderDrafts,
     IReadOnlyList<PhaseTwoApprovedAssetReference> ApprovedAssetReferences,
     IReadOnlyList<PhaseTwoQueuedInstruction> Instructions,
-    long LatestGlobalEventId);
+    long LatestGlobalEventId)
+{
+    /// <summary>
+    /// The bounded Phase 3 cognition projection. It is optional so a legacy
+    /// Phase 2 save can still be inspected before its first cognition tick.
+    /// </summary>
+    public CognitionRuntimeSnapshot? Cognition { get; init; }
+}
 
 /// <summary>
 /// An atomic reconnect-style observation: a detached state projection and the
@@ -345,14 +355,30 @@ public sealed record PhaseTwoWorldRuntimeState(
     IReadOnlyList<PhaseTwoAppliedAuthoringBatchState> AppliedAuthoringBatches,
     IReadOnlyList<PhaseTwoWorldEvent> GlobalEvents,
     long NextGlobalEventId,
-    long NextInstructionSequence);
+    long NextInstructionSequence,
+    CognitionRuntimeState? Cognition = null,
+    int ConsecutiveProviderFailures = 0);
 
 /// <summary>
-/// A Phase 2-only composition root around the existing deterministic harness.
+/// The result of one Phase 3 cognition/action boundary. The world state is
+/// still read through <see cref="PhaseTwoWorldRuntime.Capture"/>; this result
+/// is useful to a scheduler and tests that need to distinguish a local
+/// fallback from a hosted decision.
+/// </summary>
+public sealed record PhaseTwoCognitionAdvanceResult(
+    bool Advanced,
+    bool PausedForProviderOutage,
+    string Outcome,
+    string? CandidateId,
+    CognitionAdmissionResult? Cognition,
+    IReadOnlyList<MovementEvent> MovementEvents);
+
+/// <summary>
+/// The Phase 2/3 composition root around the existing deterministic harness.
 /// It intentionally does not replace <see cref="LiveSeededWorldRuntime"/>.
 /// The Phase 1 harness remains the protected tick fixture; this runtime adds a
-/// global event stream, pause/run-epoch controls, instruction ingress, and
-/// isolated paused authoring state for the viewer/action boundary.
+/// global event stream, pause/run-epoch controls, instruction ingress, paused
+/// authoring state, and the bounded cognition/action boundary.
 /// </summary>
 public sealed class PhaseTwoWorldRuntime
 {
@@ -373,6 +399,8 @@ public sealed class PhaseTwoWorldRuntime
 
     private readonly object sync = new();
     private readonly IPhaseTwoApprovedAssetReferencePolicy approvedAssetReferencePolicy;
+    private readonly IDecisionProvider decisionProvider;
+    private readonly double minimumCognitionConfidence;
     private readonly Dictionary<string, PhaseTwoQueuedInstruction> instructionsByIdempotency =
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, PhaseTwoInstructionReceipt> instructionReceipts =
@@ -391,6 +419,10 @@ public sealed class PhaseTwoWorldRuntime
     private long topologyRevision;
     private long nextGlobalEventId = 1;
     private long nextInstructionSequence = 1;
+    private CognitionRuntime cognition;
+    private int consecutiveProviderFailures;
+
+    private const int ProviderFailurePauseThreshold = 3;
 
     /// <summary>
     /// Creates a Phase 2 runtime. Asset references are denied unless the host
@@ -398,13 +430,25 @@ public sealed class PhaseTwoWorldRuntime
     /// </summary>
     public PhaseTwoWorldRuntime(
         string worldSeed,
-        IPhaseTwoApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null)
+        IPhaseTwoApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
+        IDecisionProvider? decisionProvider = null,
+        double minimumCognitionConfidence = 0.5)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worldSeed);
         this.approvedAssetReferencePolicy = approvedAssetReferencePolicy ??
             DenyAllPhaseTwoApprovedAssetReferencePolicy.Instance;
+        this.decisionProvider = decisionProvider ?? new DeterministicDecisionProvider();
+        if (double.IsNaN(minimumCognitionConfidence) ||
+            double.IsInfinity(minimumCognitionConfidence) ||
+            minimumCognitionConfidence is < 0 or > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(minimumCognitionConfidence));
+        }
+
+        this.minimumCognitionConfidence = minimumCognitionConfidence;
         world = ScriptedHarness.CreateGenesis(worldSeed);
         currentMap = CloneMap(world.Map);
+        cognition = new CognitionRuntime(world.Actor.Id, this.decisionProvider, minimumCognitionConfidence);
     }
 
     /// <summary>
@@ -446,7 +490,9 @@ public sealed class PhaseTwoWorldRuntime
                     .ToArray(),
                 globalEvents.Select(CloneEvent).ToArray(),
                 nextGlobalEventId,
-                nextInstructionSequence);
+                nextInstructionSequence,
+                cognition.ExportState(),
+                consecutiveProviderFailures);
         }
     }
 
@@ -458,7 +504,9 @@ public sealed class PhaseTwoWorldRuntime
     public static PhaseTwoWorldRuntime Restore(
         PhaseTwoWorldRuntimeState state,
         string? expectedWorldSeed = null,
-        IPhaseTwoApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null)
+        IPhaseTwoApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
+        IDecisionProvider? decisionProvider = null,
+        double minimumCognitionConfidence = 0.5)
     {
         ArgumentNullException.ThrowIfNull(state);
         if (state.SchemaVersion != StateSchemaVersion)
@@ -480,7 +528,9 @@ public sealed class PhaseTwoWorldRuntime
 
         var runtime = new PhaseTwoWorldRuntime(
             state.World.Identity.WorldSeed,
-            approvedAssetReferencePolicy);
+            approvedAssetReferencePolicy,
+            decisionProvider,
+            minimumCognitionConfidence);
         runtime.ImportState(state);
         return runtime;
     }
@@ -500,6 +550,7 @@ public sealed class PhaseTwoWorldRuntime
             }
 
             isPaused = true;
+            _ = cognition.Pause(world.Identity.WorldTick);
             AppendGlobalEvent("paused", $"issuer:{normalizedIssuerId}");
             return true;
         }
@@ -526,30 +577,96 @@ public sealed class PhaseTwoWorldRuntime
 
             isPaused = false;
             runEpoch = checked(runEpoch + 1);
+            _ = cognition.Resume(world.Identity.WorldTick);
             AppendGlobalEvent("resumed", $"epoch:{runEpoch}:issuer:{normalizedIssuerId}");
             return true;
         }
     }
 
     /// <summary>
-    /// Advances exactly one action of the unmodified Phase 1 fixture. The
-    /// current authoring topology is intentionally separate, so an experimental
-    /// map edit cannot mutate its protected actor fields or invalidate its
-    /// deterministic action path.
+    /// Advances exactly one cognition/action boundary of the protected fixture.
+    /// The current authoring topology is intentionally separate, so an
+    /// experimental map edit cannot mutate its protected actor fields or
+    /// invalidate its deterministic action path.
     /// </summary>
-    public bool TryAdvanceOneAction()
+    public bool TryAdvanceOneAction() =>
+        AdvanceOneActionAsync().AsTask().GetAwaiter().GetResult().Advanced;
+
+    /// <summary>
+    /// Runs one bounded cognition request and commits exactly one authoritative
+    /// action. The provider chooses only from candidates generated here; route
+    /// stepping, needs, resources, and event commits remain local kernel work.
+    /// </summary>
+    public async ValueTask<PhaseTwoCognitionAdvanceResult> AdvanceOneActionAsync(
+        CancellationToken cancellationToken = default)
     {
+        InhabitantObservation observation;
         lock (sync)
         {
-            if (isPaused || !ScriptedHarness.TryAdvanceOneAction(world, out var advanced))
+            if (isPaused)
             {
-                return false;
+                return NotAdvanced("paused");
             }
 
-            world = advanced;
-            var fixtureEvent = world.Events[^1];
-            AppendGlobalEvent("fixture_action_committed", fixtureEvent.Detail ?? string.Empty);
-            return true;
+            observation = CreateCognitionObservation();
+        }
+
+        CognitionAdmissionResult decision;
+        try
+        {
+            decision = await cognition.RequestAndDecideAsync(observation, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            decision = new CognitionAdmissionResult(false, false, $"cognition_host_failure:{exception.GetType().Name}", null);
+        }
+
+        lock (sync)
+        {
+            if (isPaused || decision.Intention is null)
+            {
+                return new PhaseTwoCognitionAdvanceResult(
+                    false,
+                    false,
+                    isPaused ? "paused" : decision.Outcome,
+                    null,
+                    decision,
+                    []);
+            }
+
+            var candidate = observation.Candidates.Single(candidate =>
+                string.Equals(candidate.Id, decision.Intention.CandidateId, StringComparison.Ordinal));
+            var movementEvents = new List<MovementEvent>();
+            world = ExecuteCognitionCandidate(world, candidate, movementEvents);
+            AppendGlobalEvent("fixture_action_committed", world.Events[^1].Detail ?? string.Empty);
+
+            if (decision.FellBack && IsProviderFailure(decision.Outcome))
+            {
+                consecutiveProviderFailures = checked(consecutiveProviderFailures + 1);
+            }
+            else if (!decision.FellBack)
+            {
+                consecutiveProviderFailures = 0;
+            }
+
+            var pausedForOutage = false;
+            if (consecutiveProviderFailures >= ProviderFailurePauseThreshold && !isPaused)
+            {
+                isPaused = true;
+                _ = cognition.Pause(world.Identity.WorldTick);
+                AppendGlobalEvent(
+                    "provider_outage_paused",
+                    $"provider:{decisionProvider.Kind}:failures:{consecutiveProviderFailures}");
+                pausedForOutage = true;
+            }
+
+            return new PhaseTwoCognitionAdvanceResult(
+                true,
+                pausedForOutage,
+                decision.Outcome,
+                candidate.Id,
+                decision,
+                movementEvents);
         }
     }
 
@@ -783,6 +900,26 @@ public sealed class PhaseTwoWorldRuntime
             throw new InvalidDataException("The saved authored world projection does not match its applied batches.");
         }
 
+        if (state.ConsecutiveProviderFailures < 0 ||
+            state.ConsecutiveProviderFailures > ProviderFailurePauseThreshold)
+        {
+            throw new InvalidDataException("The saved provider failure counter is invalid.");
+        }
+
+        var restoredCognition = state.Cognition is null
+            ? new CognitionRuntime(restoredWorld.Actor.Id, decisionProvider, minimumCognitionConfidence)
+            : CognitionRuntime.Restore(state.Cognition, decisionProvider, minimumCognitionConfidence);
+        if (state.Cognition is null && state.IsPaused)
+        {
+            _ = restoredCognition.Pause(restoredWorld.Identity.WorldTick);
+        }
+
+        if (!string.Equals(restoredCognition.InhabitantId, restoredWorld.Actor.Id, StringComparison.Ordinal) ||
+            restoredCognition.Capture().IsPaused != state.IsPaused)
+        {
+            throw new InvalidDataException("The saved cognition state does not match the world pause or actor boundary.");
+        }
+
         lock (sync)
         {
             world = restoredWorld;
@@ -800,6 +937,8 @@ public sealed class PhaseTwoWorldRuntime
             topologyRevision = state.TopologyRevision;
             nextGlobalEventId = state.NextGlobalEventId;
             nextInstructionSequence = state.NextInstructionSequence;
+            cognition = restoredCognition;
+            consecutiveProviderFailures = state.ConsecutiveProviderFailures;
 
             instructionsByIdempotency.Clear();
             foreach (var pair in restoredInstructions.ByIdempotency)
@@ -1360,6 +1499,127 @@ public sealed class PhaseTwoWorldRuntime
     private static string CreateInstructionId(long sequence) =>
         $"instruction-{sequence.ToString("D10", CultureInfo.InvariantCulture)}";
 
+    private InhabitantObservation CreateCognitionObservation()
+    {
+        var actor = world.Actor;
+        var generation = cognition.Capture().DecisionGeneration + 1;
+        var candidates = CreateCognitionCandidates(world);
+        return new InhabitantObservation(
+            actor.Id,
+            world.Identity.WorldTick,
+            runEpoch,
+            generation,
+            CognitionObservationDigest.Create(world, runEpoch, generation, candidates),
+            actor.HungerBasisPoints,
+            actor.EnergyBasisPoints,
+            candidates);
+    }
+
+    private static List<CognitionCandidate> CreateCognitionCandidates(HarnessWorld current)
+    {
+        var candidates = new List<CognitionCandidate>();
+        var food = current.Map.GetResource("berry-patch");
+        var bedroll = current.Map.GetObject("bedroll");
+        var foodAvailable = current.GetResource(food.Id).State == ResourceState.Available;
+
+        if (current.Actor.FoodItems > 0 && current.Actor.HungerBasisPoints < 8_500)
+        {
+            candidates.Add(new CognitionCandidate(
+                "consume_food",
+                "Eat one carried food item to restore hunger.",
+                0));
+        }
+
+        if (foodAvailable && current.Actor.Position == food.Position)
+        {
+            candidates.Add(new CognitionCandidate(
+                "harvest_food",
+                "Collect available food at the current tile.",
+                0,
+                food.Id));
+        }
+        else if (foodAvailable && current.Actor.HungerBasisPoints < 7_000)
+        {
+            candidates.Add(new CognitionCandidate(
+                "seek_food",
+                "Travel to the available food source.",
+                5,
+                food.Id));
+        }
+
+        if (current.Actor.EnergyBasisPoints < 3_500)
+        {
+            candidates.Add(new CognitionCandidate(
+                "sleep",
+                "Sleep now to recover energy, even without a bed.",
+                10,
+                bedroll.Id));
+        }
+
+        candidates.Add(new CognitionCandidate(
+            "safe_idle",
+            "Continue safely without starting a new task.",
+            100));
+        return candidates;
+    }
+
+    private static HarnessWorld ExecuteCognitionCandidate(
+        HarnessWorld current,
+        CognitionCandidate candidate,
+        List<MovementEvent> movementEvents)
+    {
+        if (candidate.DestinationId is not null)
+        {
+            var destination = ResolveDestination(current.Map, candidate.DestinationId);
+            if (current.Actor.Position != destination)
+            {
+                var route = DeterministicRouteFinder.Find(current.Map, current.Actor.Position, destination);
+                if (route.Count < 2)
+                {
+                    throw new InvalidOperationException("A destination intention must have a next route step.");
+                }
+
+                var movement = DeterministicMovementResolver.Resolve(
+                    current.Map,
+                    [new MovementActor(current.Actor.Id, current.Actor.Position, 0)],
+                    [new MovementIntent(current.Actor.Id, route[1])]);
+                movementEvents.AddRange(movement.Events);
+                return ScriptedHarness.ApplyPhaseThreeMovement(current, movement.GetActor(current.Actor.Id).Position);
+            }
+        }
+
+        return candidate.Id switch
+        {
+            "harvest_food" => ScriptedHarness.ApplyPhaseThreeHarvest(current, "berry-patch"),
+            "consume_food" => ScriptedHarness.ApplyPhaseThreeConsume(current),
+            "sleep" => ScriptedHarness.ApplyPhaseThreeSleep(current),
+            "safe_idle" => ScriptedHarness.ApplyPhaseThreeIdle(current),
+            _ => throw new InvalidDataException($"Cognition candidate '{candidate.Id}' has no executor."),
+        };
+    }
+
+    private static GridPoint ResolveDestination(SeededMap map, string destinationId)
+    {
+        var mapObject = map.CampObjects.SingleOrDefault(mapObject =>
+            string.Equals(mapObject.Id, destinationId, StringComparison.Ordinal));
+        if (mapObject is not null)
+        {
+            return mapObject.Position;
+        }
+
+        var resource = map.Resources.SingleOrDefault(resource =>
+            string.Equals(resource.Id, destinationId, StringComparison.Ordinal));
+        return resource?.Position ?? throw new InvalidDataException(
+            $"Cognition destination '{destinationId}' is not present in the authoritative map.");
+    }
+
+    private static bool IsProviderFailure(string outcome) =>
+        outcome.StartsWith("provider_failure", StringComparison.Ordinal) ||
+        outcome.StartsWith("provider_cancelled", StringComparison.Ordinal);
+
+    private static PhaseTwoCognitionAdvanceResult NotAdvanced(string outcome) =>
+        new(false, false, outcome, null, null, []);
+
     private PhaseTwoWorldSnapshot CreateSnapshot() => new(
         CloneWorld(world),
         CloneMap(currentMap),
@@ -1377,7 +1637,10 @@ public sealed class PhaseTwoWorldRuntime
             .ThenBy(instruction => instruction.InstructionId, StringComparer.Ordinal)
             .Select(instruction => instruction with { })
             .ToArray(),
-        nextGlobalEventId - 1);
+        nextGlobalEventId - 1)
+    {
+        Cognition = cognition.Capture(),
+    };
 
     private void AppendGlobalEvent(string kind, string detail)
     {

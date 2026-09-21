@@ -69,6 +69,16 @@ public sealed record ViewerInstruction(
     long RunEpoch,
     long SubmissionSequence);
 
+public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
+
+public sealed record ViewerCognition(
+    string Provider,
+    bool IsPaused,
+    string? InFlightRequestId,
+    string? CurrentCandidateId,
+    string? CurrentDecisionProvider,
+    IReadOnlyList<ViewerCognitionEvent> Events);
+
 public sealed record ViewerAuthoringState(
     bool IsPaused,
     long RunEpoch,
@@ -105,6 +115,8 @@ public sealed record ViewerWorldSnapshot(
     public ViewerAuthoringState? Authoring { get; init; }
 
     public IReadOnlyList<ViewerInstruction> Instructions { get; init; } = [];
+
+    public ViewerCognition? Cognition { get; init; }
 }
 
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events);

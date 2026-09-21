@@ -43,8 +43,9 @@ not one physical screen pixel, so a 256×256 logical map can use 16×16 or
 
 Godot is not the simulation engine. The separate headless simulation service
 remains authoritative, while Godot consumes its versioned protocol as a client.
-Phase 2 still needs to prove the live host, reconnect behavior, and first
-Godot adapter before selecting production rendering details.
+The live host, reconnect behavior, and first Godot adapter are proven; the
+rendering details remain prototype-grade until later play evidence justifies
+production assets.
 
 ## Server authority
 

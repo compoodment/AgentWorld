@@ -554,6 +554,56 @@ public static class ScriptedHarness
         return false;
     }
 
+    /// <summary>
+    /// Phase 3 executor entry points. They reuse the fixture's needs/resource
+    /// commit path while allowing cognition to select the action instead of a
+    /// hard-coded script selecting it.
+    /// </summary>
+    public static HarnessWorld ApplyPhaseThreeMovement(HarnessWorld world, GridPoint destination)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        if (world.Actor.Position == destination)
+        {
+            throw new InvalidOperationException("A Phase 3 movement action must advance to a different tile.");
+        }
+
+        return Commit(
+            world,
+            actor => actor with { Position = destination },
+            resources => resources,
+            1,
+            $"move:{ActorId}:{destination.X},{destination.Y}");
+    }
+
+    public static HarnessWorld ApplyPhaseThreeHarvest(HarnessWorld world, string resourceId)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return Harvest(world, resourceId);
+    }
+
+    public static HarnessWorld ApplyPhaseThreeConsume(HarnessWorld world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return Consume(world);
+    }
+
+    public static HarnessWorld ApplyPhaseThreeSleep(HarnessWorld world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return Sleep(world);
+    }
+
+    public static HarnessWorld ApplyPhaseThreeIdle(HarnessWorld world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        return Commit(
+            world,
+            actor => actor,
+            resources => resources,
+            0,
+            $"idle:{ActorId}");
+    }
+
     public static HarnessWorld ReplayFromGenesis(WorldIdentity identity, IReadOnlyList<PersistenceEvent> events)
     {
         ArgumentNullException.ThrowIfNull(identity);
