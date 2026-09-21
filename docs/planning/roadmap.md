@@ -132,6 +132,9 @@ parallel cognition.
 
 The relationship, consent, family, estate, and access semantics are defined in
 the [cognition and society contract](cognition-and-society-contract.md).
+The implementation scope and evidence gate are tracked in the
+[Phase 4 implementation plan](../implementation/phase-4.md). The documentation
+baseline is refreshed; implementation has not started.
 
 - relationships and social memory
 - emergent work and roles

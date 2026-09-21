@@ -19,6 +19,8 @@ project happened to ask questions.
 7. [Roadmap](planning/roadmap.md) — gated implementation sequence.
 8. [Phase 3 implementation plan](implementation/phase-3.md) — completed
    one-inhabitant cognition loop and provider boundary.
+9. [Phase 4 implementation plan](implementation/phase-4.md) — society,
+   multi-inhabitant scheduling, family, exchange, and lifecycle evidence.
 
 ## Concept
 
@@ -59,6 +61,8 @@ project happened to ask questions.
 - [Phase 2 implementation ledger](implementation/phase-2.md) — completed
   evidence for paired owner observation, server-validated interaction, and the
   Windows 11 x64 export path.
+- [Phase 4 implementation plan](implementation/phase-4.md) — current society
+  implementation scope, gate, and open lifespan decision.
 - [Persistence spike evidence](implementation/persistence-spike.md) — the
   bounded save/replay/migration feasibility result, not a database commitment.
 - [Seeded harness evidence](implementation/seeded-harness.md) — the first

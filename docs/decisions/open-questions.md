@@ -2,7 +2,7 @@
 title: Open Questions
 type: decision-backlog
 status: active
-updated: 2026-09-19
+updated: 2026-09-22
 ---
 
 # Open Questions
@@ -19,19 +19,22 @@ not remain open product questions.
 
 ## Later roadmap-phase implementation choices
 
-- Phase 2: Godot is the intended player-facing client, while the browser stays
-  a deliberately read-only discovery/diagnostic surface. The live headless
-  host and initial reconnect baseline are proven; paired owner access,
-  complete projections, validated controls, restart durability, and the
-  Windows 11 x64 export path are active delivery work in
-  [#99](https://github.com/compoodment/AgentWorld/issues/99), not unresolved
-  product decisions. Select final rendering, installer/signing, and later
-  authoring UX only when a post-Phase-2 prototype needs them.
-- Phase 3: measured observation, memory, inhabitant-capacity, and provider-usage
-  budgets under the [cognition and society contract](../planning/cognition-and-society-contract.md);
-  the contract's admission, backpressure, pause, and emergency-stop behavior is
-  already settled.
+- Phase 2: complete. Godot is the intended player-facing client, while the
+  browser remains a deliberately read-only discovery/diagnostic surface. Final
+  rendering, installer/signing, and later authoring UX can wait for a post-
+  Phase-2 prototype that needs them.
+- Phase 3: complete. The provider boundary, admission, backpressure, pause,
+  fallback, and emergency-stop behavior are implemented and covered by the
+  [Phase 3 plan](../implementation/phase-3.md). Further budget tuning is
+  prototype evidence, not a prerequisite for Phase 4 preparation.
+- Phase 4: the policy baseline is accepted and implementation is tracked in the
+  [Phase 4 plan](../implementation/phase-4.md). The remaining product decision
+  before the family-lifecycle slice is the first-world natural lifespan model:
+  hazard-only death initially, an age-based mortality curve without a hard
+  maximum, or an age-based curve with a declared maximum age. The existing
+  terminal-death, estate, consent, age-band, and replay rules are not open.
 - Phase 5: executable-mod sandbox/runtime choice and measured resource budgets
   within the [content-governance contract](../planning/content-governance-contract.md).
 
-No item above blocks the deterministic Phase 1 kernel.
+The lifespan choice blocks only the natural-aging/family-lifecycle slice; it
+does not block Phase 4 scheduler, relationship, household, or exchange work.
