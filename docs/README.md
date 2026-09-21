@@ -14,9 +14,11 @@ project happened to ask questions.
    — the Phase 1 executable-design boundary.
 5. [Phase 1 implementation ledger](implementation/phase-1.md) — deterministic
    kernel capability evidence.
-6. [Phase 2 implementation ledger](implementation/phase-2.md) — active
+6. [Phase 2 implementation ledger](implementation/phase-2.md) — completed
    owner-observation, interaction-boundary, and Windows-export evidence.
 7. [Roadmap](planning/roadmap.md) — gated implementation sequence.
+8. [Phase 3 implementation plan](implementation/phase-3.md) — first real
+   inhabitant cognition loop.
 
 ## Concept
 

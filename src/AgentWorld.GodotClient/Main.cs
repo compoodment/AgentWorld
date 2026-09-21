@@ -38,6 +38,7 @@ public partial class Main : Control
 
     private readonly GridContainer worldGrid = new();
     private readonly Control mapCanvas = new();
+    private readonly Control objectLayer = new();
     private readonly Control entityLayer = new();
     private readonly PanelContainer worldHud = new();
     private readonly Label hudWorldLabel = new();
@@ -966,6 +967,10 @@ public partial class Main : Control
         worldGrid.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapCanvas.AddChild(worldGrid);
 
+        objectLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
+        mapCanvas.AddChild(objectLayer);
+
         entityLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         entityLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapCanvas.AddChild(entityLayer);
@@ -1141,7 +1146,7 @@ public partial class Main : Control
         statusRow.AddChild(hudSelectionLabel);
         body.AddChild(statusRow);
 
-        mapLegendLabel.Text = "MEADOW   WATER   MOUNTAIN   ·   people are separate from terrain";
+        mapLegendLabel.Text = "terrain · objects · people   /   click a person for their card";
         mapLegendLabel.Modulate = new Color("B3C2CC");
         body.AddChild(mapLegendLabel);
 
@@ -1258,6 +1263,10 @@ public partial class Main : Control
         {
             child.QueueFree();
         }
+        foreach (var child in objectLayer.GetChildren())
+        {
+            child.QueueFree();
+        }
 
         if (snapshot.Tiles.Count == 0)
         {
@@ -1265,8 +1274,6 @@ public partial class Main : Control
         }
 
         worldGrid.Columns = snapshot.Tiles.Max(tile => tile.X) + 1;
-        var objects = snapshot.Objects.ToDictionary(item => PositionKey(item.Position));
-        var resources = snapshot.Resources.ToDictionary(item => PositionKey(item.Position));
         var drafts = snapshot.Inhabitants
             .Where(inhabitant => inhabitant.IsDraft)
             .ToDictionary(inhabitant => PositionKey(inhabitant.Position));
@@ -1275,13 +1282,7 @@ public partial class Main : Control
             var key = $"{tile.X},{tile.Y}";
             var cell = new Button
             {
-                Text = drafts.ContainsKey(key)
-                    ? "DRAFT"
-                    : resources.TryGetValue(key, out var resource)
-                        ? ResourceMarker(resource.Kind)
-                        : objects.TryGetValue(key, out var mapObject)
-                            ? ObjectMarker(mapObject.Kind)
-                            : TerrainMarker(tile.Terrain),
+                Text = TerrainMarker(tile.Terrain),
                 CustomMinimumSize = new Vector2(TileSize, TileSize),
                 TooltipText = $"{tile.Terrain} at {key}",
             };
@@ -1289,12 +1290,34 @@ public partial class Main : Control
             cell.AddThemeColorOverride("font_color", new Color("E6F0E8"));
             cell.AddThemeStyleboxOverride("normal", TileStyle(TerrainColor(tile.Terrain)));
             cell.AddThemeStyleboxOverride("hover", TileStyle(TerrainColor(tile.Terrain).Lightened(0.15f)));
-            if (drafts.TryGetValue(key, out var draft))
-            {
-                cell.TooltipText = $"{draft.DisplayName} · authoring draft at {key}";
-            }
-
             worldGrid.AddChild(cell);
+        }
+
+        foreach (var resource in snapshot.Resources)
+        {
+            AddMapObjectVisual(
+                resource.Position,
+                ResourceGlyph(resource.Kind),
+                ResourceMarker(resource.Kind),
+                $"{Pretty(resource.Kind)} resource");
+        }
+
+        foreach (var mapObject in snapshot.Objects)
+        {
+            AddMapObjectVisual(
+                mapObject.Position,
+                ObjectGlyph(mapObject.Kind),
+                ObjectMarker(mapObject.Kind),
+                Pretty(mapObject.Kind));
+        }
+
+        foreach (var draft in drafts.Values)
+        {
+            AddMapObjectVisual(
+                draft.Position,
+                "?",
+                "DRAFT",
+                $"{draft.DisplayName} · authoring draft");
         }
 
         foreach (var group in snapshot.Inhabitants
@@ -1326,6 +1349,31 @@ public partial class Main : Control
         }
 
         CallDeferred(nameof(PositionSelectedInhabitantCard));
+    }
+
+    private void AddMapObjectVisual(
+        OwnerWorldPosition position,
+        string glyph,
+        string label,
+        string tooltip)
+    {
+        var visual = new Label
+        {
+            Text = $"{glyph}\n{label}",
+            Position = new Vector2(position.X * TileSize + 4, position.Y * TileSize + 4),
+            Size = new Vector2(TileSize - 8, TileSize - 8),
+            TooltipText = tooltip,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            ZIndex = 5,
+        };
+        visual.AddThemeFontSizeOverride("font_size", 12);
+        visual.AddThemeColorOverride("font_color", new Color("E8F0D8"));
+        visual.AddThemeColorOverride("font_shadow_color", new Color("18211D"));
+        visual.AddThemeConstantOverride("shadow_offset_x", 1);
+        visual.AddThemeConstantOverride("shadow_offset_y", 1);
+        objectLayer.AddChild(visual);
     }
 
     private void RenderWorldHud(OwnerWorldSnapshot snapshot)
@@ -1731,6 +1779,13 @@ public partial class Main : Control
         _ => ShortMarker(kind),
     };
 
+    private static string ResourceGlyph(string kind) => kind switch
+    {
+        "food" => "●",
+        "construction" => "▰",
+        _ => "◆",
+    };
+
     private static string ObjectMarker(string kind) => kind switch
     {
         "bedroll" => "REST",
@@ -1738,6 +1793,15 @@ public partial class Main : Control
         "shelter" => "HOME",
         "tree" => "TREE",
         _ => ShortMarker(kind),
+    };
+
+    private static string ObjectGlyph(string kind) => kind switch
+    {
+        "bedroll" => "▰",
+        "campfire" => "✦",
+        "shelter" => "⌂",
+        "tree" => "♣",
+        _ => "■",
     };
 
     private static string ShortMarker(string value)

@@ -10,7 +10,7 @@ systems for the world itself.
 The long-term idea is a world that can become more complex because its
 inhabitants choose to make it so.
 
-> **Status: Phase 2 owner-bound interaction delivery is in progress.**
+> **Status: Phase 2 owner-bound interaction delivery is complete; Phase 3 is next.**
 > The repository has a headless live-fixture host, durable world and
 > paired-device authority state, a browser protocol-discovery page, and a
 > Godot owner client. The browser deliberately receives no world projection;

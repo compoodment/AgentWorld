@@ -2,7 +2,7 @@
 title: Design and Implementation Roadmap
 type: roadmap
 status: active
-updated: 2026-09-19
+updated: 2026-09-21
 ---
 
 # Roadmap
@@ -57,7 +57,7 @@ capability evidence. Neither replaces this roadmap's gate.
 **Gate:** the world remains correct and reproducible without any LLM or visual
 client.
 
-## Phase 2 — World viewer and observation boundary (current)
+## Phase 2 — World viewer and observation boundary (complete)
 
 The protocol and client-correction baseline are defined in the
 [deterministic kernel contract](deterministic-kernel-contract.md).
@@ -86,13 +86,18 @@ The protocol and client-correction baseline are defined in the
   testing; do not mistake that path for a released or final UI
 - run the server headlessly on a development machine or VPS
 
-**Gate:** a human can understand what happened through a paired client, and no
-client can directly mutate authoritative state. The browser must remain useful
-for diagnosis without becoming an unauthenticated owner console. Phase 2 stays
-current while [#99](https://github.com/compoodment/AgentWorld/issues/99) receives
-its final verification, deployment, and evidence ledger.
+**Gate met:** a human can understand what happened through the paired Godot
+client, and no client can directly mutate authoritative state. The browser
+remains useful for diagnosis without becoming an unauthenticated owner console.
+The Windows owner smoke test and paired reconnect were completed on 2026-09-21;
+the evidence is recorded in the [Phase 2 implementation ledger](../implementation/phase-2.md).
 
-## Phase 3 — One LLM inhabitant
+The current client visual language is intentionally prototype-grade. A small
+procedural/readability vocabulary is allowed to make the world legible; the
+formal asset proposal, normalization, provenance, and rollback pipeline remains
+Phase 5 work.
+
+## Phase 3 — One LLM inhabitant (current)
 
 The queue, provider, authority, and telemetry semantics are defined in the
 [cognition and society contract](cognition-and-society-contract.md).
