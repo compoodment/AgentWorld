@@ -103,6 +103,8 @@ The queue, provider, authority, and telemetry semantics are defined in the
 [cognition and society contract](cognition-and-society-contract.md).
 
 - add a configurable model/provider adapter
+- keep deterministic decisions as the default; Jev and a large LLM are
+  optional provider implementations with explicit fallback
 - event-driven cognition queue
 - structured intentions and actions
 - destination-level travel intentions with server-side route execution

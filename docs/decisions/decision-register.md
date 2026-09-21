@@ -2,7 +2,7 @@
 title: AgentWorld Decision Register
 type: decision-record
 status: active
-updated: 2026-09-19
+updated: 2026-09-22
 ---
 
 # Decision Register
@@ -439,3 +439,23 @@ design-log entry, with migration/fixture impact considered alongside prose.
 
 The debugger proves the wire; the game client owns the experience. Neither is
 allowed to rewrite the world brain.
+
+## 2026-09-22 — Optional micro-decision providers
+
+Phase 3 uses a provider-neutral cognition boundary. Deterministic simulation
+generates the observation and legal candidate actions; a provider may choose
+one candidate, but cannot invent an action or mutate authoritative state.
+
+- Deterministic choice is always available and is the default provider.
+- Jev is optional and is intended for small bounded judgements that do not
+  justify a large language-model call.
+- A large language model is optional and is reserved for open-ended planning,
+  reflection, communication, and social reasoning.
+- Provider failure, low confidence, pause, stale epochs, duplicate responses,
+  and superseded requests resolve through deterministic fallback or rejection.
+- Provider credentials and provider-specific prompt formats are not world
+  state, save data, or authority.
+
+This is an implementation policy, not a commitment to make Jev the default
+provider. The first live Jev adapter must be evaluated against replayable
+scenarios before it is enabled for normal worlds.

@@ -2,7 +2,7 @@
 title: Phase 3 Implementation Plan
 type: implementation-plan
 status: active
-updated: 2026-09-21
+updated: 2026-09-22
 ---
 
 # Phase 3 Implementation Plan
@@ -15,9 +15,9 @@ the inhabitant or apply model output locally.
 
 Phase 2 is complete. The paired Godot client can observe the seeded world,
 inspect the scripted inhabitant, and submit server-validated instructions. The
-current observation explicitly reports that cognition is not active yet. The
-deterministic mock/provider-result fixtures in the kernel prove stale-result
-rejection, but they are not a live cognition runtime.
+first provider-neutral cognition runtime is now present in the simulation
+layer, while the fixture's movement executor and live hosted provider remain
+the next slices. The owner client still does not run cognition locally.
 
 ## First implementation slice
 
@@ -63,3 +63,36 @@ One inhabitant can make a meaningful, inspectable choice and survive while:
 
 The [cognition and society contract](../planning/cognition-and-society-contract.md)
 is the normative boundary for this work.
+
+## Decision-provider policy
+
+The first cognition implementation keeps provider choice behind a small typed
+boundary in `AgentWorld.Simulation.Cognition`:
+
+```text
+authoritative observation + legal candidates
+              |
+              v
+       IDecisionProvider
+        /      |       \
+ deterministic  Jev   large LLM
+```
+
+- The deterministic provider is always available and is the default. It is
+  also the individual fallback when a hosted provider fails or has low
+  confidence.
+- Jev is optional. It is intended for small, bounded choices among candidates
+  that the kernel has already generated; it is not an authority, planner,
+  dialogue model, or source of new action IDs.
+- A large LLM is optional and reserved for decisions that genuinely need
+  open-ended planning, reflection, communication, or social reasoning.
+- The server/kernel remains authoritative regardless of provider. Provider
+  output can only select a currently legal candidate, never mutate world state
+  directly.
+
+The first implementation foundation is complete: typed observations and
+responses, one in-flight request, provider/run/generation/observation-digest
+validation, confidence-based local fallback, pause/supersede rejection,
+provider-failure fallback, and restart-safe cognition state. A live Jev HTTP
+adapter and world-action executor remain the next Phase 3 slices; no Jev key is
+required by the default runtime or CI.
