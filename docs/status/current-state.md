@@ -82,7 +82,7 @@ output can choose one candidate; it cannot invent a world mutation.
 
 | Role | Options | Typical current work |
 | --- | --- | --- |
-| Routine survival | Deterministic, Jev | Eat, sleep, gather, move or idle |
+| Routine survival | Deterministic, Jev | Eat, sleep, gather, move, wear clothing, tend fire, seek warmth or idle |
 | Planning and work | Deterministic, OpenAI, Ollama Cloud | Choose a legal building or recipe project |
 
 The host stages the built-in starter package through the validated content

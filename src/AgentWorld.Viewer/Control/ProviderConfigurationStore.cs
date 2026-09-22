@@ -532,6 +532,9 @@ public sealed partial class ConfigurableDecisionProvider(
         "harvest_food",
         "seek_food",
         "sleep",
+        "wear_clothing",
+        "tend_fire",
+        "seek_warmth",
         "safe_idle",
     };
 

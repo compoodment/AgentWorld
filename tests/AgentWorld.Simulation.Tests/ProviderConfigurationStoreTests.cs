@@ -6,6 +6,40 @@ namespace AgentWorld.Simulation.Tests;
 
 public sealed class ProviderConfigurationStoreTests
 {
+    [Theory]
+    [InlineData("wear_clothing")]
+    [InlineData("tend_fire")]
+    [InlineData("seek_warmth")]
+    public async Task ExposureActionsUseRoutineProviderInsteadOfPlanning(string candidateId)
+    {
+        var directory = Directory.CreateTempSubdirectory("agentworld-survival-routing-");
+        try
+        {
+            var store = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"), EmptySeed());
+            _ = store.Configure(new("routine", "jev", "jev-test", "routine-test-secret", false));
+            _ = store.Configure(new("planning", "ollama-cloud", "planning-test", "planning-test-secret", false));
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            var request = Request(router.ProviderEpoch);
+            request = request with
+            {
+                Observation = request.Observation with
+                {
+                    Candidates = [new(candidateId, "Survive exposure.", 20), new("safe_idle", "Wait safely.", 100)],
+                },
+            };
+            Assert.Equal(DecisionProviderKind.Jev, router.KindFor(request.Observation));
+            var response = await router.DecideAsync(request);
+            Assert.Equal(DecisionProviderKind.Jev, response.Provider);
+            Assert.Equal("api.typesafe.ai", handler.LastUri!.Host);
+            Assert.Equal("routine", response.Usage!.Role);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
     [Fact]
     public async Task PersonalAssignmentsRouteIndependentlySurviveRestartAndCanInheritAgain()
     {

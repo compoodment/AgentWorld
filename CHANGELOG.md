@@ -8,6 +8,8 @@ release yet.
 
 ### Added
 
+- Kept clothing, fire tending and warmth-seeking decisions on the assigned
+  routine provider rather than accidentally routing them to the planning model.
 - Connected weather exposure to warmth and recoverable illness, with clothing
   insulation, shelter, fuelled hearths, better rest from bedding and faster
   project work with carried tools. Inhabitants collect equipment and seek heat.
