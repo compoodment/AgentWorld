@@ -423,10 +423,10 @@ design-log entry, with migration/fixture impact considered alongside prose.
 
 - Godot is the intended player-facing rendering and interaction client for the
   private first world.
-- The browser observation host remains a deliberately sparse, read-only
-  diagnostic surface. It is not the production game UI and will not grow a
-  duplicate authoring interface.
-- Both clients consume the same versioned, non-authoritative observation and
+- The headless host may retain a sparse unauthenticated handshake and legacy
+  static protocol diagnostics, but these are not a supported client and will
+  not grow a duplicate observation or authoring interface.
+- The Godot client consumes the versioned, non-authoritative observation and
   action protocol from a separate headless .NET world server. This decision
   does not make Godot a simulation dependency or change server authority.
 - The first end-user Godot package targets **Windows 11 x64**. It is a normal

@@ -1,8 +1,8 @@
 ---
 title: Deterministic Movement Evidence
 type: implementation-evidence
-status: verified-fixture
-updated: 2026-09-19
+status: complete
+updated: 2026-09-22
 ---
 
 # Deterministic Movement Evidence

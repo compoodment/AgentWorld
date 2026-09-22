@@ -5,35 +5,30 @@ status: active
 updated: 2026-09-22
 ---
 
-# Open Questions
+# Open questions
 
-The first-world product policy is frozen. This file is deliberately short:
-items belong here only when they block an upcoming phase or need prototype
-evidence. Do not create new interview batches for speculative future systems.
+Only unresolved product or architecture decisions belong here. Confirmed bugs
+belong in [known bugs](../bugs.md); scheduled implementation belongs in the
+[roadmap](../planning/roadmap.md); current capability claims belong in
+[current state](../status/current-state.md).
 
-## Phase 1 — deterministic simulation kernel
+## Executable generated content
 
-Phase 1 is complete. Its fixture-backed storage/replay and seeded-world choices
-are recorded in the [Phase 1 ledger](../implementation/phase-1.md); they do
-not remain open product questions.
+**Question:** Is there a demonstrated capability that cannot be expressed by
+the governed data-only content system and justifies selecting an executable-mod
+sandbox?
 
-## Later roadmap-phase implementation choices
+**Evidence required before deciding:**
 
-- Phase 2: complete. Godot is the intended player-facing client, while the
-  browser remains a deliberately read-only discovery/diagnostic surface. Final
-  rendering, installer/signing, and later authoring UX can wait for a post-
-  Phase-2 prototype that needs them.
-- Phase 3: complete. The provider boundary, admission, backpressure, pause,
-  fallback, and emergency-stop behavior are implemented and covered by the
-  [Phase 3 implementation ledger](../implementation/phase-3.md). Further
-  budget tuning is prototype evidence, not a prerequisite for Phase 4
-  preparation.
-- Phase 4: complete. The implementation and evidence are tracked in the
-  [Phase 4 ledger](../implementation/phase-4.md). Natural mortality uses the
-  accepted no-hard-maximum curve: elderhood is a social marker, risk rises
-  gradually, and the kernel owns terminal death and estate settlement.
-- Phase 5: executable-mod sandbox/runtime choice and measured resource budgets
-  within the [content-governance contract](../planning/content-governance-contract.md).
+- a concrete first-world behavior blocked by declarative composition;
+- measured CPU, memory, I/O and persistence requirements;
+- a capability and host-isolation model;
+- deterministic/replay implications;
+- failure, quarantine, migration and rollback behavior.
 
-The next unresolved work is Phase 5 content governance and agent-created
-content; Phase 4 policy is no longer blocking.
+Until that evidence exists, arbitrary generated code remains disabled. This
+does not block starter content, buildings, recipes, assets or other data-only
+world expansion.
+
+No other product-policy question currently blocks the **Living Settlement**
+milestone.

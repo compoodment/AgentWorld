@@ -1,67 +1,76 @@
 ---
-title: Document Authority and Delivery Evidence
+title: Document Authority and Maintenance
 type: governance
 status: active
-updated: 2026-09-19
+updated: 2026-09-22
 ---
 
-# Document Authority and Delivery Evidence
+# Document authority and maintenance
 
-AgentWorld separates product intent, accepted policy, executable semantics,
-live work, and proof of what actually runs. A document may link to another
-authority, but should not restate its status in several places.
+AgentWorld separates current product truth, future work, accepted policy,
+executable semantics and historical evidence. There is one canonical source
+for each question; other documents link instead of copying volatile summaries.
 
 ## Sources of truth
 
 | Question | Authority | What it owns |
 | --- | --- | --- |
-| Why should the world exist and feel this way? | `docs/concept/` | frozen intent, pillars, and long-horizon direction |
-| Which product policy won? | [Decision register](../decisions/decision-register.md) | accepted product decisions |
-| Why was it chosen? | [Design log](../decisions/design-log.md) | chronological rationale and history |
-| What exact behavior must implementation preserve? | [Planning contracts](../planning/) | testable semantics, invariants, and acceptance fixtures |
-| What remains genuinely undecided? | [Open questions](../decisions/open-questions.md) | bounded decisions and required prototype evidence |
-| Which phase and gate are current? | [Roadmap](../planning/roadmap.md) | phase sequence and gate definitions |
-| What capability is specified, implemented, or verified? | [Implementation ledger](../implementation/phase-1.md) | scoped capability evidence, not daily task state |
-| What work is active right now? | GitHub milestone and issues | live workflow, ownership, dependencies, and discussion |
-| What truly exists and works? | merged code, tests, CI, and reproducible commands | current executable reality |
+| What is playable or merely scaffolded now? | [Current state](../status/current-state.md) | Whole-product capability status and limitations |
+| What is next? | [Roadmap](../planning/roadmap.md) | Ordered outcomes and acceptance gates |
+| What confirmed problems remain? | [Known bugs](../bugs.md) | Reproduced defects/gaps and acceptance conditions |
+| Why should the world exist and feel this way? | `docs/concept/` | Stable intent and long-horizon design pillars |
+| Which product policy won? | [Decision register](../decisions/decision-register.md) | Current accepted decisions |
+| Why was it chosen? | [Design log](../decisions/design-log.md) | Chronological rationale and historical context |
+| What exact behavior must code preserve? | `docs/planning/*contract.md` | Invariants, semantics and acceptance fixtures |
+| What remains undecided? | [Open questions](../decisions/open-questions.md) | Decisions that genuinely need evidence or owner choice |
+| What did a bounded implementation prove? | `docs/implementation/` | Historical capability evidence and reproducible proof |
+| What work is actively being executed? | GitHub issues/PRs | Task decomposition, ownership, discussion and CI |
+| What truly runs? | Merged code, tests and exact-commit CI | Executable reality |
 
-If executable evidence conflicts with an accepted contract, the code is a
-defect or the contract needs an explicit decision update. A successful demo is
-not enough to silently amend either one.
+If code, docs and observed play conflict, do not choose the most flattering
+version. Correct the defect or update the appropriate authority explicitly.
 
 ## Status vocabulary
 
-Use these front-matter statuses consistently:
+Document front matter uses:
 
-- **frozen** — stable concept material; change only with an explicit decision
-  or prototype evidence.
-- **active** — maintained current authority or operational plan.
-- **proposal** — not accepted and not authoritative.
-- **superseded** — retained for context; link to its replacement.
-- **history** — chronology and rationale; it records decisions but does not
-  override their current authority.
+- **active** — maintained current authority;
+- **frozen** — stable intent, changed only by an explicit decision or evidence;
+- **proposal** — not accepted and not authoritative;
+- **superseded** — retained for context and linked to its replacement;
+- **history** — chronological evidence that does not override current truth;
+- **complete** — a bounded ledger/gate closed; not a claim that the whole
+  product area is rich or playable.
 
-Implementation capability status has a separate, evidence-based meaning:
+Capability status is defined by [current state](../status/current-state.md):
+playable, integrated but thin, verified primitive and planned.
 
-- **specified** — accepted contract exists; no merged evidence yet.
-- **spiking** — a bounded prototype is collecting evidence.
-- **implemented** — merged code exists, but the required gate has not passed.
-- **verified** — documented tests or CI prove the contract behavior.
-- **deferred** — explicitly outside the current milestone or release.
+## Required change route
 
-GitHub owns the changing workflow state. Update the implementation ledger only
-when a capability's evidence status changes; do not mirror assignees, comments,
-or daily progress into Markdown.
+1. Identify which canonical source the change affects.
+2. Update behavior and its tests.
+3. Update current state for any capability-status or limitation change.
+4. Update the roadmap if priority or an acceptance gate changed.
+5. Add/remove a known-bug entry when a defect is reproduced or verified fixed.
+6. Update decisions/contracts only when policy or required semantics changed.
+7. Preserve old implementation evidence unless its claim was factually wrong;
+   link to a superseding authority instead.
+8. Run the normal test suite, including documentation metadata and local-link
+   checks, before publishing.
 
-## Change route
+Dates, version numbers, test counts and deployment state go only where they are
+necessary evidence. Avoid copying volatile values into multiple overview docs.
 
-1. Put active work in a GitHub issue and attach it to the appropriate
-   milestone.
-2. Link the issue or pull request to the contract and decision it implements.
-3. Put trade-offs or prototype findings in the issue; promote a product-policy
-   change only through the decision register and design log.
-4. Merge code with reproducible verification evidence.
-5. Update the implementation ledger when that evidence moves a capability to
-   `implemented`, `verified`, or `deferred`.
+## Staleness review
 
-This is deliberately a delivery system, not miniature Jira in a trench coat.
+Every user-visible gameplay, UI, runtime, compatibility or operational change
+must include a documentation-impact review. A reviewer should be able to answer:
+
+- Did the player-visible capability matrix change?
+- Did a known limitation or bug appear/disappear?
+- Did the next milestone or its acceptance gate change?
+- Did an accepted decision or invariant change?
+- Does the README still describe the normal path without promoting legacy
+  diagnostics?
+
+This is a source-of-truth system, not miniature Jira in a trench coat.

@@ -1,7 +1,7 @@
 ---
 title: Phase 5 Implementation Ledger
 type: implementation-ledger
-status: in-progress
+status: active
 updated: 2026-09-22
 ---
 

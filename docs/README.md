@@ -1,88 +1,112 @@
+---
+title: AgentWorld Documentation Map
+type: documentation-index
+status: active
+updated: 2026-09-22
+---
+
 # AgentWorld documentation
 
-This directory is organized by purpose rather than by the order in which the
-project happened to ask questions.
+AgentWorld uses **one canonical source per question**. Documents may link to a
+canonical source, but should not maintain competing summaries of current state
+or future work.
 
-## Start here
+## Canonical sources
 
-1. [Vision](concept/vision.md) — the experience and design pillars.
-2. [Feature scope](planning/feature-scope.md) — protected foundation,
-   first-world priorities, and explicit deferrals.
-3. [Decision register](decisions/decision-register.md) — current accepted
-   first-world decisions.
-4. [Deterministic kernel contract](planning/deterministic-kernel-contract.md)
-   — the Phase 1 executable-design boundary.
-5. [Phase 1 implementation ledger](implementation/phase-1.md) — deterministic
-   kernel capability evidence.
-6. [Phase 2 implementation ledger](implementation/phase-2.md) — completed
-   owner-observation, interaction-boundary, and Windows-export evidence.
-7. [Roadmap](planning/roadmap.md) — gated implementation sequence.
-8. [Phase 3 implementation ledger](implementation/phase-3.md) — completed
-   one-inhabitant cognition loop and provider boundary.
-9. [Phase 4 implementation ledger](implementation/phase-4.md) — completed
-   society, multi-inhabitant scheduling, family, exchange, mortality, and
-   lifecycle evidence.
-10. [Phase 5 implementation ledger](implementation/phase-5.md) — in-progress
-    data-only content identity, dependency locks, and package lifecycle.
+| Question | Canonical source |
+| --- | --- |
+| What works in the game today? | [Current state](status/current-state.md) |
+| What are we building next, and what is its gate? | [Roadmap](planning/roadmap.md) |
+| Which confirmed problems are still open? | [Known bugs](bugs.md) |
+| What is the intended experience? | [Vision](concept/vision.md) |
+| Which product policy is accepted? | [Decision register](decisions/decision-register.md) |
+| Why was a decision made? | [Design log](decisions/design-log.md) |
+| What is the current system boundary? | [Architecture](planning/architecture.md) |
+| What exact semantics must code preserve? | [Implementation contracts](#contracts-and-policy) |
+| What evidence implemented a historical slice? | [Implementation evidence](#implementation-evidence) |
+| What still needs a product decision? | [Open questions](decisions/open-questions.md) |
 
-## Concept
+For detailed authority and maintenance rules, see
+[Document authority](governance/document-authority.md).
 
+## Read this first
+
+1. [Current state](status/current-state.md) — honest playable/integrated/fixture
+   status.
+2. [Roadmap](planning/roadmap.md) — the outcome-driven sequence, beginning
+   with **Living Settlement**.
+3. [Known bugs](bugs.md) — confirmed UI, cognition and content-path problems.
+4. [Vision](concept/vision.md) — stable long-horizon intent.
+5. [Architecture](planning/architecture.md) — the implemented client/host/
+   simulation boundary.
+
+## Document classes
+
+### Current product truth
+
+- [Current state](status/current-state.md)
+- [Known bugs](bugs.md)
+- [Roadmap](planning/roadmap.md)
+
+These are the only documents that should summarize the whole current product
+or whole forward plan. Update them when behavior or priorities change.
+
+### Concepts
+
+- [Vision](concept/vision.md)
 - [World model](concept/world-model.md)
 - [Inhabitants](concept/inhabitants.md)
 - [Economy](concept/economy.md)
 - [Creation and modding](concept/creation-and-modding.md)
 - [Assets and art](concept/assets-and-art.md)
 
-## Planning
+Concept documents describe stable intent. They are not evidence that a feature
+is playable.
 
-- [Architecture direction](planning/architecture.md)
-- [C# and Godot toolchain](planning/csharp-toolchain.md)
-- [Phase 2 owner device pairing](planning/device-pairing.md)
+### Contracts and policy
+
+- [Architecture](planning/architecture.md)
 - [Feature scope](planning/feature-scope.md)
-- [Roadmap](planning/roadmap.md)
+- [Deterministic kernel contract](planning/deterministic-kernel-contract.md)
+- [Cognition and society contract](planning/cognition-and-society-contract.md)
+- [Content governance contract](planning/content-governance-contract.md)
+- [Owner device pairing](planning/device-pairing.md)
+- [C# and Godot toolchain](planning/csharp-toolchain.md)
 - [Versioning and releases](planning/versioning-and-releases.md)
-- [Deterministic kernel and recovery contract](planning/deterministic-kernel-contract.md)
-- [Cognition, authority, and society contract](planning/cognition-and-society-contract.md)
-- [Content, mod, and constitutional governance contract](planning/content-governance-contract.md)
 
-## Decisions
+Contracts define invariants and accepted semantics. They do not claim that
+every described system is integrated into the default private world.
 
-- [Decision register](decisions/decision-register.md) — current authority for
-  accepted product decisions.
-- [Open questions](decisions/open-questions.md) — only unresolved work that
-  needs a decision or prototype evidence.
-- [Design log](decisions/design-log.md) — chronological rationale and history.
+### Decisions
 
-## Delivery and governance
+- [Decision register](decisions/decision-register.md) — current accepted
+  product policy.
+- [Open questions](decisions/open-questions.md) — unresolved decisions only.
+- [Design log](decisions/design-log.md) — chronological rationale; historical
+  statements may describe retired prototypes.
 
-- [Document authority and delivery evidence](governance/document-authority.md)
-  — which source answers which question, and how implementation proof is
-  recorded.
-- [Phase 1 implementation ledger](implementation/phase-1.md) — capability
-  evidence for the deterministic vertical slice. GitHub owns its active-work
-  state.
-- [Phase 2 implementation ledger](implementation/phase-2.md) — completed
-  evidence for paired owner observation, server-validated interaction, and the
-  Windows 11 x64 export path.
-- [Phase 3 implementation ledger](implementation/phase-3.md) — completed
-  one-inhabitant cognition, provider, fallback, and owner-projection evidence.
-- [Phase 4 implementation ledger](implementation/phase-4.md) — completed
-  society implementation scope, gate, and accepted mortality model.
-- [Phase 5 implementation ledger](implementation/phase-5.md) — in-progress
-  data-only content governance evidence.
-- [Persistence spike evidence](implementation/persistence-spike.md) — the
-  bounded save/replay/migration feasibility result, not a database commitment.
-- [Seeded harness evidence](implementation/seeded-harness.md) — the first
-  executable map, actor, action, and save/replay acceptance slice.
-- [Staged kernel evidence](implementation/staged-kernel.md) — atomic tick,
-  clock, pause/resume, recovery, and deterministic-randomness fixtures.
-- [Deterministic movement evidence](implementation/deterministic-movement.md)
-  — movement claims, swaps, blocking, and route-cache invalidation fixtures.
+### Implementation evidence
+
+- [Phase 1 ledger](implementation/phase-1.md)
+- [Phase 2 ledger](implementation/phase-2.md)
+- [Phase 3 ledger](implementation/phase-3.md)
+- [Phase 4 ledger](implementation/phase-4.md)
+- [Phase 5 ledger](implementation/phase-5.md)
+- [Private alpha integration plan](implementation/playtest-vertical-slice.md)
+- [Persistence spike](implementation/persistence-spike.md)
+- [Seeded harness](implementation/seeded-harness.md)
+- [Staged kernel](implementation/staged-kernel.md)
+- [Deterministic movement](implementation/deterministic-movement.md)
+
+Ledgers and evidence documents record what a bounded contract or fixture proved
+at a point in time. A phase marked complete does **not** mean every noun in that
+phase is a rich player-visible loop. Consult [current state](status/current-state.md)
+for that distinction.
 
 ## Maintenance rule
 
-Keep current decisions in the decision register, rationale in the design log,
-and only genuinely unresolved work in open questions. Retire worksheets once
-their proposals are accepted or superseded; Git history remains the archive.
-Use GitHub milestones and issues for live work, and update an implementation
-ledger only when code or test evidence changes a capability's status.
+When a change affects behavior, UI, operations, compatibility or product
+scope, update the relevant canonical document in the same change. Historical
+evidence should normally remain unchanged; add a superseding link instead of
+rewriting what an old proof established. GitHub issues own active execution,
+while these documents own durable product truth.

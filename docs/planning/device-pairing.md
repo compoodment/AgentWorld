@@ -2,7 +2,7 @@
 title: Phase 2 Owner Device Pairing
 type: implementation-policy
 status: active
-updated: 2026-09-19
+updated: 2026-09-22
 ---
 
 # Phase 2 Owner Device Pairing
@@ -114,8 +114,9 @@ server-derived issuer string, never a private key or comparison code.
 All world-changing requests remain requests. Authentication permits the server
 to validate and enqueue them; only the authoritative runtime commits the
 result. Unpaired devices receive neither full-world observations nor control
-results. The browser diagnostic page therefore exposes only protocol discovery,
-not a second owner interface.
+results. The unauthenticated HTTP surface therefore exposes only protocol
+discovery, not world observation or a second owner interface. Legacy static
+diagnostic assets are not a supported game client.
 
 ## Required evidence
 

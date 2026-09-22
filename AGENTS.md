@@ -32,6 +32,31 @@ edits unless they change supported behavior or an explicit compatibility or
 operational promise. Before pushing, compare the intended diff with the
 `Unreleased` section and confirm the relevant capability is represented.
 
+## Documentation discipline
+
+Follow [the document-authority guide](docs/governance/document-authority.md).
+There is one canonical source per question:
+
+- [current state](docs/status/current-state.md) owns what is playable,
+  integrated, fixture-only, or planned;
+- [roadmap](docs/planning/roadmap.md) owns future sequence and acceptance gates;
+- [known bugs](docs/bugs.md) owns confirmed defects and product gaps;
+- decisions and contracts own policy and required semantics;
+- implementation ledgers own bounded historical evidence.
+
+Every user-visible gameplay, UI, world-runtime, compatibility, packaging,
+security, or operational change must include a documentation-impact review.
+Update the affected canonical document in the same commit; do not copy a
+volatile current-status summary into phase ledgers, design history, or several
+overview files. A schema, contract, fixture, or passing unit test is not a
+player-visible feature. Call a capability playable only after it is connected
+to the default private world and normal Godot path.
+
+Before publishing documentation changes, run the normal test suite so required
+metadata and local Markdown links are checked. Preserve historical evidence
+unless it is factually wrong; add a superseding link instead of rewriting the
+past to resemble the present.
+
 ## Operational observability
 
 Treat live diagnosis as part of every server-owned gameplay loop, provider

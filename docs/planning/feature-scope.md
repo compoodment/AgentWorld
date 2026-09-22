@@ -2,7 +2,7 @@
 title: Feature Scope and Priority
 type: design
 status: active
-updated: 2026-09-19
+updated: 2026-09-22
 ---
 
 # Feature Scope and Priority
@@ -10,6 +10,10 @@ updated: 2026-09-19
 This is a concept inventory, not a promise that every item will be built. It
 exists to stop attractive ideas from silently becoming first-milestone
 requirements.
+
+It is not a current implementation report. See
+[current state](../status/current-state.md) for what actually runs and the
+[roadmap](roadmap.md) for the ordered product plan.
 
 ## Protected foundation
 

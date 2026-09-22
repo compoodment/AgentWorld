@@ -1,20 +1,21 @@
 ---
-title: Architecture Direction
-type: design
-status: proposal
-updated: 2026-09-19
+title: Current Architecture
+type: architecture
+status: active
+updated: 2026-09-22
 ---
 
-# Architecture Direction
+# Current architecture
 
-This is a proposed foundation, not an implementation specification. Its job is
-to identify boundaries and invariants before code makes them expensive to
-change.
+This document describes the implemented high-level boundary and the direction
+that new work must preserve. It is not the canonical feature-status report;
+see [current state](../status/current-state.md) for what is playable versus
+thin or fixture-only.
 
 The concrete deterministic, cognition, and content-governance semantics are in
-the linked [implementation contracts](../README.md#planning).
+the linked [implementation contracts](../README.md#contracts-and-policy).
 
-## Proposed components
+## Components
 
 ```text
 Godot client / viewer
@@ -29,13 +30,13 @@ authoritative world server
 LLM inhabitant worker
 ```
 
-The first private world may run the server and worker on the same VPS. They
-should remain separate logical components so model failures, API credentials,
-and expensive cognition cannot directly corrupt simulation state.
+The private world runs the server and provider adapters on the same VPS. They
+remain separate logical components so model failures, API credentials, and
+expensive cognition cannot directly corrupt simulation state.
 
 ## Engine direction
 
-Godot is the intended player-facing client/rendering engine because it provides a
+Godot is the player-facing client/rendering engine because it provides a
 strong 2D and pixel-art workflow, tile-based rendering, animation, and a path
 toward a headless server and later multiplayer. A logical tile is a world cell,
 not one physical screen pixel, so a 256×256 logical map can use 16×16 or
@@ -130,7 +131,7 @@ chain-of-thought as authoritative state.
 
 ## Persistence and replay
 
-The current direction is:
+The persistence model is:
 
 - periodic complete snapshots
 - an append-only event log between snapshots

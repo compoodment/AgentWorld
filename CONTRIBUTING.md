@@ -1,34 +1,33 @@
 # Contributing to AgentWorld
 
-AgentWorld has frozen its first-world concept and is preparing a deterministic
-vertical slice. Design work remains welcome when it is grounded in a concrete
-prototype finding or changes an explicit decision.
+AgentWorld is an early private alpha with a substantial deterministic and
+security foundation but incomplete connected gameplay. Start with the
+[current-state matrix](docs/status/current-state.md), then read the
+[roadmap](docs/planning/roadmap.md) and [known bugs](docs/bugs.md). Do not infer
+player-visible completeness from a phase ledger or data type.
 
-## Useful contributions right now
+## Useful contributions now
 
-- build a small, reproducible feasibility prototype
-- challenge an implementation choice with evidence
-- identify a missing invariant, failure mode, or acceptance test
-- propose a simpler or safer model for a demonstrated prototype need
-- improve the documentation or diagrams
-- compare engine, storage, networking, or sandboxing options
+- connect existing primitives into the **Living Settlement** loop;
+- fix a confirmed problem in the known-bug register;
+- add reproducible evidence for a gameplay or architecture claim;
+- simplify the UI or operator path without weakening server authority;
+- improve documentation by removing duplication and stale claims;
+- challenge an accepted implementation choice with concrete evidence.
 
-## Design contribution rules
+## Change rules
 
-1. Read the relevant document before proposing a change.
-2. Separate a requirement from an implementation preference.
-3. Record meaningful trade-offs and unresolved questions.
-4. Do not turn a speculative idea into a fixed requirement without a decision
-   or prototype evidence.
-5. Keep the protected simulation kernel smaller than the moddable world around
-   it.
-6. Never add API keys, private world saves, or other secrets to the repository.
+1. Read the relevant current-state, roadmap, decision and contract documents.
+2. Separate product policy, implementation choice and historical evidence.
+3. Keep the authoritative simulation independent of Godot and model providers.
+4. Treat model output as untrusted input; legal actions and state transitions
+   remain server-owned.
+5. Never add API keys, private saves, pairing material or raw provider payloads
+   to the repository, logs or bug reports.
+6. Update the canonical documentation in the same change when behavior, UI,
+   operations, compatibility, known bugs or scope changes.
+7. Add reproducible tests and run the repository verification gate.
 
-Issues and pull requests should say whether they are changing the concept,
-testing feasibility, or implementing an already-agreed design.
-
-For delivery work, GitHub issues and milestones own the changing task state.
-Every implementation pull request should link its issue, governing contract or
-decision, and reproducible verification evidence. Update the implementation
-ledger only when merged evidence changes a capability's status; do not duplicate
-daily GitHub activity in design documents.
+GitHub issues and pull requests own active execution details. Durable current
+truth stays in the canonical docs; implementation ledgers record bounded proof,
+not daily project status.

@@ -43,8 +43,8 @@ tests/AgentWorld.Simulation.Tests/ deterministic, replay, and viewer-contract te
 
 `AgentWorld.Simulation` must remain runnable and testable without Godot, a
 window manager, an LLM provider, or a network connection after dependencies are
-restored. The browser viewer references the simulation, never the reverse, and
-projects its own diagnostic DTOs. The Godot client does not reference the
+restored. The headless HTTP host references the simulation, never the reverse,
+and projects its own protocol DTOs. The Godot client does not reference the
 simulation; it uses the headless host's versioned paired-owner HTTP contract.
 It signs requests with a device key, but every observation, pause/resume,
 instruction, and authoring result still comes from server validation and commit.
