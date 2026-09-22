@@ -87,6 +87,11 @@ public sealed partial class PrivateWorldRuntimeService(
                 {
                     LogSurvivalEnvironment(logger, result.WorldTick, worldEvent.Kind);
                 }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind is "settlement_trade_offered" or
+                             "settlement_trade_declined" or "settlement_trade_completed" or "settlement_trade_cancelled"))
+                {
+                    LogSettlementTrade(logger, result.WorldTick, worldEvent.Kind);
+                }
             }
         }
 
@@ -148,6 +153,10 @@ public sealed partial class PrivateWorldRuntimeService(
             LogWorldTickGate(logger, state, worldTick, clientPresence.ActiveClientCount);
         }
     }
+
+    [LoggerMessage(EventId = 2207, Level = LogLevel.Information,
+        Message = "settlement_trade tick={WorldTick} event={EventKind}")]
+    private static partial void LogSettlementTrade(ILogger logger, long worldTick, string eventKind);
 
     [LoggerMessage(EventId = 2203, Level = LogLevel.Information,
         Message = "world_history_compacted tick={WorldTick} event_floor={EventFloor} recent_events={RecentEvents}")]

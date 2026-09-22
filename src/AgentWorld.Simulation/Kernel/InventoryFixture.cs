@@ -459,6 +459,29 @@ public static class InventoryFixture
         return acceptedBy.Length == 2 ? Settle(accepted, acceptedOffer) : accepted;
     }
 
+    public static InventoryCheckpoint CancelDirectBarterOffer(
+        InventoryCheckpoint checkpoint,
+        string offerId,
+        int revision,
+        string partyId)
+    {
+        ValidateCheckpoint(checkpoint);
+        var offer = checkpoint.GetOffer(offerId);
+        if (offer.State != DirectBarterState.Open || offer.Revision != revision ||
+            (partyId != offer.FirstPartyId && partyId != offer.SecondPartyId))
+        {
+            throw new InvalidOperationException("Only a party to the exact open offer may decline or withdraw it.");
+        }
+        var reservations = checkpoint.Reservations.Select(reservation =>
+            reservation.Id == offer.Id + ":first" || reservation.Id == offer.Id + ":second"
+                ? reservation with { State = InventoryReservationState.Released }
+                : reservation).ToArray();
+        return Commit(checkpoint, reservations: reservations,
+            offers: checkpoint.Offers.Select(item => item.Id == offer.Id
+                ? item with { State = DirectBarterState.Cancelled } : item).ToArray(),
+            eventKind: "barter_declined", detail: offer.Id + ":" + partyId);
+    }
+
     private static InventoryCheckpoint Settle(InventoryCheckpoint checkpoint, DirectBarterOffer offer)
     {
         var firstReservation = checkpoint.GetReservation($"{offer.Id}:first");

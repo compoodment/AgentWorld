@@ -61,10 +61,10 @@ the authority file; old challenges fail closed after restart.
 | Map and movement | **Playable** | Seeded tile map, deterministic routing, occupancy, contention, adjacent resource interaction and animated client movement | Small fixed first-world presentation; no broad exploration loop |
 | Survival | **Playable** | Hunger, energy, warmth, exposure illness/recovery, fresh food, source-based diet variety, sleep, clothing, fuelled heat, shelter and bedding | Illness and monotonous diets increase fatigue rather than causing mortality; balance is still early-alpha |
 | Observation and control | **Playable** | World view, inhabitants, needs, intentions, inventories, relationships, events, pause/resume and suggestive/must-do instructions | UI remains early-alpha and some diagnostics are operator-only |
-| Cognition | **Playable** | World defaults and per-inhabitant provider/model overrides; Jev for routine and OpenAI/Ollama Cloud for planning; validation, fallback, retry, safe logs and selection-card telemetry | Legal planning remains bounded to building/recipe choices, not free-form social reasoning |
+| Cognition | **Playable** | World defaults and per-inhabitant provider/model overrides; Jev for routine and OpenAI/Ollama Cloud for planning; validation, fallback, retry, safe logs and selection-card telemetry | Legal planning covers projects, material help and barter, not free-form social reasoning |
 | Inventory and ownership | **Playable** | Carried items and shared stores, gathering wood/stone/fiber/seeds, material requests, household sharing and food pickup | Negotiated barter and a broader economy remain incomplete |
 | Buildings and production | **Playable** | Persistent acquisition/work projects; hearth fuel, shelter insulation, storehouse preservation, bedding rest, clothing insulation and tool work-speed benefits | Equipment durability, repair and sophisticated logistics remain incomplete |
-| Trade and economy | **Verified primitive** | Atomic direct transfer, barter settlement, ownership and currency state are implemented and tested | Inhabitants do not autonomously request, negotiate or repeat trade in the live world |
+| Trade and economy | **Integrated but thin** | Inhabitants offer personal surplus for needed items; each party independently accepts or refuses through planning cognition. Expiry/cancellation releases reservations; exchanges leave visible public memories | One-for-one barter, not negotiated pricing or an autonomous currency economy; opportunities depend on actual personal surplus |
 | Relationships and households | **Integrated but thin** | Persistent households/relationships, material-request cooperation and visible public gratitude memories | Conflict, changing trust and negotiated allocation remain incomplete |
 | Family, aging and death | **Integrated but thin** | Lifecycle, caregiving, birth, aging, death, estates and inheritance exist in society runtime/tests | Timescale and default play do not yet make this a practical player experience |
 | Ecology and weather | **Integrated but thin** | Renewable resources, seasons and weather affect warmth, fuel demand, illness, crop food yields and travel fatigue | Broader ecosystems, drought/flood damage and long-run tuning remain incomplete |
@@ -83,7 +83,7 @@ output can choose one candidate; it cannot invent a world mutation.
 | Role | Options | Typical current work |
 | --- | --- | --- |
 | Routine survival | Deterministic, Jev | Eat, sleep, gather, move, wear clothing, tend fire, seek warmth or idle |
-| Planning and work | Deterministic, OpenAI, Ollama Cloud | Choose a legal building or recipe project |
+| Planning and work | Deterministic, OpenAI, Ollama Cloud | Choose legal projects, help with materials, propose or accept/refuse a bounded barter offer |
 
 The host stages the built-in starter package through the validated content
 registry on the first client-present, unpaused tick. It activates at the tick
@@ -112,6 +112,14 @@ their diet score. Low scores add fatigue. Spoiled reserved ingredients cancel
 the affected production job and release its remaining inputs rather than
 stalling the world. These are bounded first survival rules, not a finished
 nutrition/health/ecology model.
+
+Barter candidates require personal surplus and a useful different item held by
+another inhabitant. Offers reserve one unit from each side for at most 120 ticks;
+no ownership changes until both independently accept. Either party can decline
+or withdraw. Spoilage cancels pending settlement safely, and a pair cooldown
+prevents repeated requests. Pending decisions and completed exchange memories
+appear in social notes; the host emits bounded `settlement_trade` outcomes.
+This is a small barter loop, not pricing, currency circulation or measured trust.
 
 Settings select either **World defaults** or a named inhabitant. Each role may
 inherit its world default or override its provider/model. API keys remain in

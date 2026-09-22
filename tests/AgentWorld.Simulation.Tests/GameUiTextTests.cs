@@ -29,6 +29,9 @@ public sealed class GameUiTextTests
     [InlineData("build:recipe:carrot", "build Carrot")]
     [InlineData("build:building:sha256:abcdef/building/stone-hearth@1.0.0", "build Stone hearth")]
     [InlineData("consume_food", "eat")]
+    [InlineData("trade_propose:founder-mira", "offer an exchange")]
+    [InlineData("trade_accept:settlement-trade:1:founder-mira:founder-rowan", "accept an exchange")]
+    [InlineData("trade_decline:settlement-trade:1:founder-mira:founder-rowan", "decline an exchange")]
     [InlineData("seek_food", "find food")]
     [InlineData("religion_founded", "Religion founded")]
     public void InternalIdentifiersBecomeReadablePhrases(string value, string expected)

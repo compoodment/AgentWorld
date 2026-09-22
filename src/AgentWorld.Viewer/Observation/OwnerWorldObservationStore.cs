@@ -1,6 +1,7 @@
 using AgentWorld.Simulation.Harness;
 using AgentWorld.Simulation.Playtest;
 using AgentWorld.Simulation.Society;
+using AgentWorld.Simulation.Kernel;
 
 namespace AgentWorld.Viewer.Observation;
 
@@ -469,8 +470,13 @@ public sealed class OwnerWorldObservationStore
                 ? new ViewerSurvival(survival.WarmthBasisPoints, survival.IllnessBasisPoints,
                     inventory.Any(item => item.Kind == "clothing" && item.Quantity > 0),
                     inventory.Any(item => item.Kind == "tool" && item.Quantity > 0), survival.NutritionBasisPoints, survival.LastMealKind) : null,
-            SocialNotes = state.Society.Society.Memories.Where(memory => memory.OwnerId == inhabitant.Id && memory.Visibility == "public")
-                .OrderByDescending(memory => memory.SourceTick).Take(3).Select(memory => memory.Summary).ToArray(),
+            SocialNotes = state.Society.Society.Inventory.Offers.Where(offer => offer.State == DirectBarterState.Open &&
+                    (offer.FirstPartyId == inhabitant.Id || offer.SecondPartyId == inhabitant.Id))
+                .Select(offer => offer.AcceptedBy.Contains(inhabitant.Id, StringComparer.Ordinal)
+                    ? "Waiting for the other inhabitant to accept or decline an exchange."
+                    : "An exchange is offered; acceptance or refusal is still undecided.")
+                .Concat(state.Society.Society.Memories.Where(memory => memory.OwnerId == inhabitant.Id && memory.Visibility == "public")
+                    .OrderByDescending(memory => memory.SourceTick).Take(3).Select(memory => memory.Summary)).ToArray(),
         };
     }
 

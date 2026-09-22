@@ -2176,7 +2176,8 @@ public partial class Main : Control
             $"{person.DisplayName}: {person.Project!.Label} · {Pretty(person.Project.Stage)}" +
             (person.Project.Blocker is null ? "" : $"\n  {person.Project.Blocker}"));
         worldDetails.Text = $"{(authoring.IsPaused ? "Paused" : "Playing")} · {GameUiText.FormatWorldClock(snapshot.WorldTick)}\n" +
-            $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}\n\nShared stores\n{stores}\n\nProjects\n{string.Join("\n", projects)}";
+            $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}\n\nShared stores\n{stores}\n\nProjects\n{string.Join("\n", projects)}\n\nSocial activity\n" +
+            string.Join("\n", snapshot.Inhabitants.SelectMany(person => person.SocialNotes.Take(2).Select(note => $"{person.DisplayName}: {note}")));
         worldDetails.TooltipText =
             $"tick {snapshot.WorldTick} · revision {authoring.Revision} · epoch {authoring.RunEpoch}\n" +
             $"state: {(authoring.IsPaused ? "PAUSED — authoring allowed" : "RUNNING — authoring disabled")}\n" +

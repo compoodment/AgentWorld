@@ -6,6 +6,25 @@ namespace AgentWorld.Simulation.Tests;
 public sealed class InventoryFixtureTests
 {
     [Theory]
+    [InlineData("alpha")]
+    [InlineData("bravo")]
+    public void EitherPartyCanDeclineWithoutTransferringOrRetainingReservations(string party)
+    {
+        var offered = InventoryFixture.CreateDirectBarterOffer(Genesis(),
+            new DirectBarterProposal("decline", 1, "alpha", "bravo", "alpha-wood", 1, "bravo-food", 1, 20));
+        offered = InventoryFixture.AcceptDirectBarterOffer(offered, "decline", 1, "alpha");
+        var bytes = InventoryCheckpointCodec.Encode(offered);
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.CancelDirectBarterOffer(offered, "decline", 2, party));
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.CancelDirectBarterOffer(offered, "decline", 1, "outsider"));
+        Assert.Equal(bytes, InventoryCheckpointCodec.Encode(offered));
+        var cancelled = InventoryFixture.CancelDirectBarterOffer(offered, "decline", 1, party);
+        Assert.Equal(DirectBarterState.Cancelled, cancelled.GetOffer("decline").State);
+        Assert.All(cancelled.Reservations, item => Assert.Equal(InventoryReservationState.Released, item.State));
+        Assert.Equal(offered.Lots, cancelled.Lots);
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.AcceptDirectBarterOffer(cancelled, "decline", 1, "bravo"));
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void ExpiredBarterCannotAcquireEitherPartysAcceptance(bool firstAlreadyAccepted)

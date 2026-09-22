@@ -64,6 +64,11 @@ keeps the existing world manually paused.
 
 ## Runtime audit issues
 
+- **AW-B008 — fixed:** an idle decision could cache choices created by another
+  inhabitant after its observation was taken, suppressing a response to a new
+  offer. The cache is now bound at observation enqueue; barter tests prove the
+  recipient sees the new choice on the next tick, including across restart.
+
 The following confirmed GitHub reports are tracked here as well; their issue
 pages retain reproductions and regression requirements.
 

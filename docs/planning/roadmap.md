@@ -84,8 +84,11 @@ and exposes stores, project blockers and public gratitude in Godot. The
 1,000-tick `SettlementProjectTests` scenario verifies that connected loop;
 separate tests cover interrupted work and old-save migration. Provider/model
 assignments, idle reuse and menu fixes are delivered foundations for this loop.
-This is not evidence of richer negotiated barter, resentment/trust or emergent
-roles. Those workstreams remain open. Clothing, tools and buildings now have
+Bounded one-for-one barter now offers separate proposal/accept/refuse choices,
+reservation expiry and public exchange memories. Controlled runtime regressions
+cover independent decisions across restart, refusal and spoiled goods. This is
+not evidence of rich price negotiation, quantified trust/resentment or emergent
+roles; those workstreams remain open. Clothing, tools and buildings now have
 bounded useful effects, described in the current-state matrix.
 
 ## Next — Consequential survival

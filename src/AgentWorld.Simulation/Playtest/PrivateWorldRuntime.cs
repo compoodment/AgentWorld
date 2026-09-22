@@ -421,6 +421,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             ProcessCropBuilds(targetTick);
 
             AdvanceSettlementSurvival();
+            MaintainSettlementTrades();
             DrainNeeds();
             RemoveDeadPhysicalState();
             EnqueueDueCognition();
@@ -1731,6 +1732,13 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             {
                 AppendEvent("cognition_backpressure", inhabitant.Id);
             }
+            else
+            {
+                inhabitants[inhabitant.Id] = inhabitants[inhabitant.Id] with
+                {
+                    LastDecisionContext = DecisionContext(physical, candidates),
+                };
+            }
         }
     }
 
@@ -1831,8 +1839,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             candidateId = forcedCandidate;
         }
 
-        state = state with { LastDecisionContext = DecisionContext(state, CreateCandidates(decision.InhabitantId, state)) };
-        inhabitants[decision.InhabitantId] = state;
         ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
 
         if (pendingInstruction is not null &&
@@ -1849,6 +1855,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         string candidateId,
         bool reportIdle)
     {
+        if (candidateId.StartsWith("trade_", StringComparison.Ordinal))
+        {
+            ApplyTradeCandidate(inhabitantId, state, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("build:", StringComparison.Ordinal))
         {
             BeginProject(inhabitantId, state, candidateId);
@@ -2234,6 +2245,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
             AddBuildCandidates(candidates, inhabitant, state);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
+            AddTradeCandidates(candidates, inhabitantId);
         }
 
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));

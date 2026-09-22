@@ -48,6 +48,11 @@ public static class GameUiText
         }
 
         var normalized = value.Trim();
+        if (normalized.StartsWith("trade_", StringComparison.Ordinal))
+        {
+            return normalized.StartsWith("trade_propose:", StringComparison.Ordinal) ? "offer an exchange"
+                : normalized.StartsWith("trade_accept:", StringComparison.Ordinal) ? "accept an exchange" : "decline an exchange";
+        }
         if (normalized.StartsWith("build:recipe:", StringComparison.Ordinal) ||
             normalized.StartsWith("build:building:", StringComparison.Ordinal))
         {

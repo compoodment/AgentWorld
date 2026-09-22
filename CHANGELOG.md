@@ -8,6 +8,13 @@ release yet.
 
 ### Added
 
+- Connected bounded inhabitant barter: surplus-for-needed-item offers, separate
+  planning-provider acceptance/refusal, expiry and unusable-item cancellation,
+  with no transfer until both parties agree. Completed exchanges leave public
+  memories; pending offers and social notes appear in the settlement UI.
+- Fixed idle reuse hiding choices created earlier in the same tick by another
+  inhabitant. Cached decision context now reflects the provider's observation,
+  not the later world state at execution time.
 - Kept clothing, fire tending and warmth-seeking decisions on the assigned
   routine provider rather than accidentally routing them to the planning model.
 - Connected weather exposure to warmth and recoverable illness, with clothing
