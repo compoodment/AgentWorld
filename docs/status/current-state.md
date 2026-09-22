@@ -44,7 +44,7 @@ Provider work runs against an isolated proposed tick, so owner observations and
 pause remain responsive. Cancellation or intervening owner changes discard the
 proposal without partial world mutations. In-flight provider work is cancelled
 on manual pause or client lease expiry.
-Save schema 7 preserves council policy and ballots alongside survival conditions,
+Save schema 8 preserves practical lessons and council policy/ballots alongside survival conditions,
 fuel deadlines, work projects and additive settlement resources;
 the schema-4 history mechanism bounds hot histories
 and archives older events with verified hashes; reconnect explicitly resets
@@ -65,7 +65,7 @@ the authority file; old challenges fail closed after restart.
 | Inventory and ownership | **Playable** | Carried items and shared stores, gathering wood/stone/fiber/seeds, material requests, household sharing and food pickup | Negotiated barter and a broader economy remain incomplete |
 | Buildings and production | **Playable** | Persistent acquisition/work projects; hearth fuel, shelter insulation, storehouse preservation, bedding rest, clothing insulation and tool work-speed benefits | Equipment durability, repair and sophisticated logistics remain incomplete |
 | Trade and economy | **Integrated but thin** | Inhabitants offer personal surplus for needed items; each party independently accepts or refuses through planning cognition. Expiry/cancellation releases reservations; exchanges leave visible public memories | One-for-one barter, not negotiated pricing or an autonomous currency economy; opportunities depend on actual personal surplus |
-| Relationships and households | **Integrated but thin** | Persistent households, material cooperation, gratitude/exchange memories, majority-voted shared-food access and contributor-based steward succession | Rich conflict, quantified trust, family choices and teaching remain incomplete |
+| Relationships and households | **Integrated but thin** | Households, cooperation memories, majority-voted food access, steward succession and independently accepted practical apprenticeships | Rich conflict, quantified trust and family choices remain incomplete; learning currently grants basic builder/farmer roles |
 | Family, aging and death | **Integrated but thin** | Lifecycle, caregiving, birth, aging, death, estates and inheritance exist in society runtime/tests | Timescale and default play do not yet make this a practical player experience |
 | Ecology and weather | **Integrated but thin** | Renewable resources, seasons and weather affect warmth, fuel demand, illness, crop food yields and travel fatigue | Broader ecosystems, drought/flood damage and long-run tuning remain incomplete |
 | Factions, law, currency and culture | **Integrated but thin** | A household council can change shared-food access by majority vote; persistent faction/currency/culture contracts exist | Broader institutions, currency circulation and contested law remain incomplete |
@@ -83,7 +83,7 @@ output can choose one candidate; it cannot invent a world mutation.
 | Role | Options | Typical current work |
 | --- | --- | --- |
 | Routine survival | Deterministic, Jev | Eat, sleep, gather, move, wear clothing, tend fire, seek warmth or idle |
-| Planning and work | Deterministic, OpenAI, Ollama Cloud | Projects, material help, barter choices and household policy proposals/votes |
+| Planning and work | Deterministic, OpenAI, Ollama Cloud | Projects, material help, barter, household policy choices and apprenticeship requests/acceptance/refusal |
 
 The host stages the built-in starter package through the validated content
 registry on the first client-present, unpaused tick. It activates at the tick
@@ -130,6 +130,14 @@ serving per inhabitant; hungrier members retain access. It does not confiscate
 personal food. The current rule persists when a living successor replaces a
 departed steward. The Settlement panel shows leadership, policy and ballot
 counts; `settlement_council` logs report bounded transitions, not free-form text.
+
+Adult traders and unassigned adults can request basic builder/farmer training.
+A practitioner in that role or a teacher must independently accept. Twenty
+joint work ticks near camp grant the requested role, enabling its ordinary
+building/crop choices. Food, energy and warmth needs interrupt progress;
+refusal, cancellation, expiry or mentor death grants no role. Each mentor has
+one active learner. Lessons survive pause/restart, appear on inhabitant cards,
+and create public gratitude when completed. This is not a general skill tree.
 
 Settings select either **World defaults** or a named inhabitant. Each role may
 inherit its world default or override its provider/model. API keys remain in

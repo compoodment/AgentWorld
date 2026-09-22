@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- Added persistent practical apprenticeships: eligible adults request a builder
+  or farmer role, a qualified mentor independently accepts/refuses, and joint
+  lessons at camp earn the role. Hunger, exhaustion, exposure, cancellation and
+  mentor death cannot silently grant completion.
+- Show work roles and lesson progress on inhabitant cards, preserve training
+  across pause/restart in schema 8, and record bounded lesson-stage telemetry.
 - Added a persistent household council: demonstrated contributors become
   stewards, but food-allocation changes require independent majority votes.
   A scarce-food reserve protects hungry members' access; rejection retains the

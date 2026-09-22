@@ -474,6 +474,9 @@ public sealed class OwnerWorldObservationStore
                 ? new ViewerSurvival(survival.WarmthBasisPoints, survival.IllnessBasisPoints,
                     inventory.Any(item => item.Kind == "clothing" && item.Quantity > 0),
                     inventory.Any(item => item.Kind == "tool" && item.Quantity > 0), survival.NutritionBasisPoints, survival.LastMealKind) : null,
+            Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
+                state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Role.ToString().ToLowerInvariant(),
+                lesson.Stage, lesson.Progress, 20) : null,
             SocialNotes = state.Society.Society.Inventory.Offers.Where(offer => offer.State == DirectBarterState.Open &&
                     (offer.FirstPartyId == inhabitant.Id || offer.SecondPartyId == inhabitant.Id))
                 .Select(offer => offer.AcceptedBy.Contains(inhabitant.Id, StringComparer.Ordinal)

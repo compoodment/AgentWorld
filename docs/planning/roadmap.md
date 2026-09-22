@@ -133,8 +133,11 @@ steward's shared-food policy. A majority changes actual food pickup eligibility;
 policy and a contributor-based living successor persist across restart/death.
 The normal settlement scenario produces a steward, and controlled runtime
 regressions verify voting, access effects and succession. This bounded council
-does not complete teaching, family choices, life pacing, rich conflict or a
-currency economy; those workstreams remain open.
+does not complete family choices, life pacing, rich conflict or a currency
+economy; those workstreams remain open. Basic practical teaching now requires a
+learner's request and mentor acceptance, persists joint work and grants actual
+builder/farmer permissions; tests cover refusal, pause/restart, exhaustion and
+mentor death. General skills and intergenerational continuity remain open.
 
 ## Later — Creation and richer worlds
 

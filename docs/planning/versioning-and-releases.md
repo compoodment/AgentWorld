@@ -75,19 +75,30 @@ different build revision cannot falsely appear as a simulation change.
 
 ## Release checklist
 
+### Private-world save schema 8
+
+Schema 8 adds optional per-inhabitant apprenticeship state: mentor, requested
+role, stage, progress and tick bounds. Schemas 1–7 remain readable; paused saves
+from schema 3 onward retain their checkpoint representation on restore. Schemas
+1–2 normalize to the baseline schema-3 composition. Beginning training upgrades
+the save; invalid mentors, stages,
+progress or duplicate active mentor assignments fail closed. New saves use
+schema 8. Preserve the pre-upgrade save/history and application for rollback.
+
 ### Private-world save schema 7
 
 Schema 7 adds an optional household council, food-access policy, steward and
-bounded ballot with separate votes. Schemas 1–6 remain readable without an
-on-load rewrite; council initialization occurs only on a resumed settlement
-tick. New saves use schema 7. Unknown policies/inhabitants, duplicate or
+bounded ballot with separate votes. Schemas 1–6 remain readable; schema-3-and-later
+paused checkpoints are preserved on restore. Council initialization occurs only on a resumed settlement
+tick. This migration introduced schema 7. Unknown policies/inhabitants, duplicate or
 contradictory votes, invalid electorates and deadlines fail closed. Rollback
 requires the matching pre-upgrade checkpoint, history and application.
 
 ### Private-world save schema 6
 
 Schema 6 adds optional per-inhabitant warmth/illness/diet and settlement fire-fuel
-deadlines. Schemas 1–5 remain readable without an on-load rewrite. Survival
+deadlines. Schemas 1–5 remain readable; schema-3-and-later paused checkpoints
+are preserved on restore. Survival
 initializes on a resumed tick after settlement content activation, advancing
 legacy food processing timestamps without retroactive spoilage. This migration
 introduced schema 6. Invalid condition ranges, duplicate/unknown fires and invalid
@@ -98,7 +109,7 @@ history when rolling back; older hosts cannot load schema-6 saves.
 
 Schema 5 adds optional persistent settlement projects and validated additive
 resource nodes from the built-in settlement package. Schemas 1–4 remain
-readable. Loading or observing an older paused save preserves its bytes;
+readable. Loading or observing an older paused schema-3-or-later save preserves its bytes;
 creating a project, adding settlement resources or compacting history upgrades
 the checkpoint to the current schema. Null project fields remain omitted.
 Restore checks the seeded map plus only the registered resource additions and

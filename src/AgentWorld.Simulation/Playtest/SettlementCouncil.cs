@@ -19,7 +19,8 @@ public sealed partial class PrivateWorldRuntime
         .Select(person => person.Id).Order(StringComparer.Ordinal).ToArray();
 
     private int ContributionScore(string actor) => society.Checkpoint.Memories.Count(memory => memory.SubjectId == actor &&
-            (memory.Id.StartsWith("project-gratitude:", StringComparison.Ordinal) || memory.Id.StartsWith("settlement-trust:", StringComparison.Ordinal))) +
+            (memory.Id.StartsWith("project-gratitude:", StringComparison.Ordinal) || memory.Id.StartsWith("settlement-trust:", StringComparison.Ordinal) ||
+                memory.Id.StartsWith("lesson-gratitude:", StringComparison.Ordinal))) +
         (inhabitants.GetValueOrDefault(actor)?.Project?.Stage == "completed" ? 1 : 0);
 
     private int SharedFoodQuantity() => society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdId && lot.ItemKind == "food")
