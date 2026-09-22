@@ -63,6 +63,11 @@ capabilities remain disabled until a separate sandbox contract exists.
     decoding, and a persisted `ManifestDigest`. Registry restore recomputes and
     verifies that digest, so tampered manifest metadata fails closed without
     creating a circular dependency between package identity and asset IDs.
+13. **Deterministic cache accounting:** rebuildable asset residency has a
+    value-only ledger keyed by normalized digest and decode profile. It applies
+    decoded-cache/GPU ceilings, deterministic least-recently-used eviction,
+    current-frame pinning, and atomic failure without opening files or touching
+    a renderer.
 
 ## Evidence
 
@@ -93,12 +98,15 @@ capabilities remain disabled until a separate sandbox contract exists.
 - `ContentPackageManifestCodecTests` covers order-independent canonical bytes,
   strict decoding, stable manifest digests, registry persistence, and tamper
   rejection.
+- `WorldAssetCacheTests` covers deterministic eviction, current-frame pins,
+  atomic over-budget rejection, expired-pin cleanup, and checkpoint-shaped
+  cache-state round-trips.
 
 ## Still required for the alpha gate
 
 - package artifact transport/export and complete asset provenance manifests;
-- isolated process preview/test-world execution and renderer cache integration
-  on top of the persisted world reservation ledger;
+- isolated process preview/test-world execution and actual renderer/decode
+  binding on top of the value-only cache ledger;
 - the remaining economy/world rules that consume declarative definitions.
 
 The current slice is intentionally a contract/runtime foundation, not a claim

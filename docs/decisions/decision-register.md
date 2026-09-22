@@ -508,3 +508,17 @@ The implementation evidence is recorded in the
 [Phase 4 ledger](../implementation/phase-4.md). Exact mortality constants and
 queue budgets are versioned tuning values and may change from replay evidence
 without reopening these policy decisions.
+
+## 2026-09-22 — Current package execution boundary
+
+For the current alpha, installed or proposed packages remain **data-only**.
+They may declare validated buildings, recipes, assets, and other bounded
+records, but they may not execute scripts or access the network, filesystem,
+process host, or other host capabilities. The existing in-process preview is
+therefore a value-only evaluator, not a code runner.
+
+An isolated helper process for executable packages is deferred until a separate
+security design defines its sandbox, resource limits, communication protocol,
+failure/rollback semantics, and operational proof. This keeps the current
+content path useful without pretending that an unreviewed process boundary is
+already safe.

@@ -622,3 +622,16 @@ supports ordinary lifespans while leaving room for rare long-lived inhabitants,
 and keeping the curve below certainty preserves the stated no-hard-maximum
 policy. Escrow and replay make death observable and recoverable as world state
 without making it reversible.
+
+## 2026-09-22 — Data-only package boundary confirmed
+
+The current alpha will continue with declarative package content only:
+buildings, recipes, assets, and other validated records may affect the world
+through the authoritative kernel, but package-supplied code is not executed.
+Network, filesystem, process-host, and other host capabilities remain
+disabled.
+
+Executable packages are deferred until the project deliberately designs and
+proves an isolated helper process with strict resource limits and explicit
+rollback behavior. This preserves a useful mod/content workflow now while
+avoiding a fake sandbox made from optimistic configuration flags.
