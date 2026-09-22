@@ -83,7 +83,8 @@ public sealed record ContentDefinition(
     string LocalId,
     ContentVersion Version,
     string DisplayName,
-    string PayloadDigest)
+    string PayloadDigest,
+    string? PayloadJson = null)
 {
     public string CanonicalId(string packageDigest) =>
         ContentPackageRules.CanonicalDefinitionId(packageDigest, Kind, LocalId, Version);
@@ -94,6 +95,10 @@ public sealed record ContentDefinition(
         ContentPackageRules.ValidateLocalId(LocalId);
         ArgumentException.ThrowIfNullOrWhiteSpace(DisplayName);
         ContentPackageRules.ValidateDigest(PayloadDigest, nameof(PayloadDigest));
+        if (PayloadJson is not null && string.IsNullOrWhiteSpace(PayloadJson))
+        {
+            throw new ArgumentException("A content payload must be non-empty when supplied.", nameof(PayloadJson));
+        }
     }
 }
 

@@ -33,13 +33,17 @@ saves.
 
 The signed owner instruction path is live for the private runtime, including
 idempotency, suggestive bias, legal `must_do` enforcement, and persisted queue
-events. The Godot surface now has a coherent temporary layout for the map,
-roster, selected inhabitant, world controls, cognition status, event history,
-content status, and richer-world summaries. The remaining work is the full
-owner-facing content authoring path, material content definitions, aggregate
-asset/preview isolation, deeper world-system interactions, and final launch
-packaging. It is therefore materially closer to the requested game, but is
-not being called playtest-complete yet.
+events. The signed private content path now accepts data-only package
+definitions, validates typed building/recipe payloads, activates them on the
+next world tick, persists them, and exposes rollback/quarantine. Aggregate
+inert-asset budgets and metadata-only preview contracts are implemented as a
+deterministic validation lane. The Godot surface now has a coherent temporary
+layout for the map, roster, selected inhabitant, world controls, cognition
+status, event history, content status, typed-content counts, and richer-world
+summaries. The remaining work is deeper building/recipe/economy interaction,
+world-wide asset reservation/cache accounting, isolated preview/test-world
+execution, and final launch packaging. It is therefore materially closer to
+the requested game, but is not being called playtest-complete yet.
 
 ## Alpha gate
 

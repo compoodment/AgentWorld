@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using AgentWorld.Simulation.Content;
 using AgentWorld.Simulation.Harness;
+using AgentWorld.Simulation.Playtest;
 using AgentWorld.Viewer.Control;
 using AgentWorld.Viewer.Observation;
 using Microsoft.AspNetCore.Hosting;
@@ -257,6 +259,124 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
             Assert.NotNull(rejectedReceipt);
             Assert.False(rejectedReceipt.Applied);
             Assert.Contains("server-owned asset catalog", rejectedReceipt.Failure, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task PairedOwnerCanGovernPrivateContentThroughTheSignedLifecycle()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            $"agentworld-viewer-private-content-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            using var host = new ViewerWebApplicationFactory(directory, null, privateWorld: true);
+            using var client = host.CreateClient();
+            var device = await StartAndActivateAsync(host, client, key);
+            var packageDigest =
+                "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            var packageVersion = ContentVersion.Parse("1.0.0");
+            var building = new BuildingDefinition(
+                packageDigest,
+                "camp-kitchen",
+                packageVersion,
+                "Camp kitchen",
+                1,
+                1,
+                2,
+                [new ContentQuantity("wood", 2)],
+                ["camp"]);
+            var package = new OwnerContentPackageAction(
+                "camp-recipes",
+                "1.0.0",
+                packageDigest,
+                [],
+                [new OwnerContentDefinitionAction(
+                    BuildingDefinition.SchemaKind,
+                    building.LocalId,
+                    building.Version.ToString(),
+                    building.DisplayName,
+                    building.PayloadDigest,
+                    """{"schema":"building/v1","width":1,"height":1,"capacity":2,"buildCosts":[{"resourceId":"wood","amount":2}],"tags":["camp"]}""")],
+                []);
+
+            using var proposed = await SendSignedAsync(
+                host,
+                client,
+                key,
+                device.DeviceId,
+                "/api/v1/owner/content/propose",
+                package,
+                OwnerContentBinding.ProposePayload(package));
+            var proposedReceipt = await proposed.Content.ReadFromJsonAsync<OwnerContentPackageReceipt>();
+            Assert.Equal(HttpStatusCode.OK, proposed.StatusCode);
+            Assert.Equal("proposed", proposedReceipt!.Lifecycle);
+
+            var packageId = new OwnerContentPackageIdAction(package.PackageId);
+            using var validated = await SendSignedAsync(
+                host,
+                client,
+                key,
+                device.DeviceId,
+                "/api/v1/owner/content/validate",
+                packageId,
+                OwnerContentBinding.PackageIdPayload("validate", packageId));
+            var validatedReceipt = await validated.Content.ReadFromJsonAsync<OwnerContentPackageReceipt>();
+            Assert.Equal(HttpStatusCode.OK, validated.StatusCode);
+            Assert.Equal("validated", validatedReceipt!.Lifecycle);
+            Assert.NotNull(validatedReceipt.LockDigest);
+
+            using var approved = await SendSignedAsync(
+                host,
+                client,
+                key,
+                device.DeviceId,
+                "/api/v1/owner/content/approve",
+                packageId,
+                OwnerContentBinding.PackageIdPayload("approve", packageId));
+            Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
+
+            using var staged = await SendSignedAsync(
+                host,
+                client,
+                key,
+                device.DeviceId,
+                "/api/v1/owner/content/stage",
+                packageId,
+                OwnerContentBinding.PackageIdPayload("stage", packageId));
+            var stagedReceipt = await staged.Content.ReadFromJsonAsync<OwnerContentPackageReceipt>();
+            Assert.Equal(HttpStatusCode.OK, staged.StatusCode);
+            Assert.Equal("staged", stagedReceipt!.Lifecycle);
+            Assert.Equal(0, stagedReceipt.StagedTick);
+
+            var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+            _ = await runtime.AdvanceOneTickAsync();
+            host.Services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+            Assert.Equal("active", runtime.Content.Packages.Single().Lifecycle.ToString().ToLowerInvariant());
+            Assert.Equal(building.CanonicalId, Assert.Single(runtime.WorldContent.Buildings).CanonicalId);
+
+            var rollback = new OwnerContentRollbackAction(package.PackageId, "preview mismatch");
+            using var rolledBack = await SendSignedAsync(
+                host,
+                client,
+                key,
+                device.DeviceId,
+                "/api/v1/owner/content/rollback",
+                rollback,
+                OwnerContentBinding.RollbackPayload(rollback));
+            var rollbackReceipt = await rolledBack.Content.ReadFromJsonAsync<OwnerContentPackageReceipt>();
+            Assert.Equal(HttpStatusCode.OK, rolledBack.StatusCode);
+            Assert.Equal("quarantined", rollbackReceipt!.Lifecycle);
+            Assert.Empty(runtime.WorldContent.Buildings);
         }
         finally
         {
@@ -645,6 +765,7 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
     private readonly string stateDirectory;
     private readonly bool ownsStateDirectory;
     private readonly string? approvedAssetCatalogPath;
+    private readonly bool privateWorld;
 
     public ViewerWebApplicationFactory()
         : this(null)
@@ -653,22 +774,24 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
 
     internal ViewerWebApplicationFactory(
         string? persistedStateDirectory,
-        string? approvedAssetCatalogPath = null)
+        string? approvedAssetCatalogPath = null,
+        bool privateWorld = false)
     {
         ownsStateDirectory = persistedStateDirectory is null;
         stateDirectory = persistedStateDirectory ?? System.IO.Path.Combine(
             System.IO.Path.GetTempPath(),
             $"agentworld-viewer-http-{Guid.NewGuid():N}");
         this.approvedAssetCatalogPath = approvedAssetCatalogPath;
+        this.privateWorld = privateWorld;
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         Directory.CreateDirectory(stateDirectory);
-        // The protocol suite exercises the legacy owner-control contract. The
-        // real host defaults to the integrated private world; pin these tests
-        // to fixture mode so they continue to verify that compatibility path.
-        builder.UseSetting("AgentWorld:Runtime:WorldMode", "fixture");
+        // The compatibility suite uses fixture mode; selected tests opt into
+        // the integrated private runtime through the same real host boundary.
+        builder.UseSetting("AgentWorld:Runtime:WorldMode", privateWorld ? "private" : "fixture");
+        builder.UseSetting("AgentWorld:Runtime:AdvanceScript", "false");
         builder.UseSetting("AgentWorld:Pairing:StatePath", System.IO.Path.Combine(stateDirectory, "authority.json"));
         builder.UseSetting("AgentWorld:Runtime:StatePath", System.IO.Path.Combine(stateDirectory, "runtime.json"));
         builder.UseSetting("AgentWorld:Pairing:ServerAuthorityId", "authority-http-tests");

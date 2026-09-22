@@ -1,0 +1,178 @@
+using AgentWorld.Simulation.Content;
+
+namespace AgentWorld.Simulation.Tests;
+
+public sealed class ContentDefinitionTests
+{
+    private const string PackageDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    [Fact]
+    public void BuildingAndRecipeDefinitionsHaveCanonicalIdsAndStablePayloadDigests()
+    {
+        var building = Building(
+            "forge",
+            tags: ["industry", "camp"],
+            costs: [new ContentQuantity("stone", 4), new ContentQuantity("wood", 2)]);
+        var recipe = Recipe(
+            "iron-ingot",
+            building,
+            inputs: [new ContentQuantity("ore", 2), new ContentQuantity("fuel", 1)],
+            outputs: [new ContentQuantity("ingot", 1)],
+            tags: ["metal", "crafting"]);
+        var samePayloadWithDifferentInputOrder = Building(
+            "forge",
+            tags: ["camp", "industry"],
+            costs: [new ContentQuantity("wood", 2), new ContentQuantity("stone", 4)]);
+
+        building.Validate();
+        recipe.Validate();
+
+        Assert.Equal($"{PackageDigest}/building/forge@1.0.0", building.CanonicalId);
+        Assert.Equal($"{PackageDigest}/recipe/iron-ingot@1.0.0", recipe.CanonicalId);
+        Assert.StartsWith("sha256:", building.PayloadDigest, StringComparison.Ordinal);
+        Assert.StartsWith("sha256:", recipe.PayloadDigest, StringComparison.Ordinal);
+        Assert.Equal(building.PayloadDigest, samePayloadWithDifferentInputOrder.PayloadDigest);
+        Assert.Equal(building.CanonicalId, recipe.WorkstationBuildingId);
+    }
+
+    [Fact]
+    public void DefinitionCollectionsAreDefensivelyCopiedAndCanonicalized()
+    {
+        var costs = new List<ContentQuantity>
+        {
+            new("wood", 2),
+            new("stone", 1)
+        };
+        var tags = new List<string> { "zeta", "alpha" };
+        var building = Building("workshop", tags, costs);
+        costs[0] = new ContentQuantity("glass", 9);
+        tags[0] = "mutated";
+
+        Assert.Equal(["stone", "wood"], building.BuildCosts.Select(item => item.ResourceId));
+        Assert.Equal(["alpha", "zeta"], building.Tags);
+        Assert.Throws<NotSupportedException>(() => ((IList<string>)building.Tags)[0] = "mutated");
+        Assert.Throws<NotSupportedException>(() => ((IList<ContentQuantity>)building.BuildCosts)[0] = new("x", 1));
+    }
+
+    [Fact]
+    public void InvalidBuildingAndRecipeDefinitionsAreRejected()
+    {
+        Assert.Throws<ArgumentException>(() => Building("Bad ID").Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => Building("tiny", width: 0).Validate());
+        Assert.Throws<ArgumentException>(() => Building("named", displayName: "  not canonical  ").Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new BuildingDefinition(
+            PackageDigest,
+            "forge",
+            new ContentVersion(-1, 0, 0),
+            "Forge",
+            2,
+            2,
+            1).Validate());
+
+        var invalidRecipe = Recipe(
+            "invalid",
+            inputs: [],
+            outputs: [new ContentQuantity("item", 1)],
+            durationTicks: 0);
+        Assert.Throws<ArgumentException>(() => invalidRecipe.Validate());
+
+        var badReference = Recipe(
+            "bad-reference",
+            workstationBuildingId: "not-a-canonical-building-id");
+        Assert.Throws<ArgumentException>(() => badReference.Validate());
+
+        var badDigest = Building(
+            "bad-digest",
+            payloadDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+        Assert.Throws<InvalidDataException>(() => badDigest.Validate());
+    }
+
+    [Fact]
+    public void ApplyingDefinitionsIsDeterministicAndOrdersEachKindByCanonicalId()
+    {
+        var forge = Building("forge");
+        var shelter = Building("shelter");
+        var smelt = Recipe("smelt", forge);
+        var rest = Recipe("rest", shelter);
+
+        var first = ContentDefinitionApplicator.Apply([shelter, forge], [rest, smelt]);
+        var second = ContentDefinitionApplicator.Apply([forge, shelter], [smelt, rest]);
+
+        Assert.Equal(first.StateDigest, second.StateDigest);
+        Assert.Equal(
+            [forge.CanonicalId, shelter.CanonicalId],
+            first.Buildings.Select(item => item.CanonicalId));
+        Assert.Equal(
+            [rest.CanonicalId, smelt.CanonicalId],
+            first.Recipes.Select(item => item.CanonicalId));
+        first.Validate();
+    }
+
+    [Fact]
+    public void StateCodecRoundTripsCanonicalBytesAndDerivedDigest()
+    {
+        var building = Building("forge");
+        var state = ContentDefinitionApplicator.Apply(
+            [building],
+            [Recipe("smelt", building)]);
+
+        var encoded = DeclarativeWorldContentCodec.Encode(state);
+        var decoded = DeclarativeWorldContentCodec.Decode(encoded);
+        var reencoded = DeclarativeWorldContentCodec.Encode(decoded);
+
+        Assert.Equal(state.StateDigest, decoded.StateDigest);
+        Assert.True(encoded.SequenceEqual(reencoded));
+        Assert.Equal(state.Buildings.Select(item => item.CanonicalId), decoded.Buildings.Select(item => item.CanonicalId));
+        Assert.Equal(state.Recipes.Select(item => item.PayloadDigest), decoded.Recipes.Select(item => item.PayloadDigest));
+    }
+
+    [Fact]
+    public void ApplyingToExistingStateRejectsDuplicateIdsAndDanglingWorkstations()
+    {
+        var building = Building("forge");
+        var state = ContentDefinitionApplicator.Apply([building], []);
+
+        Assert.Throws<InvalidOperationException>(() => ContentDefinitionApplicator.Apply(state, [building], []));
+
+        var dangling = Recipe(
+            "smelt",
+            workstationBuildingId: $"{PackageDigest}/building/missing@1.0.0");
+        Assert.Throws<InvalidDataException>(() => ContentDefinitionApplicator.Apply([], [dangling]));
+    }
+
+    private static BuildingDefinition Building(
+        string localId,
+        IEnumerable<string>? tags = null,
+        IEnumerable<ContentQuantity>? costs = null,
+        int width = 2,
+        string displayName = "Forge",
+        string? payloadDigest = null) => new(
+        PackageDigest,
+        localId,
+        ContentVersion.Parse("1.0.0"),
+        displayName,
+        width,
+        2,
+        4,
+        costs ?? [new ContentQuantity("wood", 1)],
+        tags ?? ["camp"],
+        payloadDigest);
+
+    private static RecipeDefinition Recipe(
+        string localId,
+        BuildingDefinition? workstation = null,
+        IEnumerable<ContentQuantity>? inputs = null,
+        IEnumerable<ContentQuantity>? outputs = null,
+        int durationTicks = 3,
+        string? workstationBuildingId = null,
+        IEnumerable<string>? tags = null) => new(
+        PackageDigest,
+        localId,
+        ContentVersion.Parse("1.0.0"),
+        "Recipe",
+        inputs ?? [new ContentQuantity("ore", 1)],
+        outputs ?? [new ContentQuantity("item", 1)],
+        durationTicks,
+        workstationBuildingId ?? workstation?.CanonicalId,
+        tags ?? ["crafting"]);
+}

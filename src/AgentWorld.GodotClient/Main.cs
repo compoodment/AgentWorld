@@ -1604,7 +1604,8 @@ public partial class Main : Control
             : $"{Pretty(worldSystems.Season)} / {Pretty(worldSystems.Weather)} · " +
               $"{worldSystems.EcologyResourceCount} ecology · {worldSystems.FactionCount} factions · " +
               $"{worldSystems.CurrencyAccountCount} wallets · {worldSystems.CultureCount} cultures · " +
-              $"{worldSystems.ChunkCount} chunks";
+              $"{worldSystems.ChunkCount} chunks · {worldSystems.BuildingDefinitionCount} buildings · " +
+              $"{worldSystems.RecipeDefinitionCount} recipes";
         if (authoring is null)
         {
             worldDetails.AppendText($"tick {snapshot.WorldTick}\nworld {snapshot.WorldId}\nNo authoring projection returned.");

@@ -38,7 +38,8 @@ public sealed record PrivateWorldRuntimeState(
     IReadOnlyList<OwnerQueuedInstruction>? Instructions = null,
     IReadOnlyList<string>? CompletedInstructionIds = null,
     ContentRegistryState? Content = null,
-    WorldSystemsState? WorldSystems = null);
+    WorldSystemsState? WorldSystems = null,
+    DeclarativeWorldContentState? WorldContent = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,
@@ -69,6 +70,7 @@ public sealed class PrivateWorldRuntime : IDisposable
     private SocietyWorldRuntime society;
     private ContentPackageRegistry contentRegistry;
     private WorldSystemsState worldSystems;
+    private DeclarativeWorldContentState worldContent;
     private readonly Dictionary<string, PlaytestInhabitantState> inhabitants = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ResourceState> resources = new(StringComparer.Ordinal);
     private readonly Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
@@ -103,6 +105,7 @@ public sealed class PrivateWorldRuntime : IDisposable
 
         this.minimumCognitionConfidence = minimumCognitionConfidence;
         contentRegistry = new ContentPackageRegistry();
+        worldContent = new DeclarativeWorldContentState([], []);
         map = SeededMapGenerator.Generate(this.worldSeed);
         worldSystems = CreateWorldSystems(this.worldSeed, map);
         society = CreateSociety(
@@ -171,6 +174,7 @@ public sealed class PrivateWorldRuntime : IDisposable
             providerFactory,
             minimumCognitionConfidence);
         runtime.contentRegistry = ContentPackageRegistry.Restore(state.Content);
+        runtime.worldContent = state.WorldContent ?? RebuildWorldContent(runtime.contentRegistry.ExportState());
         runtime.worldSystems = state.WorldSystems is null
             ? AdvanceWorldSystemsTo(
                 CreateWorldSystems(state.WorldSeed, state.Map),
@@ -250,10 +254,30 @@ public sealed class PrivateWorldRuntime : IDisposable
                     $"{worldSystems.Climate.Season.ToString().ToLowerInvariant()}:{worldSystems.Climate.Weather.ToString().ToLowerInvariant()}");
             }
 
+            var readyPackages = contentRegistry.ExportState().Packages
+                .Where(package => package.Lifecycle == ContentPackageLifecycle.Staged &&
+                    package.StagedTick is { } stagedTick && targetTick > stagedTick)
+                .OrderBy(package => package.Manifest.PackageId, StringComparer.Ordinal)
+                .ToArray();
+            var activatedWorldContent = worldContent;
+            foreach (var package in readyPackages)
+            {
+                activatedWorldContent = ContentDefinitionPayloadCodec.ApplyPackage(
+                    activatedWorldContent,
+                    package.Manifest);
+            }
+
             foreach (var activated in contentRegistry.ActivateReady(targetTick))
             {
                 AppendEvent("content_activated", activated.Manifest.PackageId);
+                if (activated.Manifest.Definitions.Any(definition => !string.IsNullOrWhiteSpace(definition.PayloadJson)))
+                {
+                    AppendEvent(
+                        "content_definitions_activated",
+                        $"{activated.Manifest.PackageId}:buildings={activatedWorldContent.Buildings.Count}:recipes={activatedWorldContent.Recipes.Count}");
+                }
             }
+            worldContent = activatedWorldContent;
 
             DrainNeeds();
             RemoveDeadPhysicalState();
@@ -333,6 +357,23 @@ public sealed class PrivateWorldRuntime : IDisposable
         IEnumerable<string> rootPackageIds) =>
         ContentPackageResolver.Resolve(availablePackages, rootPackageIds);
 
+    public ContentResolutionResult ResolveContent(string packageId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(packageId);
+        gate.Wait();
+        try
+        {
+            var available = contentRegistry.ExportState().Packages
+                .Select(package => package.Manifest)
+                .ToArray();
+            return ContentPackageResolver.Resolve(available, [packageId]);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     public ContentPackageRecord ProposeContent(ContentPackageManifest manifest)
     {
         ArgumentNullException.ThrowIfNull(manifest);
@@ -356,6 +397,8 @@ public sealed class PrivateWorldRuntime : IDisposable
         gate.Wait();
         try
         {
+            var manifest = GetContentManifest(packageId);
+            _ = ContentDefinitionPayloadCodec.ApplyPackage(worldContent, manifest);
             var record = contentRegistry.Validate(packageId, resolution, WorldTick);
             AppendEvent("content_validated", packageId);
             return record;
@@ -386,6 +429,8 @@ public sealed class PrivateWorldRuntime : IDisposable
         gate.Wait();
         try
         {
+            var manifest = GetContentManifest(packageId);
+            _ = ContentDefinitionPayloadCodec.ApplyPackage(worldContent, manifest);
             var record = contentRegistry.Stage(packageId, WorldTick);
             AppendEvent("content_staged", packageId);
             return record;
@@ -403,6 +448,7 @@ public sealed class PrivateWorldRuntime : IDisposable
         try
         {
             var record = contentRegistry.Rollback(packageId, WorldTick, reason);
+            worldContent = ContentDefinitionApplicator.RemovePackage(worldContent, record.Manifest.PackageDigest);
             AppendEvent("content_rolled_back", $"{packageId}:{reason.Trim()}");
             return record;
         }
@@ -453,6 +499,12 @@ public sealed class PrivateWorldRuntime : IDisposable
         SocietyFixture.Validate(society.Checkpoint);
         society.Validate();
         contentRegistry.Validate();
+        worldContent.Validate();
+        var expectedWorldContent = RebuildWorldContent(contentRegistry.ExportState());
+        if (!string.Equals(worldContent.StateDigest, expectedWorldContent.StateDigest, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The private-world typed content does not match active package records.");
+        }
         WorldSystemsRules.Validate(worldSystems);
         if (worldSystems.WorldTick != WorldTick ||
             !string.Equals(worldSystems.WorldSeed, worldSeed, StringComparison.Ordinal))
@@ -522,7 +574,33 @@ public sealed class PrivateWorldRuntime : IDisposable
             .ToArray(),
         completedInstructionIds.OrderBy(item => item, StringComparer.Ordinal).ToArray(),
         contentRegistry.ExportState(),
-        worldSystems);
+        worldSystems,
+        worldContent);
+
+    public DeclarativeWorldContentState WorldContent => worldContent;
+
+    private ContentPackageManifest GetContentManifest(string packageId)
+    {
+        ContentPackageRules.ValidatePackageId(packageId);
+        return contentRegistry.ExportState().Packages
+            .SingleOrDefault(package => package.Manifest.PackageId == packageId)?.Manifest
+            ?? throw new KeyNotFoundException($"Package '{packageId}' has no lifecycle record.");
+    }
+
+    private static DeclarativeWorldContentState RebuildWorldContent(ContentRegistryState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var result = new DeclarativeWorldContentState([], []);
+        foreach (var package in state.Packages
+                     .Where(package => package.Lifecycle == ContentPackageLifecycle.Active)
+                     .OrderBy(package => package.ActivationTick ?? long.MaxValue)
+                     .ThenBy(package => package.Manifest.PackageId, StringComparer.Ordinal))
+        {
+            result = ContentDefinitionPayloadCodec.ApplyPackage(result, package.Manifest);
+        }
+
+        return result;
+    }
 
     private static WorldSystemsState CreateWorldSystems(string worldSeed, SeededMap map)
     {
@@ -1066,6 +1144,8 @@ public sealed class PrivateWorldRuntime : IDisposable
         {
             throw new InvalidDataException("The current private-world schema requires richer-systems state.");
         }
+
+        state.WorldContent?.Validate();
         var activeIds = state.Society.Society.Inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Active)
             .Select(item => item.Id)

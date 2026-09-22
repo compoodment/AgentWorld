@@ -100,7 +100,9 @@ public sealed record OwnerWorldSystemsSummary(
     int FactionCount,
     int CurrencyAccountCount,
     int CultureCount,
-    int ChunkCount);
+    int ChunkCount,
+    int BuildingDefinitionCount = 0,
+    int RecipeDefinitionCount = 0);
 
 public sealed record OwnerWorldAuthoringState(
     bool IsPaused,
@@ -191,6 +193,32 @@ public sealed record OwnerAuthoringBatchAction(
     string BatchId,
     IReadOnlyList<OwnerAuthoringOperationAction> Operations);
 
+public sealed record OwnerContentDependencyAction(
+    string PackageId,
+    string MinimumVersion,
+    string MaximumExclusiveVersion,
+    bool Optional);
+
+public sealed record OwnerContentDefinitionAction(
+    string Kind,
+    string LocalId,
+    string Version,
+    string DisplayName,
+    string PayloadDigest,
+    string? PayloadJson = null);
+
+public sealed record OwnerContentPackageAction(
+    string PackageId,
+    string Version,
+    string PackageDigest,
+    IReadOnlyList<OwnerContentDependencyAction> Dependencies,
+    IReadOnlyList<OwnerContentDefinitionAction> Definitions,
+    IReadOnlyList<string> DeclaredCapabilities);
+
+public sealed record OwnerContentPackageIdAction(string PackageId);
+
+public sealed record OwnerContentRollbackAction(string PackageId, string Reason);
+
 public sealed record OwnerControlReceipt(
     string Operation,
     bool Changed,
@@ -213,6 +241,19 @@ public sealed record OwnerAuthoringBatchReceipt(
     long Revision,
     long TopologyRevision,
     string CurrentMapManifestDigest);
+
+public sealed record OwnerContentPackageReceipt(
+    string Operation,
+    bool Applied,
+    string PackageId,
+    string Version,
+    string PackageDigest,
+    string Lifecycle,
+    string? LockDigest,
+    long? ValidationTick,
+    long? StagedTick,
+    long? ActivationTick,
+    string? Failure);
 
 /// <summary>
 /// Checks a complete signed owner baseline before giving it to the renderer.
@@ -359,6 +400,71 @@ public static class OwnerWorldActionPayload
         return string.Join('\n', lines);
     }
 
+    public static string ContentPropose(OwnerContentPackageAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(action.Dependencies);
+        ArgumentNullException.ThrowIfNull(action.Definitions);
+        ArgumentNullException.ThrowIfNull(action.DeclaredCapabilities);
+        var lines = new List<string>
+        {
+            "agentworld.owner-content-propose.v1",
+            $"package-id={EncodeRequired(action.PackageId, nameof(action.PackageId))}",
+            $"version={EncodeRequired(action.Version, nameof(action.Version))}",
+            $"package-digest={EncodeRequired(action.PackageDigest, nameof(action.PackageDigest))}",
+            $"dependency-count={action.Dependencies.Count.ToString(CultureInfo.InvariantCulture)}",
+            $"definition-count={action.Definitions.Count.ToString(CultureInfo.InvariantCulture)}",
+            $"capability-count={action.DeclaredCapabilities.Count.ToString(CultureInfo.InvariantCulture)}",
+        };
+
+        for (var index = 0; index < action.Dependencies.Count; index++)
+        {
+            var dependency = action.Dependencies[index] ?? throw new ArgumentException(
+                "Content dependencies cannot contain null.",
+                nameof(action));
+            var prefix = $"dependency-{index.ToString(CultureInfo.InvariantCulture)}";
+            lines.Add($"{prefix}.package-id={EncodeRequired(dependency.PackageId, nameof(dependency.PackageId))}");
+            lines.Add($"{prefix}.minimum={EncodeRequired(dependency.MinimumVersion, nameof(dependency.MinimumVersion))}");
+            lines.Add($"{prefix}.maximum={EncodeRequired(dependency.MaximumExclusiveVersion, nameof(dependency.MaximumExclusiveVersion))}");
+            lines.Add($"{prefix}.optional={dependency.Optional.ToString().ToLowerInvariant()}");
+        }
+
+        for (var index = 0; index < action.Definitions.Count; index++)
+        {
+            var definition = action.Definitions[index] ?? throw new ArgumentException(
+                "Content definitions cannot contain null.",
+                nameof(action));
+            var prefix = $"definition-{index.ToString(CultureInfo.InvariantCulture)}";
+            lines.Add($"{prefix}.kind={EncodeRequired(definition.Kind, nameof(definition.Kind))}");
+            lines.Add($"{prefix}.local-id={EncodeRequired(definition.LocalId, nameof(definition.LocalId))}");
+            lines.Add($"{prefix}.version={EncodeRequired(definition.Version, nameof(definition.Version))}");
+            lines.Add($"{prefix}.display-name={EncodeRequired(definition.DisplayName, nameof(definition.DisplayName))}");
+            lines.Add($"{prefix}.payload-digest={EncodeRequired(definition.PayloadDigest, nameof(definition.PayloadDigest))}");
+            lines.Add($"{prefix}.payload-json={EncodeOptional(definition.PayloadJson)}");
+        }
+
+        for (var index = 0; index < action.DeclaredCapabilities.Count; index++)
+        {
+            lines.Add($"capability-{index.ToString(CultureInfo.InvariantCulture)}={EncodeRequired(
+                action.DeclaredCapabilities[index],
+                nameof(action.DeclaredCapabilities))}");
+        }
+
+        return string.Join('\n', lines);
+    }
+
+    public static string ContentPackageId(string operation, OwnerContentPackageIdAction action) => string.Join(
+        '\n',
+        "agentworld.owner-content-lifecycle.v1",
+        $"operation={EncodeRequired(operation, nameof(operation))}",
+        $"package-id={EncodeRequired(action.PackageId, nameof(action.PackageId))}");
+
+    public static string ContentRollback(OwnerContentRollbackAction action) => string.Join(
+        '\n',
+        "agentworld.owner-content-rollback.v1",
+        $"package-id={EncodeRequired(action.PackageId, nameof(action.PackageId))}",
+        $"reason={EncodeRequired(action.Reason, nameof(action.Reason))}");
+
     private static string EncodeRequired(string value, string parameterName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
@@ -492,6 +598,113 @@ public sealed class OwnerWorldApi
             OwnerPairingEndpoints.OwnerAuthoring,
             OwnerPairingProtocol.CreateRequestId(),
             OwnerWorldActionPayload.Authoring(action),
+            action,
+            deviceKey,
+            cancellationToken);
+
+    public Task<OwnerContentPackageReceipt> ProposeContentAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerContentPackageAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerContentPackageAction, OwnerContentPackageReceipt>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerContentPropose,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.ContentPropose(action),
+            action,
+            deviceKey,
+            cancellationToken);
+
+    public Task<OwnerContentPackageReceipt> ValidateContentAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerContentPackageIdAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        SendContentLifecycleAsync(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerContentValidate,
+            "validate",
+            action,
+            deviceKey,
+            cancellationToken);
+
+    public Task<OwnerContentPackageReceipt> ApproveContentAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerContentPackageIdAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        SendContentLifecycleAsync(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerContentApprove,
+            "approve",
+            action,
+            deviceKey,
+            cancellationToken);
+
+    public Task<OwnerContentPackageReceipt> StageContentAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerContentPackageIdAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        SendContentLifecycleAsync(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerContentStage,
+            "stage",
+            action,
+            deviceKey,
+            cancellationToken);
+
+    public Task<OwnerContentPackageReceipt> RollbackContentAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerContentRollbackAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerContentRollbackAction, OwnerContentPackageReceipt>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerContentRollback,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.ContentRollback(action),
+            action,
+            deviceKey,
+            cancellationToken);
+
+    private Task<OwnerContentPackageReceipt> SendContentLifecycleAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        string path,
+        string operation,
+        OwnerContentPackageIdAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerContentPackageIdAction, OwnerContentPackageReceipt>(
+            serverUri,
+            authority,
+            deviceId,
+            path,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.ContentPackageId(operation, action),
             action,
             deviceKey,
             cancellationToken);

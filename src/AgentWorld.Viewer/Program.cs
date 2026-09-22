@@ -511,6 +511,309 @@ app.MapPost("/api/v1/owner/instructions", (
     }
 });
 
+app.MapPost("/api/v1/owner/content/propose", (
+    OwnerSignedHttpRequest<OwnerContentPackageAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services) =>
+{
+    if (!isPrivateWorld)
+    {
+        return Results.Conflict(new OwnerControlFailure(
+            "private_world_content_required",
+            "Data-only content governance is available only in the integrated private world."));
+    }
+
+    if (!OwnerContentBinding.TryMapManifest(request?.Action, out var manifest, out var failure))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [failure],
+        });
+    }
+
+    string payload;
+    try
+    {
+        payload = OwnerContentBinding.ProposePayload(request!.Action);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
+
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/content/propose", payload);
+    if (!authorization.IsSuccess)
+    {
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    }
+
+    var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+    var stateFile = services.GetRequiredService<PrivateWorldStateFile>();
+    try
+    {
+        var record = runtime.ProposeContent(manifest!);
+        stateFile.Save(runtime);
+        return Results.Ok(OwnerContentPackageReceipt.From("propose", record));
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Conflict(new OwnerControlFailure("content_rejected", exception.Message));
+    }
+});
+
+app.MapPost("/api/v1/owner/content/validate", (
+    OwnerSignedHttpRequest<OwnerContentPackageIdAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services) =>
+{
+    if (!isPrivateWorld)
+    {
+        return Results.Conflict(new OwnerControlFailure(
+            "private_world_content_required",
+            "Data-only content governance is available only in the integrated private world."));
+    }
+
+    if (request?.Action is null)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action.packageId"] = ["A package ID is required."],
+        });
+    }
+
+    string payload;
+    try
+    {
+        payload = OwnerContentBinding.PackageIdPayload("validate", request.Action);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
+
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/content/validate", payload);
+    if (!authorization.IsSuccess)
+    {
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    }
+
+    var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+    var stateFile = services.GetRequiredService<PrivateWorldStateFile>();
+    try
+    {
+        var resolution = runtime.ResolveContent(request.Action.PackageId);
+        var record = runtime.ValidateContent(request.Action.PackageId, resolution);
+        stateFile.Save(runtime);
+        return Results.Ok(OwnerContentPackageReceipt.From("validate", record));
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Conflict(new OwnerControlFailure("content_rejected", exception.Message));
+    }
+    catch (KeyNotFoundException exception)
+    {
+        return Results.NotFound(new OwnerControlFailure("content_not_found", exception.Message));
+    }
+});
+
+app.MapPost("/api/v1/owner/content/approve", (
+    OwnerSignedHttpRequest<OwnerContentPackageIdAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services) =>
+{
+    if (!isPrivateWorld)
+    {
+        return Results.Conflict(new OwnerControlFailure(
+            "private_world_content_required",
+            "Data-only content governance is available only in the integrated private world."));
+    }
+
+    if (request?.Action is null)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action.packageId"] = ["A package ID is required."],
+        });
+    }
+
+    string payload;
+    try
+    {
+        payload = OwnerContentBinding.PackageIdPayload("approve", request.Action);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
+
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/content/approve", payload);
+    if (!authorization.IsSuccess)
+    {
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    }
+
+    var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+    var stateFile = services.GetRequiredService<PrivateWorldStateFile>();
+    try
+    {
+        var record = runtime.ApproveContent(request.Action.PackageId);
+        stateFile.Save(runtime);
+        return Results.Ok(OwnerContentPackageReceipt.From("approve", record));
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Conflict(new OwnerControlFailure("content_rejected", exception.Message));
+    }
+    catch (KeyNotFoundException exception)
+    {
+        return Results.NotFound(new OwnerControlFailure("content_not_found", exception.Message));
+    }
+});
+
+app.MapPost("/api/v1/owner/content/stage", (
+    OwnerSignedHttpRequest<OwnerContentPackageIdAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services) =>
+{
+    if (!isPrivateWorld)
+    {
+        return Results.Conflict(new OwnerControlFailure(
+            "private_world_content_required",
+            "Data-only content governance is available only in the integrated private world."));
+    }
+
+    if (request?.Action is null)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action.packageId"] = ["A package ID is required."],
+        });
+    }
+
+    string payload;
+    try
+    {
+        payload = OwnerContentBinding.PackageIdPayload("stage", request.Action);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
+
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/content/stage", payload);
+    if (!authorization.IsSuccess)
+    {
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    }
+
+    var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+    var stateFile = services.GetRequiredService<PrivateWorldStateFile>();
+    try
+    {
+        var record = runtime.StageContent(request.Action.PackageId);
+        stateFile.Save(runtime);
+        return Results.Ok(OwnerContentPackageReceipt.From("stage", record));
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Conflict(new OwnerControlFailure("content_rejected", exception.Message));
+    }
+    catch (KeyNotFoundException exception)
+    {
+        return Results.NotFound(new OwnerControlFailure("content_not_found", exception.Message));
+    }
+});
+
+app.MapPost("/api/v1/owner/content/rollback", (
+    OwnerSignedHttpRequest<OwnerContentRollbackAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services) =>
+{
+    if (!isPrivateWorld)
+    {
+        return Results.Conflict(new OwnerControlFailure(
+            "private_world_content_required",
+            "Data-only content governance is available only in the integrated private world."));
+    }
+
+    if (request?.Action is null)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = ["A package ID and rollback reason are required."],
+        });
+    }
+
+    string payload;
+    try
+    {
+        payload = OwnerContentBinding.RollbackPayload(request.Action);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
+
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/content/rollback", payload);
+    if (!authorization.IsSuccess)
+    {
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    }
+
+    var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+    var stateFile = services.GetRequiredService<PrivateWorldStateFile>();
+    try
+    {
+        var record = runtime.RollbackContent(request.Action.PackageId, request.Action.Reason);
+        stateFile.Save(runtime);
+        return Results.Ok(OwnerContentPackageReceipt.From("rollback", record));
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Conflict(new OwnerControlFailure("content_rejected", exception.Message));
+    }
+    catch (KeyNotFoundException exception)
+    {
+        return Results.NotFound(new OwnerControlFailure("content_not_found", exception.Message));
+    }
+});
+
 app.MapPost("/api/v1/owner/authoring", (
     OwnerSignedHttpRequest<OwnerAuthoringBatchAction> request,
     OwnerRequestAuthorizer authorizer,

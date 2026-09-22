@@ -25,6 +25,7 @@ public sealed class OwnerWorldObservationStore
         "owner-control.request.v1",
         "paused-authoring.request.v1",
         "content-governance.read.v1",
+        "content-governance.write.v1",
     ];
 
     private static readonly string[] OwnerClientCapabilities =
@@ -285,7 +286,9 @@ public sealed class OwnerWorldObservationStore
                     systems.Factions.Factions.Count,
                     systems.Currency.Accounts.Count,
                     systems.Culture.Cultures.Count,
-                    systems.Chunks.Count)
+                    systems.Chunks.Count,
+                    state.WorldContent?.Buildings.Count ?? 0,
+                    state.WorldContent?.Recipes.Count ?? 0)
                 : null,
         };
     }

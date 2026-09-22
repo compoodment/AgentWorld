@@ -33,14 +33,24 @@ capabilities remain disabled until a separate sandbox contract exists.
    animation timing, and per-asset budget diagnostics. Asset normalization is
    intentionally inert: it does not execute, fetch, or rewrite arbitrary
    payloads.
+6. **Aggregate asset governance:** package-level asset counts, candidate/
+   decoded/durable-byte reservations, frame and dimension ceilings, duplicate
+   identity checks, deterministic diagnostics, export-rights policy, and
+   metadata-only preview contracts are validated as one atomic collection.
+7. **Private owner content path:** signed propose/validate/approve/stage/
+   rollback routes now target the integrated private runtime. Typed `building/v1`
+   and `recipe/v1` payloads enter the live declarative world only on next-tick
+   activation, persist through checkpoints, appear in owner observations, and
+   are removed from the live projection when quarantined.
 
 ## Evidence
 
 - `ContentPackageRules` validates canonical IDs, versions, ranges, and digests.
 - `ContentPackageResolver` produces an immutable dependency-first lock.
 - `ContentPackageRegistry` records the data-only lifecycle and event history.
-- `PrivateWorldRuntime` persists the registry, applies next-tick activation,
-  and exposes rollback through the same save boundary as society state.
+- `PrivateWorldRuntime` persists the registry and typed declarative content,
+  applies next-tick activation atomically, and exposes rollback through the
+  same save boundary as society state.
 - `AssetNormalizer` validates PNG/APNG structure and metadata without inflating
   or executing payloads; `AssetGovernanceTests` covers provenance, rights,
   previews, timing, budgets, and deterministic output.
@@ -49,16 +59,19 @@ capabilities remain disabled until a separate sandbox contract exists.
 - `ContentGovernanceTests` covers identity, highest-compatible resolution,
   missing optional dependencies, dependency cycles, lifecycle ordering, and
   disabled executable capabilities.
+- `AssetPackageGovernanceTests` covers aggregate budgets, duplicate IDs and
+  digests, rights policy, metadata-only previews, and order-independent
+  diagnostics.
+- `PrivateWorldRuntimeTests` and `ViewerHttpTests` cover typed building/recipe
+  activation, checkpoint round-trip, signed lifecycle routing, and rollback.
 
 ## Still required for the alpha gate
 
 - package serialization/provenance and exact manifest-byte digests;
-- aggregate package/world asset budgets and isolated preview/test-world
-  execution;
-- owner-facing content proposal/approval/activation routes in the new private
-  runtime;
-- definitions that materially add inhabitant-created buildings, recipes, or
-  other first data-only content to the live world.
+- isolated preview/test-world execution and world-wide asset reservation/cache
+  accounting;
+- material interactions for building placement, recipe production, and the
+  remaining economy/world rules that consume declarative definitions.
 
 The current slice is intentionally a contract/runtime foundation, not a claim
 that arbitrary packages can already be installed from the network.

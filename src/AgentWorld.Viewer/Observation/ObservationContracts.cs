@@ -103,7 +103,9 @@ public sealed record ViewerWorldSystemsSummary(
     int FactionCount,
     int CurrencyAccountCount,
     int CultureCount,
-    int ChunkCount);
+    int ChunkCount,
+    int BuildingDefinitionCount = 0,
+    int RecipeDefinitionCount = 0);
 
 public sealed record ViewerAuthoringState(
     bool IsPaused,

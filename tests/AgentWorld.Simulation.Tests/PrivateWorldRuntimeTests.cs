@@ -120,7 +120,50 @@ public sealed class PrivateWorldRuntimeTests
     public async Task PrivateWorldActivatesStagedContentOnTheNextTickAndCanQuarantineIt()
     {
         using var runtime = new PrivateWorldRuntime("playtest-alpha");
-        var package = Package("camp-recipes", "1.0.0", 'd');
+        var packageDigest = "sha256:" + new string('d', 64);
+        var version = ContentVersion.Parse("1.0.0");
+        var building = new BuildingDefinition(
+            packageDigest,
+            "camp-kitchen",
+            version,
+            "Camp kitchen",
+            1,
+            1,
+            2,
+            [new ContentQuantity("wood", 2)],
+            ["camp"]);
+        var recipe = new RecipeDefinition(
+            packageDigest,
+            "berry-stew",
+            version,
+            "Berry stew",
+            [new ContentQuantity("wood", 1)],
+            [new ContentQuantity("meal", 1)],
+            10,
+            building.CanonicalId,
+            ["food"]);
+        var package = new ContentPackageManifest(
+            "camp-recipes",
+            version,
+            packageDigest,
+            [],
+            [
+                new ContentDefinition(
+                    BuildingDefinition.SchemaKind,
+                    building.LocalId,
+                    building.Version,
+                    building.DisplayName,
+                    building.PayloadDigest,
+                    """{"schema":"building/v1","width":1,"height":1,"capacity":2,"buildCosts":[{"resourceId":"wood","amount":2}],"tags":["camp"]}"""),
+                new ContentDefinition(
+                    RecipeDefinition.SchemaKind,
+                    recipe.LocalId,
+                    recipe.Version,
+                    recipe.DisplayName,
+                    recipe.PayloadDigest,
+                    $"{{\"schema\":\"recipe/v1\",\"inputs\":[{{\"resourceId\":\"wood\",\"amount\":1}}],\"outputs\":[{{\"resourceId\":\"meal\",\"amount\":1}}],\"durationTicks\":10,\"workstationBuildingId\":\"{building.CanonicalId}\",\"tags\":[\"food\"]}}")
+            ],
+            []);
         var resolution = PrivateWorldRuntime.PreviewContent([package], [package.PackageId]);
 
         runtime.ProposeContent(package);
@@ -137,14 +180,18 @@ public sealed class PrivateWorldRuntimeTests
         var active = Assert.Single(runtime.Content.Packages);
         Assert.Equal(ContentPackageLifecycle.Active, active.Lifecycle);
         Assert.Equal(1, active.ActivationTick);
+        Assert.Equal(building.CanonicalId, Assert.Single(runtime.WorldContent.Buildings).CanonicalId);
+        Assert.Equal(recipe.CanonicalId, Assert.Single(runtime.WorldContent.Recipes).CanonicalId);
         Assert.Contains(runtime.ExportState().Events, item =>
-            item.Kind == "content_activated" && item.Detail == package.PackageId);
+            item.Kind == "content_definitions_activated" && item.Detail.Contains("buildings=1:recipes=1", StringComparison.Ordinal));
 
         var restoredState = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
         using var restored = PrivateWorldRuntime.Restore(restoredState);
         var rolledBack = restored.RollbackContent(package.PackageId, "preview mismatch");
 
         Assert.Equal(ContentPackageLifecycle.Quarantined, rolledBack.Lifecycle);
+        Assert.Empty(restored.WorldContent.Buildings);
+        Assert.Empty(restored.WorldContent.Recipes);
         Assert.Contains(restored.Content.Events, item => item.Kind == "package_rolled_back");
         Assert.Contains(restored.ExportState().Events, item => item.Kind == "content_rolled_back");
     }
