@@ -8,6 +8,10 @@ release yet.
 
 ### Added
 
+- Connected adult partnership proposals to independent acceptance/refusal and
+  unilateral withdrawal. Prior cooperation opens a choice, not automatic
+  consent; unanswered proposals expire and rejected pairs have a cooldown.
+  Partnerships are visible in the relationship panel and do not create children.
 - Added persistent practical apprenticeships: eligible adults request a builder
   or farmer role, a qualified mentor independently accepts/refuses, and joint
   lessons at camp earn the role. Hunger, exhaustion, exposure, cancellation and

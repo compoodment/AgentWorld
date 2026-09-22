@@ -48,6 +48,12 @@ public static class GameUiText
         }
 
         var normalized = value.Trim();
+        if (normalized.StartsWith("partner_", StringComparison.Ordinal))
+        {
+            return normalized.StartsWith("partner_propose:", StringComparison.Ordinal) ? "propose a partnership"
+                : normalized.StartsWith("partner_accept:", StringComparison.Ordinal) ? "accept a partnership"
+                : normalized.StartsWith("partner_refuse:", StringComparison.Ordinal) ? "refuse a partnership" : "leave a partnership";
+        }
         if (normalized.StartsWith("learn:", StringComparison.Ordinal))
         {
             return "request practical training";

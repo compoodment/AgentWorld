@@ -102,6 +102,11 @@ public sealed partial class PrivateWorldRuntimeService(
                 {
                     LogSettlementLesson(logger, result.WorldTick, worldEvent.Kind);
                 }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind is "partnership_proposed" or "partnership_accepted" or
+                             "partnership_refused" or "partnership_ended" or "partnership_expired"))
+                {
+                    LogSettlementFamily(logger, result.WorldTick, worldEvent.Kind);
+                }
             }
         }
 
@@ -167,6 +172,10 @@ public sealed partial class PrivateWorldRuntimeService(
     [LoggerMessage(EventId = 2209, Level = LogLevel.Information,
         Message = "settlement_lesson tick={WorldTick} event={EventKind}")]
     private static partial void LogSettlementLesson(ILogger logger, long worldTick, string eventKind);
+
+    [LoggerMessage(EventId = 2210, Level = LogLevel.Information,
+        Message = "settlement_family tick={WorldTick} event={EventKind}")]
+    private static partial void LogSettlementFamily(ILogger logger, long worldTick, string eventKind);
 
     [LoggerMessage(EventId = 2208, Level = LogLevel.Information,
         Message = "settlement_council tick={WorldTick} event={EventKind}")]

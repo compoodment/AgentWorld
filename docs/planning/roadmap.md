@@ -137,7 +137,9 @@ does not complete family choices, life pacing, rich conflict or a currency
 economy; those workstreams remain open. Basic practical teaching now requires a
 learner's request and mentor acceptance, persists joint work and grants actual
 builder/farmer permissions; tests cover refusal, pause/restart, exhaustion and
-mentor death. General skills and intergenerational continuity remain open.
+mentor death. Adult partnerships now require an independent response after
+cooperation; either person can withdraw and unanswered proposals expire.
+General skills, separate parenthood choices and intergenerational continuity remain open.
 
 ## Later — Creation and richer worlds
 

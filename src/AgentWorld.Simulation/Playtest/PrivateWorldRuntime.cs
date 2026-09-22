@@ -430,6 +430,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             RemoveDeadPhysicalState();
             AdvanceSettlementCouncil();
             MaintainLessons();
+            MaintainPartnerships();
             EnqueueDueCognition();
             var dispatch = await society.DispatchCognitionAsync(cancellationToken).ConfigureAwait(false);
             foreach (var decision in dispatch.Decisions.OrderBy(item => item.InhabitantId, StringComparer.Ordinal))
@@ -1866,6 +1867,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         string candidateId,
         bool reportIdle)
     {
+        if (candidateId.StartsWith("partner_", StringComparison.Ordinal))
+        {
+            ApplyFamilyCandidate(inhabitantId, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("learn:", StringComparison.Ordinal) || candidateId.StartsWith("lesson_", StringComparison.Ordinal))
         {
             ApplyLearningCandidate(inhabitantId, candidateId);
@@ -2269,6 +2275,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             AddTradeCandidates(candidates, inhabitantId);
             AddCouncilCandidates(candidates, inhabitantId);
             AddLearningCandidates(candidates, inhabitantId);
+            AddFamilyCandidates(candidates, inhabitantId);
         }
 
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
