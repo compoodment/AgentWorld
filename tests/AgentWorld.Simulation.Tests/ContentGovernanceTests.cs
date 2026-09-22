@@ -141,6 +141,33 @@ public sealed class ContentGovernanceTests
     }
 
     [Fact]
+    public void ActiveDependentsPreventDependencyRollbackWithoutPartialMutation()
+    {
+        var core = Package("core", "1.0.0", 'a');
+        var world = Package("world", "1.0.0", 'b', [Dependency("core")]);
+        var registry = new ContentPackageRegistry();
+        foreach (var package in new[] { core, world })
+        {
+            registry.Propose(package);
+        }
+        foreach (var package in new[] { core, world })
+        {
+            registry.Validate(package.PackageId, ContentPackageResolver.Resolve([core, world], [package.PackageId]), 0);
+            registry.Approve(package.PackageId, 0);
+            registry.Stage(package.PackageId, 0);
+        }
+        registry.ActivateReady(1);
+        var before = registry.ExportState();
+        Assert.Throws<InvalidOperationException>(() => registry.Rollback("core", 2, "owner rollback"));
+        Assert.Equal(before.Packages, registry.ExportState().Packages);
+        Assert.Equal(before.Events, registry.ExportState().Events);
+        registry.Rollback("world", 2, "remove dependent first");
+        registry.Rollback("core", 2, "now safe");
+        Assert.All(ContentPackageRegistry.Restore(registry.ExportState()).ExportState().Packages,
+            package => Assert.Equal(ContentPackageLifecycle.Quarantined, package.Lifecycle));
+    }
+
+    [Fact]
     public void ReadyPackagesActivateInDependencyOrderNotLexicalOrder()
     {
         var core = Package("z-core", "1.0.0", 'a');

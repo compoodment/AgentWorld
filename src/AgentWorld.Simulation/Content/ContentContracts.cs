@@ -669,6 +669,12 @@ public sealed class ContentPackageRegistry
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         var record = Get(packageId);
+        if (packages.Values.Any(package => package.Lifecycle == ContentPackageLifecycle.Active &&
+                package.Manifest.PackageId != packageId &&
+                package.Manifest.Dependencies.Any(dependency => dependency.PackageId == packageId)))
+        {
+            throw new InvalidOperationException("Roll back active dependents before removing their dependency.");
+        }
         if (record.Lifecycle is not (ContentPackageLifecycle.Active or ContentPackageLifecycle.Staged))
         {
             throw new InvalidOperationException(

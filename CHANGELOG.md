@@ -19,7 +19,8 @@ release yet.
 - Corrected reservation/barter expiry, automatic release on society clock
   advancement, asset-charge conflicts/overflow, and prefix-ID ledger restore.
 - Made dependency quarantine block subsequent content activation and enforce
-  dependency-first activation order.
+  dependency-first activation order. Active dependents must be rolled back
+  before their dependency, preventing an unrecoverable content graph.
 - Included crop work in owner job projections and kept empty-population worlds
   observable after all inhabitants die.
 - Eliminated idle authority-file rewrites: one-use challenges are process-local
