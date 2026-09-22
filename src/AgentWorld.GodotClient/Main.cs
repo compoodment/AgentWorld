@@ -2178,6 +2178,12 @@ public partial class Main : Control
         worldDetails.Text = $"{(authoring.IsPaused ? "Paused" : "Playing")} · {GameUiText.FormatWorldClock(snapshot.WorldTick)}\n" +
             $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}\n\nShared stores\n{stores}\n\nProjects\n{string.Join("\n", projects)}\n\nSocial activity\n" +
             string.Join("\n", snapshot.Inhabitants.SelectMany(person => person.SocialNotes.Take(2).Select(note => $"{person.DisplayName}: {note}")));
+        if (snapshot.Council is { } council)
+        {
+            worldDetails.Text += $"\n\nHousehold council\nSteward: {council.StewardName ?? "awaiting a contributor"}\n" +
+                (council.FoodPolicy == "essential_first" ? "Food reserve: hungry members first" : "Shared food: open access") +
+                (council.ProposedPolicy is null ? "" : $"\nVote: {Pretty(council.ProposedPolicy)} · {council.Approvals} yes / {council.Rejections} no / {council.Voters} voters");
+        }
         worldDetails.TooltipText =
             $"tick {snapshot.WorldTick} · revision {authoring.Revision} · epoch {authoring.RunEpoch}\n" +
             $"state: {(authoring.IsPaused ? "PAUSED — authoring allowed" : "RUNNING — authoring disabled")}\n" +

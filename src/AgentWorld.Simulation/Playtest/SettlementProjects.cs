@@ -135,6 +135,7 @@ public sealed partial class PrivateWorldRuntime
         (project.Stage != "blocked" || WorldTick - project.LastTransitionTick < 60) &&
         state.HungerBasisPoints >= 3_500 && state.EnergyBasisPoints >= 2_500 &&
         !HasTradeResponse(state.InhabitantId) &&
+        !HasCouncilDecision(state.InhabitantId) &&
         !inhabitants.Keys.Any(other => TradeOpportunity(state.InhabitantId, other) is not null) &&
         (!HasUrgentExposure(state) || IsProtectiveProject(state.Project)) &&
         PendingInstructionFor(state.InhabitantId) is null;

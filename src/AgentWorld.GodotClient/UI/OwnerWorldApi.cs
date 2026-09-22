@@ -193,6 +193,7 @@ public sealed record OwnerWorldSnapshot(
     long LatestEventId)
 {
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
+    public OwnerWorldCouncil? Council { get; init; }
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
 
     public OwnerWorldAuthoringState? Authoring { get; init; }
@@ -220,6 +221,8 @@ public sealed record OwnerWorldEventSlice(
     IReadOnlyList<OwnerWorldEvent> Events,
     long EventHistoryFloor = 0,
     bool ResetRequired = false);
+
+public sealed record OwnerWorldCouncil(string? StewardName, string FoodPolicy, string? ProposedPolicy, int Approvals, int Rejections, int Voters);
 
 public sealed record OwnerWorldReconnectBaseline(OwnerWorldSnapshot Snapshot, OwnerWorldEventSlice Events);
 

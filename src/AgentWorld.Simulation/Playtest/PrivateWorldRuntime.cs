@@ -48,7 +48,8 @@ public sealed record PrivateWorldRuntimeState(
     WorldAssetReservationLedgerState? AssetReservations = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long EventHistoryFloor = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? HistoryArchiveHead = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementSurvivalState? Survival = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementSurvivalState? Survival = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementCouncil? Council = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,
@@ -66,7 +67,7 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 6;
+    public const int StateSchemaVersion = 7;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
@@ -209,6 +210,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             : state.WorldSimulation with { CropBuilds = state.WorldSimulation.CropBuilds ?? [] };
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.survivalState = state.Survival;
+        runtime.council = state.Council;
         runtime.worldSystems = state.WorldSystems is null
             ? AdvanceWorldSystemsTo(
                 CreateWorldSystems(state.WorldSeed, state.Map),
@@ -331,6 +333,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         contentRegistry = proposed.contentRegistry;
         worldSystems = proposed.worldSystems;
         survivalState = proposed.survivalState;
+        council = proposed.council;
         worldContent = proposed.worldContent;
         worldSimulation = proposed.worldSimulation;
         assetReservations = proposed.assetReservations;
@@ -424,6 +427,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             MaintainSettlementTrades();
             DrainNeeds();
             RemoveDeadPhysicalState();
+            AdvanceSettlementCouncil();
             EnqueueDueCognition();
             var dispatch = await society.DispatchCognitionAsync(cancellationToken).ConfigureAwait(false);
             foreach (var decision in dispatch.Decisions.OrderBy(item => item.InhabitantId, StringComparer.Ordinal))
@@ -1024,7 +1028,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         worldSystems,
         worldContent,
         worldSimulation,
-        assetReservations.ExportState(), eventHistoryFloor, historyArchiveHead, survivalState);
+        assetReservations.ExportState(), eventHistoryFloor, historyArchiveHead, survivalState, council);
 
     public DeclarativeWorldContentState WorldContent => worldContent;
 
@@ -1855,6 +1859,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         string candidateId,
         bool reportIdle)
     {
+        if (candidateId.StartsWith("council_", StringComparison.Ordinal))
+        {
+            ApplyCouncilCandidate(inhabitantId, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("trade_", StringComparison.Ordinal))
         {
             ApplyTradeCandidate(inhabitantId, state, candidateId);
@@ -2113,7 +2122,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         AppendEvent("food_harvested", $"{inhabitantId}:{HarvestFoodYield}");
     }
 
-    private InventoryLot? AvailableSharedFood(string? actor = null) => PreferredFood(HouseholdId, actor).FirstOrDefault();
+    private InventoryLot? AvailableSharedFood(string actor) => MayCollectSharedFood(actor) ? PreferredFood(HouseholdId, actor).FirstOrDefault() : null;
 
     private void CollectSharedFood(string inhabitantId, PlaytestInhabitantState state)
     {
@@ -2195,7 +2204,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000;
         if (shouldGatherFood && contentRegistry.ExportState().Packages.Any(package =>
                 package.Manifest.PackageId == StarterContent.PackageId && package.Lifecycle == ContentPackageLifecycle.Active) &&
-            AvailableSharedFood() is not null)
+            AvailableSharedFood(inhabitantId) is not null)
         {
             candidates.Add(new CognitionCandidate("collect_shared_food",
                 "Collect one available household food serving at camp, then eat it.",
@@ -2246,6 +2255,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             AddBuildCandidates(candidates, inhabitant, state);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddTradeCandidates(candidates, inhabitantId);
+            AddCouncilCandidates(candidates, inhabitantId);
         }
 
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
@@ -2388,7 +2398,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (state.SchemaVersion is not (1 or 2 or 3 or 4 or 5 or StateSchemaVersion) || string.IsNullOrWhiteSpace(state.WorldSeed) || state.EventHistoryFloor < 0)
+        if (state.SchemaVersion is not (1 or 2 or 3 or 4 or 5 or 6 or StateSchemaVersion) || string.IsNullOrWhiteSpace(state.WorldSeed) || state.EventHistoryFloor < 0)
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");
         }
@@ -2409,6 +2419,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         using var society = SocietyWorldRuntime.Restore(state.Society);
         ValidateSurvival(state);
+        ValidateCouncil(state);
         ContentPackageRegistry.Restore(state.Content);
         if (state.SchemaVersion >= 3 && state.Content is null)
         {

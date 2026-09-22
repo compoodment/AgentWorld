@@ -241,6 +241,10 @@ public sealed class OwnerWorldObservationStore
                 .ToArray(),
             Stockpiles = state.Society.Society.Households.Select(household =>
                 new ViewerStockpile(household.Id, household.Name, InventoryFor(state, household.Id))).ToArray(),
+            Council = state.Council is { } council ? new ViewerCouncil(
+                state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == council.StewardId)?.Name,
+                council.FoodPolicy, council.Ballot?.Policy, council.Ballot?.Approvals.Count ?? 0,
+                council.Ballot?.Rejections.Count ?? 0, council.Ballot?.Electorate.Count ?? 0) : null,
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,
                 state.Society.Society.RunEpoch,

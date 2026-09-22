@@ -128,6 +128,14 @@ Deepen society only after daily life generates actual stakes:
 **Gate:** a social decision changes who may use resources or perform work, and
 its consequences remain visible across time, relationships and succession.
 
+**Current evidence:** adult inhabitants can independently approve/refuse a
+steward's shared-food policy. A majority changes actual food pickup eligibility;
+policy and a contributor-based living successor persist across restart/death.
+The normal settlement scenario produces a steward, and controlled runtime
+regressions verify voting, access effects and succession. This bounded council
+does not complete teaching, family choices, life pacing, rich conflict or a
+currency economy; those workstreams remain open.
+
 ## Later — Creation and richer worlds
 
 - player- and inhabitant-proposed data-only content through a usable approval

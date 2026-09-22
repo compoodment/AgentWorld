@@ -26,12 +26,14 @@ public sealed class SettlementProjectTests
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(state with { Map = forgedMap }));
     }
 
-    [Fact]
-    public async Task LegacyCheckpointRemainsUntouchedUntilResumedAndThenMigrates()
+    [Theory]
+    [InlineData(4)]
+    [InlineData(6)]
+    public async Task LegacyCheckpointRemainsUntouchedUntilResumedAndThenMigrates(int schema)
     {
         using var seed = new PrivateWorldRuntime("legacy-settlement");
         seed.Pause();
-        var legacy = seed.ExportState() with { SchemaVersion = 4 };
+        var legacy = seed.ExportState() with { SchemaVersion = schema };
         var bytes = PrivateWorldRuntimeCodec.Encode(legacy);
         using var world = PrivateWorldRuntime.Restore(legacy);
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
@@ -92,6 +94,7 @@ public sealed class SettlementProjectTests
         Assert.NotEmpty(snapshot.Stockpiles);
         Assert.Contains(snapshot.Inhabitants, person => person.Project is not null);
         Assert.Contains(snapshot.Inhabitants, person => person.SocialNotes.Count > 0);
+        Assert.NotNull(snapshot.Council?.StewardName);
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(state), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
     }

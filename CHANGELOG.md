@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- Added a persistent household council: demonstrated contributors become
+  stewards, but food-allocation changes require independent majority votes.
+  A scarce-food reserve protects hungry members' access; rejection retains the
+  previous rule. Policies survive leadership succession and restart.
+- Show the steward, active food rule and vote counts in the Settlement panel.
+  Schema 7 stores council state and ballots; older paused saves remain unchanged.
 - Connected bounded inhabitant barter: surplus-for-needed-item offers, separate
   planning-provider acceptance/refusal, expiry and unusable-item cancellation,
   with no transfer until both parties agree. Completed exchanges leave public

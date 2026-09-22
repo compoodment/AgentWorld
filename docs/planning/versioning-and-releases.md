@@ -75,13 +75,22 @@ different build revision cannot falsely appear as a simulation change.
 
 ## Release checklist
 
+### Private-world save schema 7
+
+Schema 7 adds an optional household council, food-access policy, steward and
+bounded ballot with separate votes. Schemas 1–6 remain readable without an
+on-load rewrite; council initialization occurs only on a resumed settlement
+tick. New saves use schema 7. Unknown policies/inhabitants, duplicate or
+contradictory votes, invalid electorates and deadlines fail closed. Rollback
+requires the matching pre-upgrade checkpoint, history and application.
+
 ### Private-world save schema 6
 
 Schema 6 adds optional per-inhabitant warmth/illness/diet and settlement fire-fuel
 deadlines. Schemas 1–5 remain readable without an on-load rewrite. Survival
 initializes on a resumed tick after settlement content activation, advancing
-legacy food processing timestamps without retroactive spoilage. New worlds
-use schema 6. Invalid condition ranges, duplicate/unknown fires and invalid
+legacy food processing timestamps without retroactive spoilage. This migration
+introduced schema 6. Invalid condition ranges, duplicate/unknown fires and invalid
 fuel deadlines fail closed. Preserve the matching application, checkpoint and
 history when rolling back; older hosts cannot load schema-6 saves.
 

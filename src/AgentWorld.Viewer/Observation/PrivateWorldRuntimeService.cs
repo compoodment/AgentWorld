@@ -92,6 +92,11 @@ public sealed partial class PrivateWorldRuntimeService(
                 {
                     LogSettlementTrade(logger, result.WorldTick, worldEvent.Kind);
                 }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind is "council_steward_changed" or
+                             "council_policy_proposed" or "council_vote_recorded" or "council_policy_adopted" or "council_policy_rejected"))
+                {
+                    LogSettlementCouncil(logger, result.WorldTick, worldEvent.Kind);
+                }
             }
         }
 
@@ -153,6 +158,10 @@ public sealed partial class PrivateWorldRuntimeService(
             LogWorldTickGate(logger, state, worldTick, clientPresence.ActiveClientCount);
         }
     }
+
+    [LoggerMessage(EventId = 2208, Level = LogLevel.Information,
+        Message = "settlement_council tick={WorldTick} event={EventKind}")]
+    private static partial void LogSettlementCouncil(ILogger logger, long worldTick, string eventKind);
 
     [LoggerMessage(EventId = 2207, Level = LogLevel.Information,
         Message = "settlement_trade tick={WorldTick} event={EventKind}")]

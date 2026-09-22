@@ -48,6 +48,11 @@ public static class GameUiText
         }
 
         var normalized = value.Trim();
+        if (normalized.StartsWith("council_", StringComparison.Ordinal))
+        {
+            return normalized.StartsWith("council_propose:", StringComparison.Ordinal) ? "propose a food policy"
+                : normalized == "council_vote_yes" ? "support a food policy" : "oppose a food policy";
+        }
         if (normalized.StartsWith("trade_", StringComparison.Ordinal))
         {
             return normalized.StartsWith("trade_propose:", StringComparison.Ordinal) ? "offer an exchange"

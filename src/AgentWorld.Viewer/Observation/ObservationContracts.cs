@@ -194,6 +194,7 @@ public sealed record ViewerWorldSnapshot(
     long LatestEventId)
 {
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];
+    public ViewerCouncil? Council { get; init; }
     /// <summary>
     /// The inspectable population projection. <see cref="Actor"/> remains for
     /// backwards-compatible Phase 2 diagnostic clients.
@@ -220,6 +221,8 @@ public sealed record ViewerWorldSnapshot(
 
     public IReadOnlyList<ViewerProductionJob> ProductionJobs { get; init; } = [];
 }
+
+public sealed record ViewerCouncil(string? StewardName, string FoodPolicy, string? ProposedPolicy, int Approvals, int Rejections, int Voters);
 
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events,
     long EventHistoryFloor = 0, bool ResetRequired = false);
