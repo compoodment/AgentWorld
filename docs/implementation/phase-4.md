@@ -5,7 +5,7 @@ status: complete
 updated: 2026-09-22
 ---
 
-# Phase 4 Implementation Plan
+# Phase 4 Implementation Ledger
 
 Phase 4 is the first multi-inhabitant and society experiment. It extends the
 authoritative Phase 3 cognition boundary without turning provider output into

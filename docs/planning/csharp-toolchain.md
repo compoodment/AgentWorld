@@ -2,7 +2,7 @@
 title: C# and Godot Toolchain
 type: implementation-policy
 status: active
-updated: 2026-09-19
+updated: 2026-09-22
 ---
 
 # C# and Godot Toolchain
@@ -21,15 +21,16 @@ local to the client; the authoritative projects remain on .NET 10.
 
 The first end-user export target is **Windows 11 x64**. The repository now has
 an unsigned portable-export path and a CI artifact configuration for that
-target; the Godot editor remains a development-only tool. This is not yet an
-installer choice, code-signing provider, public release, or proof of Windows
-playtesting.
+target; the Godot editor remains a development-only tool. This is not an
+installer choice, code-signing provider, or public release. The separate
+Windows smoke test and paired reconnect required for the Phase 2 gate were
+completed on 2026-09-21; the evidence is recorded in the
+[Phase 2 implementation ledger](../implementation/phase-2.md).
 
 The export check proves that a reproducible bundle is produced, not that a
-person can use it on Windows. Before Phase 2 can be claimed complete, a Windows
-11 x64 smoke test must launch that bundle, create its current-user device key,
-complete device pairing with the private host, and make a paired reconnect. The
-tester needs the portable bundle and Tailnet reachability, not the Godot editor.
+person can use it on Windows; it does not substitute for the completed Windows
+11 x64 smoke test or for final product playtesting. The tester needs the
+portable bundle and Tailnet reachability, not the Godot editor.
 
 ## Project boundary
 

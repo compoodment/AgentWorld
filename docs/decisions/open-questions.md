@@ -25,8 +25,9 @@ not remain open product questions.
   Phase-2 prototype that needs them.
 - Phase 3: complete. The provider boundary, admission, backpressure, pause,
   fallback, and emergency-stop behavior are implemented and covered by the
-  [Phase 3 plan](../implementation/phase-3.md). Further budget tuning is
-  prototype evidence, not a prerequisite for Phase 4 preparation.
+  [Phase 3 implementation ledger](../implementation/phase-3.md). Further
+  budget tuning is prototype evidence, not a prerequisite for Phase 4
+  preparation.
 - Phase 4: complete. The implementation and evidence are tracked in the
   [Phase 4 ledger](../implementation/phase-4.md). Natural mortality uses the
   accepted no-hard-maximum curve: elderhood is a social marker, risk rises

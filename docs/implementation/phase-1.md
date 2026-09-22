@@ -1,6 +1,6 @@
 ---
 title: Phase 1 Implementation Ledger
-type: implementation-plan
+type: implementation-ledger
 status: active
 updated: 2026-09-19
 ---
