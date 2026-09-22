@@ -8,6 +8,13 @@ release yet.
 
 ### Added
 
+- Connected replacement caregiving after a dependent loses all active carers.
+  Adults volunteer; infants receive protected care without fabricated consent,
+  while older dependents independently accept/refuse. Offers expire, either
+  participant may withdraw, and replacement carers use the real feeding loop.
+  The client shows missing care and readable caregiving decisions.
+- Fixed household caregiver tracking when one of several care obligations ends;
+  remaining dependents no longer lose the adult from the household projection.
 - Added pause-only, signed **Life pace** settings: original calendar aging or
   opt-in generational aging. Changes preserve current ages, birth dates and the
   365-day world calendar; they affect future biological aging, not tick or model

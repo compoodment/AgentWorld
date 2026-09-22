@@ -433,6 +433,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             MaintainLessons();
             MaintainPartnerships();
             MaintainParenthood();
+            MaintainDependentCare();
             EnqueueDueCognition();
             var dispatch = await society.DispatchCognitionAsync(cancellationToken).ConfigureAwait(false);
             foreach (var decision in dispatch.Decisions.OrderBy(item => item.InhabitantId, StringComparer.Ordinal))
@@ -1900,6 +1901,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         string candidateId,
         bool reportIdle)
     {
+        if (candidateId.StartsWith("guardian_", StringComparison.Ordinal))
+        {
+            ApplyDependentCareCandidate(inhabitantId, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("parent_", StringComparison.Ordinal) || candidateId.StartsWith("care:", StringComparison.Ordinal))
         {
             ApplyParenthoodCandidate(inhabitantId, candidateId);
@@ -2305,6 +2311,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         }
 
         AddSurvivalCandidates(candidates, inhabitantId, state);
+        AddDependentCareCandidates(candidates, inhabitantId);
         if (state.HungerBasisPoints >= 2_500 && state.EnergyBasisPoints >= 1_500 && AdultResident(inhabitantId))
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);

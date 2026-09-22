@@ -133,8 +133,8 @@ steward's shared-food policy. A majority changes actual food pickup eligibility;
 policy and a contributor-based living successor persist across restart/death.
 The normal settlement scenario produces a steward, and controlled runtime
 regressions verify voting, access effects and succession. This bounded council
-does not complete family choices, life pacing, rich conflict or a currency
-economy; those workstreams remain open. Basic practical teaching now requires a
+does not complete rich conflict or a currency economy; those workstreams remain
+open. Basic practical teaching now requires a
 learner's request and mentor acceptance, persists joint work and grants actual
 builder/farmer permissions; tests cover refusal, pause/restart, exhaustion and
 mentor death. Adult partnerships now require an independent response after
@@ -145,7 +145,11 @@ restart, refusal/expiry, separation, actual feeding and zero infant provider
 calls. Opt-in life pacing now advances biological age without changing world
 dates or model cadence; replay and signed HTTP tests cover preserved ages,
 newborn age zero, age-band transitions and pause-only configuration. General
-skills, guardian reassignment and long-run intergenerational balance remain open.
+skills and long-run intergenerational balance remain open. Replacement household
+caregivers now volunteer after all active carers are lost. Infants receive a
+protected care transition; older dependents accept/refuse independently. Tests
+cover competing volunteers, restart, refusal/expiry and actual feeding without
+rewriting parentage. This is caregiving, not a complete legal-guardianship system.
 
 ## Later — Creation and richer worlds
 

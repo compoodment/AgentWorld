@@ -64,6 +64,11 @@ keeps the existing world manually paused.
 
 ## Runtime audit issues
 
+- **AW-B009 — fixed:** revoking one caregiver relationship removed the adult
+  from household caregiver tracking even when another dependent still had an
+  accepted care edge. Projection now retains the adult until the last relevant
+  obligation ends; a two-dependent regression covers both transitions.
+
 - **AW-B008 — fixed:** an idle decision could cache choices created by another
   inhabitant after its observation was taken, suppressing a response to a new
   offer. The cache is now bound at observation enqueue; barter tests prove the

@@ -26,7 +26,8 @@ public sealed partial class PrivateWorldRuntime
         society.Checkpoint.GetInhabitant(person.InhabitantId).AgeBand == SocietyAgeBand.Infant &&
         (person.HungerBasisPoints < 7_000 || person.Survival is { WarmthBasisPoints: < 6_000 }) &&
         society.Checkpoint.Relationships.Any(item => item.Type == SocietyRelationshipType.Caregiver &&
-            item.State == SocietyRelationshipState.Accepted && item.ProposerId == actor && item.TargetId == person.InhabitantId));
+            item.State == SocietyRelationshipState.Accepted && item.EffectiveTick <= WorldTick &&
+            item.ProposerId == actor && item.TargetId == person.InhabitantId));
 
     private bool FamilyResourcesReady() => BuildingsWithTag("shelter").Any() &&
         society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdId && lot.ItemKind == "food")

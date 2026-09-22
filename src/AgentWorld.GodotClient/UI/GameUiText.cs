@@ -49,6 +49,10 @@ public static class GameUiText
 
         var normalized = value.Trim();
         if (normalized.StartsWith("care:", StringComparison.Ordinal)) return "care for a child";
+        if (normalized.StartsWith("guardian_offer:", StringComparison.Ordinal)) return "offer to care for a dependent";
+        if (normalized.StartsWith("guardian_accept:", StringComparison.Ordinal)) return "accept a caregiver";
+        if (normalized.StartsWith("guardian_refuse:", StringComparison.Ordinal)) return "refuse a caregiver proposal";
+        if (normalized.StartsWith("guardian_end:", StringComparison.Ordinal)) return "withdraw from caregiving";
         if (normalized.StartsWith("parent_", StringComparison.Ordinal))
         {
             return normalized.StartsWith("parent_propose:", StringComparison.Ordinal) ? "discuss parenthood"

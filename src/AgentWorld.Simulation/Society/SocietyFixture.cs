@@ -1042,7 +1042,10 @@ public static partial class SocietyFixture
                             ? household.MemberIds.Where(id => id != relationship.TargetId).ToArray()
                             : household.MemberIds,
                         CaregiverIds = relationship.Type == SocietyRelationshipType.Caregiver
-                            ? household.CaregiverIds.Where(id => id != relationship.ProposerId).ToArray()
+                            ? household.CaregiverIds.Where(id => id != relationship.ProposerId ||
+                                checkpoint.Relationships.Any(other => other.Id != relationship.Id &&
+                                    other.Type == SocietyRelationshipType.Caregiver && other.State == SocietyRelationshipState.Accepted &&
+                                    other.ProposerId == id && other.HouseholdId == household.Id)).ToArray()
                             : household.CaregiverIds,
                     }
                     : item)

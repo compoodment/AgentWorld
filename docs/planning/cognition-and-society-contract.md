@@ -616,6 +616,15 @@ The death reducer performs the following ordered work in one lifecycle commit:
    historical; current care queries use only surviving active caregivers and
    require a new valid transition for reassignment.
 
+The settlement care review exposes a voluntary offer to eligible adults in the
+same household when a minor has no surviving active caregiver. For an infant,
+the protected transition records only the volunteering adult's acceptance; it
+does not fabricate the infant's consent. Older dependents independently accept
+or refuse the exact proposal. Pending proposals expire, participants can
+withdraw, and parentage/birth records are never rewritten. A competing offer
+revalidates against the already committed assignment. This bounded caregiving
+path does not implement a separate legal-guardianship institution.
+
 The estate is identified by the death event and cannot be created twice. At
 death it snapshots the eligible active household/caregiver beneficiary IDs,
 sorted by immutable ID, and holds the remaining lots for seven world days.

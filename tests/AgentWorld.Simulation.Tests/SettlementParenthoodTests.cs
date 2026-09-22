@@ -7,7 +7,7 @@ using AgentWorld.Viewer.Observation;
 
 namespace AgentWorld.Simulation.Tests;
 
-public sealed class SettlementParenthoodTests
+public sealed partial class SettlementParenthoodTests
 {
     [Fact]
     public async Task ConsentingParentsPrepareAcrossRestartAndFeedARealChildWithoutInfantProviderCalls()
