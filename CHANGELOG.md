@@ -8,6 +8,9 @@ release yet.
 
 ### Added
 
+- Preserved sibling and direct-ancestor partnership exclusions after relatives
+  die, including grandparents. Ordinary relationship commands can no longer
+  revoke historical parentage or accept a fabricated parentage proposal.
 - Connected replacement caregiving after a dependent loses all active carers.
   Adults volunteer; infants receive protected care without fabricated consent,
   while older dependents independently accept/refuse. Offers expire, either

@@ -7,6 +7,72 @@ namespace AgentWorld.Simulation.Tests;
 
 public sealed class SettlementFamilyTests
 {
+    [Fact]
+    public async Task LegacyRevokedParentageStillCountsAsFamilyHistory()
+    {
+        var state = await PreparedState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        var parent = state.Inhabitants[2].InhabitantId;
+        var tick = state.Society.Society.WorldTick;
+        var edges = new[] { first, second }.Select(child => new SocietyRelationship("legacy-parent:" + child, 1,
+            SocietyRelationshipType.BiologicalParentage, parent, child, SocietyRelationshipState.Revoked,
+            SocietyConsentState.Revoked, tick, tick, "family"));
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Relationships = state.Society.Society.Relationships.Concat(edges).OrderBy(edge => edge.Id, StringComparer.Ordinal).ToArray(),
+                }
+            }
+        };
+        using var world = PrivateWorldRuntime.Restore(state, actor => new FamilyProvider(actor == first ? "partner_propose:" : "safe_idle"));
+        await world.AdvanceOneTickAsync();
+        Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Partnership);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task AncestryAndSiblingExclusionsSurviveInterveningRelativeDeath(bool ancestor, bool relativeDies)
+    {
+        var state = await PreparedState();
+        var first = state.Inhabitants[0].InhabitantId;
+        var second = state.Inhabitants[1].InhabitantId;
+        var middle = state.Inhabitants[2].InhabitantId;
+        var tick = state.Society.Society.WorldTick;
+        SocietyRelationship[] edges =
+        [
+            new("ancestry:1", 1, SocietyRelationshipType.BiologicalParentage, ancestor ? first : middle, ancestor ? middle : first,
+                SocietyRelationshipState.Accepted, SocietyConsentState.ProtectedLifecycle, tick, tick, "household"),
+            new("ancestry:2", 1, SocietyRelationshipType.BiologicalParentage, middle, second,
+                SocietyRelationshipState.Accepted, SocietyConsentState.ProtectedLifecycle, tick, tick, "household"),
+        ];
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Relationships = state.Society.Society.Relationships.Concat(edges).OrderBy(edge => edge.Id, StringComparer.Ordinal).ToArray(),
+                }
+            }
+        };
+        if (relativeDies)
+        {
+            using var society = SocietyWorldRuntime.Restore(state.Society);
+            society.Apply(checkpoint => SocietyFixture.Kill(checkpoint, middle, SocietyDeathCause.Accident, tick));
+            state = state with { Society = society.ExportState(), Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != middle).ToArray() };
+        }
+        using var world = PrivateWorldRuntime.Restore(state, actor => new FamilyProvider(actor == first ? "partner_propose:" : "safe_idle"));
+        await world.AdvanceOneTickAsync();
+        Assert.DoesNotContain(world.Society.Relationships, edge => edge.Type == SocietyRelationshipType.Partnership);
+    }
+
     [Theory]
     [InlineData("partner_accept:", SocietyRelationshipState.Accepted)]
     [InlineData("partner_refuse:", SocietyRelationshipState.Rejected)]

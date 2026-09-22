@@ -93,6 +93,43 @@ public sealed class SocietyTests
                 relationship.TargetId == committed.CreatedId);
     }
 
+    [Theory]
+    [InlineData("propose")]
+    [InlineData("accept")]
+    [InlineData("revoke")]
+    public void BiologicalParentageCannotBeEditedThroughOrdinaryRelationshipCommands(string operation)
+    {
+        var checkpoint = Genesis(TestConfig(), "alice", "bob");
+        checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home", "Home", ["alice", "bob"]).Checkpoint;
+        checkpoint = AcceptPartnership(checkpoint, "alice", "bob");
+        var birth = SocietyFixture.CommitBirth(checkpoint, new("history-child", 1, "alice", "bob", "home",
+            ["alice", "bob"], ["alice", "bob"], "food-lot", 2, checkpoint.WorldTick));
+        checkpoint = birth.Checkpoint;
+        var edge = checkpoint.Relationships.First(item => item.Type == SocietyRelationshipType.BiologicalParentage);
+        if (operation == "propose")
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => SocietyFixture.ProposeRelationship(checkpoint,
+                new("fake-parentage", 1, SocietyRelationshipType.BiologicalParentage, "bob", "alice", checkpoint.WorldTick)));
+            return;
+        }
+        if (operation == "accept")
+        {
+            checkpoint = checkpoint with
+            {
+                Relationships = checkpoint.Relationships.Select(item => item.Id == edge.Id
+                ? item with { State = SocietyRelationshipState.Proposed, Consent = SocietyConsentState.Pending } : item).ToArray()
+            };
+        }
+        var result = operation switch
+        {
+            "accept" => SocietyFixture.AcceptRelationship(checkpoint, edge.Id, edge.Revision, edge.TargetId),
+            _ => SocietyFixture.RevokeRelationship(checkpoint, edge.Id, edge.ProposerId),
+        };
+        Assert.Equal(checkpoint.Relationships, result.Checkpoint.Relationships);
+        Assert.Equal(checkpoint.Births, result.Checkpoint.Births);
+        Assert.Contains(result.NewEvents!, item => item.Kind == "relationship_rejected");
+    }
+
     [Fact]
     public void NaturalMortalityIsGradualPolicyAndEstateSettlementIsDeterministic()
     {

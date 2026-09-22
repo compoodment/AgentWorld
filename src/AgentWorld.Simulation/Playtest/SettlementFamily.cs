@@ -20,8 +20,25 @@ public sealed partial class PrivateWorldRuntime
     private bool CloseKin(string actor, string other)
     {
         var parentage = society.Checkpoint.Relationships.Where(item =>
-            item.Type == SocietyRelationshipType.BiologicalParentage && item.State == SocietyRelationshipState.Accepted).ToArray();
-        return parentage.Any(item => item.ProposerId == actor && item.TargetId == other || item.ProposerId == other && item.TargetId == actor) ||
+            item.Type == SocietyRelationshipType.BiologicalParentage &&
+            item.State is not (SocietyRelationshipState.Proposed or SocietyRelationshipState.Rejected)).ToArray();
+        static bool HasAncestor(IReadOnlyList<SocietyRelationship> edges, string descendant, string ancestor)
+        {
+            var pending = new Stack<string>();
+            var visited = new HashSet<string>(StringComparer.Ordinal);
+            pending.Push(descendant);
+            while (pending.TryPop(out var current))
+            {
+                if (!visited.Add(current)) continue;
+                foreach (var edge in edges.Where(edge => edge.TargetId == current))
+                {
+                    if (edge.ProposerId == ancestor) return true;
+                    pending.Push(edge.ProposerId);
+                }
+            }
+            return false;
+        }
+        return HasAncestor(parentage, actor, other) || HasAncestor(parentage, other, actor) ||
             parentage.Where(item => item.TargetId == actor).Select(item => item.ProposerId)
                 .Intersect(parentage.Where(item => item.TargetId == other).Select(item => item.ProposerId), StringComparer.Ordinal).Any();
     }

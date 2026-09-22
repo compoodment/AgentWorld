@@ -150,6 +150,8 @@ caregivers now volunteer after all active carers are lost. Infants receive a
 protected care transition; older dependents accept/refuse independently. Tests
 cover competing volunteers, restart, refusal/expiry and actual feeding without
 rewriting parentage. This is caregiving, not a complete legal-guardianship system.
+Historical parentage now also preserves sibling/direct-ancestor partnership
+exclusions across deaths and rejects ordinary attempts to edit biological ties.
 
 ## Later — Creation and richer worlds
 

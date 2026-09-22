@@ -169,6 +169,8 @@ public static partial class SocietyFixture
         Validate(checkpoint);
         var relationship = checkpoint.GetRelationship(relationshipId);
         var acceptor = NormalizeRequiredText(acceptorId, nameof(acceptorId));
+        if (relationship.Type == SocietyRelationshipType.BiologicalParentage)
+            return Reject(checkpoint, "relationship_rejected", "parentage_requires_birth_transaction");
         if (relationship.State != SocietyRelationshipState.Proposed || relationship.Revision != revision ||
             relationship.TargetId != acceptor)
         {
@@ -255,6 +257,8 @@ public static partial class SocietyFixture
         Validate(checkpoint);
         var relationship = checkpoint.GetRelationship(relationshipId);
         var actor = NormalizeRequiredText(actorId, nameof(actorId));
+        if (relationship.Type == SocietyRelationshipType.BiologicalParentage)
+            return Reject(checkpoint, "relationship_rejected", "parentage_is_historical");
         if (relationship.State is not (SocietyRelationshipState.Accepted or SocietyRelationshipState.Proposed) ||
             (relationship.ProposerId != actor && relationship.TargetId != actor))
         {

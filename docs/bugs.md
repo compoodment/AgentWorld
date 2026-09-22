@@ -64,6 +64,16 @@ keeps the existing world manually paused.
 
 ## Runtime audit issues
 
+- **AW-B010 — fixed:** partnership kinship checks discarded death-ended
+  parentage and only checked direct parents, allowing siblings after parental
+  death and missing grandparents. Historical parentage now supplies sibling
+  and full direct-ancestor checks; runtime scenarios cover living/dead
+  intermediate relatives and incorrectly revoked legacy parentage.
+- **AW-B011 — fixed:** generic relationship revocation could revoke biological
+  parentage despite the immutable-history contract. Revocation and acceptance
+  of fabricated parentage proposals now reject without changing edges/births;
+  proposal creation remains restricted to the birth transaction.
+
 - **AW-B009 — fixed:** revoking one caregiver relationship removed the adult
   from household caregiver tracking even when another dependent still had an
   accepted care edge. Projection now retains the adult until the last relevant
