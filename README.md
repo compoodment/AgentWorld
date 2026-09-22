@@ -135,6 +135,17 @@ state and paired-device authority state are stored separately and atomically; a
 configured seed checks the identity of an existing saved world rather than
 silently replacing it.
 
+For playtesting with hosted chat models, set
+`AgentWorld__Runtime__DecisionProvider=openai` or
+`AgentWorld__Runtime__DecisionProvider=ollama-cloud`, provide the model through
+`AgentWorld__Runtime__Model`, and provide `OPENAI_API_KEY` or `OLLAMA_API_KEY`
+to the host environment. Both use the same bounded OpenAI-compatible adapter;
+the endpoint can be overridden with
+`AgentWorld__Runtime__ModelEndpoint`. Credentials are read at request time and
+never enter world state. See the
+[playtest vertical-slice plan](docs/implementation/playtest-vertical-slice.md)
+for the larger path from the current inspector to an actual playable world.
+
 Paused authoring can attach an asset reference only when its exact `assetId`
 and lowercase `sha256:<64-hex>` digest appear in the host-owned approved-asset
 catalog. The deployed service reads

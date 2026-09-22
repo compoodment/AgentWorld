@@ -9,6 +9,9 @@ var runtimeSeed = builder.Configuration["AgentWorld:Runtime:Seed"] ?? SeededWorl
 var advanceFixture = builder.Configuration.GetValue<bool>("AgentWorld:Runtime:AdvanceScript");
 var configuredDecisionProvider = builder.Configuration["AgentWorld:Runtime:DecisionProvider"] ?? "deterministic";
 var configuredJevModel = builder.Configuration["AgentWorld:Runtime:JevModel"] ?? "jev-1.13.0";
+var configuredModel = builder.Configuration["AgentWorld:Runtime:Model"];
+var configuredModelEndpoint = builder.Configuration["AgentWorld:Runtime:ModelEndpoint"];
+var configuredModelApiKeyEnvironmentVariable = builder.Configuration["AgentWorld:Runtime:ModelApiKeyEnvironmentVariable"];
 var publicPort = builder.Configuration.GetValue("AgentWorld:Http:Port", 5188);
 var localApprovalPort = builder.Configuration.GetValue<int?>("AgentWorld:Pairing:LocalApprovalPort") ?? 0;
 if (publicPort is <= 0 or > 65535 || localApprovalPort is < 0 or > 65535 || localApprovalPort == publicPort)
@@ -41,17 +44,54 @@ var approvedAssetCatalog = ApprovedAssetCatalog.LoadOrDeny(approvedAssetCatalogP
 builder.Services.AddSingleton<IOwnerApprovedAssetReferencePolicy>(approvedAssetCatalog);
 builder.Services.AddSingleton(approvedAssetCatalog);
 builder.Services.AddHttpClient("typesafe");
+builder.Services.AddHttpClient("model");
 builder.Services.AddSingleton<IDecisionProvider>(services =>
 {
-    if (!string.Equals(configuredDecisionProvider, "jev", StringComparison.OrdinalIgnoreCase))
+    if (string.Equals(configuredDecisionProvider, "deterministic", StringComparison.OrdinalIgnoreCase))
     {
         return new DeterministicDecisionProvider();
     }
 
-    return new JevDecisionProvider(
-        services.GetRequiredService<IHttpClientFactory>().CreateClient("typesafe"),
-        () => Environment.GetEnvironmentVariable("TYPESAFE_API_KEY"),
-        model: configuredJevModel);
+    if (string.Equals(configuredDecisionProvider, "jev", StringComparison.OrdinalIgnoreCase))
+    {
+        return new JevDecisionProvider(
+            services.GetRequiredService<IHttpClientFactory>().CreateClient("typesafe"),
+            () => Environment.GetEnvironmentVariable("TYPESAFE_API_KEY"),
+            model: configuredJevModel);
+    }
+
+    var isOllama = string.Equals(configuredDecisionProvider, "ollama", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(configuredDecisionProvider, "ollama-cloud", StringComparison.OrdinalIgnoreCase);
+    var isOpenAi = string.Equals(configuredDecisionProvider, "openai", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(configuredDecisionProvider, "openai-compatible", StringComparison.OrdinalIgnoreCase);
+    if (!isOllama && !isOpenAi)
+    {
+        throw new InvalidOperationException(
+            $"Unsupported AgentWorld:Runtime:DecisionProvider '{configuredDecisionProvider}'. " +
+            "Expected deterministic, jev, openai, or ollama-cloud.");
+    }
+
+    var endpointText = configuredModelEndpoint ??
+        (isOllama ? "https://ollama.com/v1/chat/completions" : "https://api.openai.com/v1/chat/completions");
+    if (!Uri.TryCreate(endpointText, UriKind.Absolute, out var endpoint))
+    {
+        throw new InvalidOperationException("AgentWorld:Runtime:ModelEndpoint must be an absolute URI.");
+    }
+
+    var model = configuredModel?.Trim();
+    if (string.IsNullOrWhiteSpace(model))
+    {
+        throw new InvalidOperationException(
+            "AgentWorld:Runtime:Model is required when a hosted model provider is selected.");
+    }
+
+    var apiKeyEnvironmentVariable = configuredModelApiKeyEnvironmentVariable ??
+        (isOllama ? "OLLAMA_API_KEY" : "OPENAI_API_KEY");
+    return new OpenAiCompatibleDecisionProvider(
+        services.GetRequiredService<IHttpClientFactory>().CreateClient("model"),
+        () => Environment.GetEnvironmentVariable(apiKeyEnvironmentVariable),
+        endpoint,
+        model);
 });
 builder.Services.AddSingleton<OwnerWorldStateFile>(services => new OwnerWorldStateFile(
     runtimeStatePath,

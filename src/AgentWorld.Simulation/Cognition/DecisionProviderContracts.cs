@@ -1,3 +1,4 @@
+using System.Net;
 using System.Collections.ObjectModel;
 using System.Net.Http.Headers;
 using System.Text;
@@ -423,4 +424,234 @@ public sealed class JevDecisionProvider : IDecisionProvider
         string Type,
         string Instructions,
         IReadOnlyDictionary<string, string> Criteria);
+}
+
+/// <summary>
+/// Adapter for providers that expose an OpenAI-compatible chat-completions
+/// endpoint. OpenAI and Ollama Cloud use this same boundary; the endpoint,
+/// model, and environment-variable-backed credential are host configuration,
+/// never world state.
+///
+/// The model is asked for one small JSON object containing a legal candidate
+/// choice. The cognition runtime still validates the selected ID and executes
+/// the action, so a hosted model never gains simulation authority.
+/// </summary>
+public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
+{
+    private readonly HttpClient httpClient;
+    private readonly Func<string?> apiKeyAccessor;
+    private readonly Uri endpoint;
+    private readonly string model;
+    private readonly TimeSpan requestTimeout;
+
+    public OpenAiCompatibleDecisionProvider(
+        HttpClient httpClient,
+        Func<string?> apiKeyAccessor,
+        Uri endpoint,
+        string model,
+        TimeSpan? requestTimeout = null,
+        long providerEpoch = 2)
+    {
+        this.httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        this.apiKeyAccessor = apiKeyAccessor ?? throw new ArgumentNullException(nameof(apiKeyAccessor));
+        this.endpoint = endpoint ?? throw new ArgumentNullException(nameof(endpoint));
+        if (!this.endpoint.IsAbsoluteUri ||
+            (this.endpoint.Scheme != Uri.UriSchemeHttps && !IsAllowedLocalHttpEndpoint(this.endpoint)))
+        {
+            throw new ArgumentException(
+                "The OpenAI-compatible endpoint must be HTTPS, or HTTP on loopback for local development.",
+                nameof(endpoint));
+        }
+
+        this.model = NormalizeRequiredText(model, nameof(model));
+        this.requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(45);
+        if (this.requestTimeout <= TimeSpan.Zero || this.requestTimeout > TimeSpan.FromMinutes(5))
+        {
+            throw new ArgumentOutOfRangeException(nameof(requestTimeout));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(providerEpoch);
+        ProviderEpoch = providerEpoch;
+    }
+
+    public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+
+    public long ProviderEpoch { get; }
+
+    public async ValueTask<CognitionDecisionResponse> DecideAsync(
+        CognitionDecisionRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        request.Validate();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var apiKey = apiKeyAccessor()?.Trim();
+        var payload = new
+        {
+            model,
+            temperature = 0,
+            response_format = new { type = "json_object" },
+            messages = new object[]
+            {
+                new
+                {
+                    role = "system",
+                    content = "Choose exactly one legal candidate. Return JSON only, with fields " +
+                        "selected_candidate_id (string), confidence (number 0..1), and " +
+                        "probabilities (object mapping candidate IDs to numbers 0..1). Do not include reasoning.",
+                },
+                new
+                {
+                    role = "user",
+                    content = JsonSerializer.Serialize(new
+                    {
+                        inhabitant_id = request.Observation.InhabitantId,
+                        world_tick = request.Observation.WorldTick,
+                        run_epoch = request.Observation.RunEpoch,
+                        decision_generation = request.Observation.DecisionGeneration,
+                        hunger_basis_points = request.Observation.HungerBasisPoints,
+                        energy_basis_points = request.Observation.EnergyBasisPoints,
+                        candidates = request.Observation.Candidates.Select(candidate => new
+                        {
+                            id = candidate.Id,
+                            description = candidate.Description,
+                            destination_id = candidate.DestinationId,
+                        }).ToArray(),
+                    }, JsonOptions),
+                },
+            },
+        };
+
+        var json = JsonSerializer.Serialize(payload, JsonOptions);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(requestTimeout);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json"),
+        };
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        }
+
+        using var response = await httpClient.SendAsync(
+            httpRequest,
+            HttpCompletionOption.ResponseHeadersRead,
+            timeout.Token).ConfigureAwait(false);
+        var responseBody = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"OpenAI-compatible provider returned HTTP {(int)response.StatusCode} ({response.StatusCode}).");
+        }
+
+        return ParseResponse(request, responseBody);
+    }
+
+    private static CognitionDecisionResponse ParseResponse(
+        CognitionDecisionRequest request,
+        string responseBody)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(responseBody);
+            var root = document.RootElement;
+            var modelId = root.TryGetProperty("model", out var modelProperty)
+                ? modelProperty.GetString()
+                : null;
+            var content = root.GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString();
+            using var answer = JsonDocument.Parse(NormalizeJsonContent(content));
+            var answerRoot = answer.RootElement;
+            var selected = answerRoot.GetProperty("selected_candidate_id").GetString();
+            var confidence = answerRoot.GetProperty("confidence").GetDouble();
+            var probabilities = answerRoot.TryGetProperty("probabilities", out var probabilitiesProperty)
+                ? probabilitiesProperty.EnumerateObject().ToDictionary(
+                    property => property.Name,
+                    property => property.Value.GetDouble(),
+                    StringComparer.Ordinal)
+                : request.Observation.Candidates.ToDictionary(
+                    candidate => candidate.Id,
+                    candidate => string.Equals(candidate.Id, selected, StringComparison.Ordinal) ? 1d : 0d,
+                    StringComparer.Ordinal);
+
+            var usage = TryParseUsage(root, modelId);
+            return new CognitionDecisionResponse(
+                request.RequestId,
+                request.Observation.InhabitantId,
+                DecisionProviderKind.LargeLanguageModel,
+                request.ProviderEpoch,
+                request.Observation.RunEpoch,
+                request.Observation.DecisionGeneration,
+                request.Observation.ObservationDigest,
+                NormalizeRequiredText(selected ?? string.Empty, "selected_candidate_id"),
+                confidence,
+                probabilities,
+                usage);
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("The OpenAI-compatible provider returned malformed JSON.", exception);
+        }
+        catch (KeyNotFoundException exception)
+        {
+            throw new InvalidDataException("The OpenAI-compatible provider returned an incomplete choice response.", exception);
+        }
+        catch (IndexOutOfRangeException exception)
+        {
+            throw new InvalidDataException("The OpenAI-compatible provider returned no choices.", exception);
+        }
+    }
+
+    private static CognitionUsage? TryParseUsage(JsonElement root, string? modelId)
+    {
+        if (!root.TryGetProperty("usage", out var usage))
+        {
+            return modelId is null ? null : new CognitionUsage(modelId, 0, 0);
+        }
+
+        var inputTokens = TryGetInt(usage, "prompt_tokens") ?? TryGetInt(usage, "input_tokens") ?? 0;
+        var outputTokens = TryGetInt(usage, "completion_tokens") ?? TryGetInt(usage, "output_tokens") ?? 0;
+        return new CognitionUsage(modelId, inputTokens, outputTokens);
+    }
+
+    private static int? TryGetInt(JsonElement element, string propertyName) =>
+        element.TryGetProperty(propertyName, out var property) && property.TryGetInt32(out var value)
+            ? value
+            : null;
+
+    private static string NormalizeJsonContent(string? content)
+    {
+        var normalized = NormalizeRequiredText(content ?? string.Empty, "message.content").Trim();
+        if (normalized.StartsWith("```", StringComparison.Ordinal))
+        {
+            var firstLineEnd = normalized.IndexOf('\n');
+            var lastFence = normalized.LastIndexOf("```", StringComparison.Ordinal);
+            if (firstLineEnd > 0 && lastFence > firstLineEnd)
+            {
+                normalized = normalized[(firstLineEnd + 1)..lastFence].Trim();
+            }
+        }
+
+        return normalized;
+    }
+
+    private static bool IsAllowedLocalHttpEndpoint(Uri value) =>
+        value.Scheme == Uri.UriSchemeHttp &&
+        (string.Equals(value.Host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+         IPAddress.TryParse(value.Host, out var address) && IPAddress.IsLoopback(address));
+
+    private static string NormalizeRequiredText(string? value, string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, name);
+        return value.Trim();
+    }
+
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
 }

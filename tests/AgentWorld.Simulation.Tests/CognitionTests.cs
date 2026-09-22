@@ -109,6 +109,44 @@ public sealed class CognitionTests
         Assert.Equal(7, response.Usage?.OutputTokens);
     }
 
+    [Fact]
+    public async Task OpenAiCompatibleAdapterSupportsStructuredChoiceAndUsage()
+    {
+        var handler = new RecordingHandler(OpenAiCompatibleJsonResponse());
+        using var client = new HttpClient(handler);
+        var provider = new OpenAiCompatibleDecisionProvider(
+            client,
+            () => "openai-test-secret",
+            new Uri("https://model.test/v1/chat/completions"),
+            "test-model");
+        var observation = new InhabitantObservation(
+            "actor-scout",
+            9,
+            1,
+            3,
+            "sha256:observation-9",
+            3_000,
+            6_000,
+            [
+                new CognitionCandidate("safe_idle", "Continue safely.", 0),
+                new CognitionCandidate("seek_food", "Travel to food.", 10, "berry-patch"),
+            ]);
+        var request = new CognitionDecisionRequest("cognition-openai-test", 2, observation);
+
+        var response = await provider.DecideAsync(request);
+        using var body = JsonDocument.Parse(handler.Body ?? throw new InvalidDataException());
+
+        Assert.Equal(HttpMethod.Post, handler.Method);
+        Assert.Equal("Bearer openai-test-secret", handler.Authorization);
+        Assert.Equal("test-model", body.RootElement.GetProperty("model").GetString());
+        Assert.Equal("json_object", body.RootElement.GetProperty("response_format").GetProperty("type").GetString());
+        Assert.Equal("seek_food", response.SelectedCandidateId);
+        Assert.Equal(0.91, response.Confidence);
+        Assert.Equal("test-model", response.Usage?.ModelId);
+        Assert.Equal(44, response.Usage?.InputTokens);
+        Assert.Equal(9, response.Usage?.OutputTokens);
+    }
+
     private static string JsonResponse() =>
         """
         {
@@ -122,6 +160,22 @@ public sealed class CognitionTests
             }
           },
           "usage": { "input_tokens": 123, "output_tokens": 7 }
+        }
+        """;
+
+    private static string OpenAiCompatibleJsonResponse() =>
+        """
+        {
+          "model": "test-model",
+          "choices": [
+            {
+              "message": {
+                "role": "assistant",
+                "content": "{\"selected_candidate_id\":\"seek_food\",\"confidence\":0.91,\"probabilities\":{\"safe_idle\":0.09,\"seek_food\":0.91}}"
+              }
+            }
+          ],
+          "usage": { "prompt_tokens": 44, "completion_tokens": 9 }
         }
         """;
 
