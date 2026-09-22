@@ -73,6 +73,11 @@ capabilities remain disabled until a separate sandbox contract exists.
     provenance, preview references, PNG bounds, and byte reservations. Decode
     rejects non-canonical or tampered bytes and never carries asset payloads,
     paths, URLs, or executable content.
+15. **Data-only package artifact envelope:** a package manifest and its complete
+    asset provenance manifests can be handed off as one canonical nested JSON
+    artifact. Artifact validation matches asset identities, digests, and byte
+    reservations; export additionally rejects non-redistributable rights and
+    disabled executable capabilities.
 
 ## Evidence
 
@@ -109,10 +114,12 @@ capabilities remain disabled until a separate sandbox contract exists.
 - `AssetProvenanceManifestCodecTests` covers order-independent canonical bytes,
   normalized-asset round-trips, strict formatting/tamper rejection, and
   local-only unknown-rights manifests.
+- `ContentPackageArtifactCodecTests` covers nested canonical round-trips,
+  reservation/provenance matching, missing-manifest rejection, and export
+  rights/capability gates.
 
 ## Still required for the alpha gate
 
-- package artifact transport/export;
 - isolated process preview/test-world execution and actual renderer/decode
   binding on top of the value-only cache ledger;
 - the remaining economy/world rules that consume declarative definitions.
