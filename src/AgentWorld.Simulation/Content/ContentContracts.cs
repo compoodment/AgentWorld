@@ -204,7 +204,8 @@ public sealed record ContentPackageRecord(
     string? LockDigest,
     long? ValidationTick,
     long? ActivationTick,
-    long? StagedTick = null);
+    long? StagedTick = null,
+    string? ManifestDigest = null);
 
 public sealed record ContentGovernanceEvent(
     long EventId,
@@ -469,13 +470,22 @@ public sealed class ContentPackageRegistry
             ArgumentNullException.ThrowIfNull(package);
             package.Manifest.Validate();
             RejectForbiddenCapabilities(package.Manifest);
+            var expectedManifestDigest = ContentPackageManifestCodec.ComputeManifestDigest(package.Manifest);
+            if (package.ManifestDigest is not null &&
+                !string.Equals(package.ManifestDigest, expectedManifestDigest, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    $"Content package '{package.Manifest.PackageId}' has a mismatched manifest digest.");
+            }
+
+            var normalizedPackage = package with { ManifestDigest = expectedManifestDigest };
             if (!string.Equals(package.Manifest.PackageId, package.Manifest.PackageId.Trim(), StringComparison.Ordinal) ||
-                !registry.packages.TryAdd(package.Manifest.PackageId, package))
+                !registry.packages.TryAdd(package.Manifest.PackageId, normalizedPackage))
             {
                 throw new InvalidDataException("The content registry contains duplicate or non-canonical package records.");
             }
 
-            ValidateRecord(package);
+            ValidateRecord(normalizedPackage);
         }
 
         var expectedEventId = 1L;
@@ -514,7 +524,14 @@ public sealed class ContentPackageRegistry
             throw new InvalidOperationException($"Package '{manifest.PackageId}' already has a lifecycle record.");
         }
 
-        var record = new ContentPackageRecord(manifest, ContentPackageLifecycle.Proposed, null, null, null);
+        var record = new ContentPackageRecord(
+            manifest,
+            ContentPackageLifecycle.Proposed,
+            null,
+            null,
+            null,
+            null,
+            ContentPackageManifestCodec.ComputeManifestDigest(manifest));
         packages.Add(manifest.PackageId, record);
         AppendEvent(0, manifest.PackageId, "package_proposed", manifest.PackageDigest);
         return record;
@@ -629,6 +646,13 @@ public sealed class ContentPackageRegistry
 
     private static void ValidateRecord(ContentPackageRecord record)
     {
+        var expectedManifestDigest = ContentPackageManifestCodec.ComputeManifestDigest(record.Manifest);
+        if (!string.Equals(record.ManifestDigest, expectedManifestDigest, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                $"Content package '{record.Manifest.PackageId}' has no valid canonical manifest digest.");
+        }
+
         if (record.Lifecycle == ContentPackageLifecycle.Validated &&
             (record.LockDigest is null || record.ValidationTick is null))
         {

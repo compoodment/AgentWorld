@@ -67,7 +67,8 @@ public sealed record OwnerContentPackageReceipt(
     long? ValidationTick,
     long? StagedTick,
     long? ActivationTick,
-    string? Failure)
+    string? Failure,
+    string? ManifestDigest = null)
 {
     public static OwnerContentPackageReceipt From(
         string operation,
@@ -82,7 +83,8 @@ public sealed record OwnerContentPackageReceipt(
             record.ValidationTick,
             record.StagedTick,
             record.ActivationTick,
-            null);
+            null,
+            record.ManifestDigest);
 }
 
 public static class OwnerContentBinding

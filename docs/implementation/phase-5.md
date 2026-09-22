@@ -58,6 +58,11 @@ capabilities remain disabled until a separate sandbox contract exists.
     render-work ceilings. Shared normalized digests are charged once for byte
     budgets while package references still count render work; rollback releases
     the package reservation.
+12. **Canonical manifest provenance:** package manifests have a stable UTF-8
+    wire form with deterministic collection ordering, strict canonical-byte
+    decoding, and a persisted `ManifestDigest`. Registry restore recomputes and
+    verifies that digest, so tampered manifest metadata fails closed without
+    creating a circular dependency between package identity and asset IDs.
 
 ## Evidence
 
@@ -85,10 +90,13 @@ capabilities remain disabled until a separate sandbox contract exists.
   signed lifecycle/action routing, and rollback.
 - `ContentDefinitionTests` covers mutation-free preview success and failure
   isolation.
+- `ContentPackageManifestCodecTests` covers order-independent canonical bytes,
+  strict decoding, stable manifest digests, registry persistence, and tamper
+  rejection.
 
 ## Still required for the alpha gate
 
-- package serialization/provenance and exact manifest-byte digests;
+- package artifact transport/export and complete asset provenance manifests;
 - isolated process preview/test-world execution and renderer cache integration
   on top of the persisted world reservation ledger;
 - the remaining economy/world rules that consume declarative definitions.

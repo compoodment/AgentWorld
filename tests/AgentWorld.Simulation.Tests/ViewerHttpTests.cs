@@ -320,6 +320,7 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
             var proposedReceipt = await proposed.Content.ReadFromJsonAsync<OwnerContentPackageReceipt>();
             Assert.Equal(HttpStatusCode.OK, proposed.StatusCode);
             Assert.Equal("proposed", proposedReceipt!.Lifecycle);
+            Assert.Matches("^sha256:[0-9a-f]{64}$", proposedReceipt.ManifestDigest);
 
             var packageId = new OwnerContentPackageIdAction(package.PackageId);
             using var validated = await SendSignedAsync(

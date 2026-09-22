@@ -267,7 +267,8 @@ public sealed class OwnerWorldObservationStore
                     package.LockDigest,
                     package.ValidationTick,
                     package.StagedTick,
-                    package.ActivationTick))
+                    package.ActivationTick,
+                    package.ManifestDigest))
                 .ToArray() ?? [],
             ContentEvents = state.Content?.Events
                 .OrderBy(item => item.EventId)

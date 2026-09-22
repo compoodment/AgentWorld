@@ -313,7 +313,8 @@ public sealed record OwnerContentPackageReceipt(
     long? ValidationTick,
     long? StagedTick,
     long? ActivationTick,
-    string? Failure);
+    string? Failure,
+    string? ManifestDigest = null);
 
 /// <summary>
 /// Checks a complete signed owner baseline before giving it to the renderer.

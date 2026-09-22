@@ -87,7 +87,8 @@ public sealed record ViewerContentPackage(
     string? LockDigest,
     long? ValidationTick,
     long? StagedTick,
-    long? ActivationTick);
+    long? ActivationTick,
+    string? ManifestDigest = null);
 
 public sealed record ViewerContentGovernanceEvent(
     long EventId,
