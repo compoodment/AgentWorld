@@ -22,10 +22,13 @@ path.
 
 ## First repair increment
 
-- **AW-B001 — partially addressed:** normal host ticks now stage a validated,
+- **AW-B001 — implemented:** normal host ticks now stage a validated,
   versioned starter package for both fresh and old saves. Four buildings and
   three recipes lead to construction, production and household food pickup.
-  Three-input gathering and richer material/project loops remain roadmap work.
+  A dependency-linked supplement adds stone/fiber/seeds and hearth/weaving/grain
+  content; persistent projects acquire inputs and other inhabitants share
+  requested materials. The ordinary 1,000-tick settlement regression covers
+  three-input gathering, sharing, completion, eating and public gratitude.
 - **AW-B002 — implemented:** persisted idle observation keys prevent repeated
   calls for unchanged choices; a 300-tick deadline bounds reuse. A regression
   test proves four calls remain four through 61 ticks and a reload.

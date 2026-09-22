@@ -31,6 +31,12 @@ public static class StarterContent
             new(digest, "meal", version, "Cook a meal", [new("food", 2), new("wood", 1)], [new("food", 4)], 12, fire.CanonicalId, ["food"]),
             new(digest, "tools", version, "Craft tools", [new("wood", 3)], [new("tool", 1)], 20, workshop.CanonicalId, ["craft"]),
         ];
+        return BuildManifest(PackageId, version, digest, buildings, recipes, []);
+    }
+
+    internal static ContentPackageManifest BuildManifest(string packageId, ContentVersion version, string digest,
+        IEnumerable<BuildingDefinition> buildings, IEnumerable<RecipeDefinition> recipes, IReadOnlyList<ContentDependency> dependencies)
+    {
         var definitions = buildings.Select(building => new ContentDefinition(
             BuildingDefinition.SchemaKind, building.LocalId, version, building.DisplayName, building.PayloadDigest,
             JsonSerializer.Serialize(new
@@ -54,7 +60,7 @@ public static class StarterContent
                     recipe.Tags,
                 }, JsonOptions))))
             .ToArray();
-        var manifest = new ContentPackageManifest(PackageId, version, digest, [], definitions, []);
+        var manifest = new ContentPackageManifest(packageId, version, digest, dependencies, definitions, []);
         manifest.Validate();
         _ = ContentDefinitionPayloadCodec.ApplyPackage(new DeclarativeWorldContentState([], []), manifest);
         return manifest;

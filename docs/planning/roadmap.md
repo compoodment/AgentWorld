@@ -76,6 +76,18 @@ In an ordinary private-world session, without operator-only content injection:
 This gate is deliberately concrete: the systems must reinforce each other in
 the normal game, not merely pass separate fixture tests.
 
+### Integration evidence and remaining depth
+
+The ordinary seeded runtime now executes persistent acquisition/work projects,
+gathers wood/stone/fiber, shares requested materials, produces and consumes food,
+and exposes stores, project blockers and public gratitude in Godot. The
+1,000-tick `SettlementProjectTests` scenario verifies that connected loop;
+separate tests cover interrupted work and old-save migration. Provider/model
+assignments, idle reuse and menu fixes are delivered foundations for this loop.
+This is not evidence of richer negotiated barter, resentment/trust, emergent
+roles or useful clothing/tool effects. Those workstreams remain open; the next
+survival increment must make produced equipment and buildings matter.
+
 ## Next — Consequential survival
 
 Once a settlement has useful work, make the world push back:

@@ -73,8 +73,16 @@ public sealed record OwnerWorldInhabitant(
 {
     public OwnerWorldPublicIntention? PublicIntention { get; init; }
 
+    public OwnerWorldProject? Project { get; init; }
+
+    public IReadOnlyList<string> SocialNotes { get; init; } = [];
+
     public IReadOnlyList<OwnerWorldInhabitantRelationship> Relationships { get; init; } = [];
 }
+
+public sealed record OwnerWorldProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
+
+public sealed record OwnerWorldStockpile(string OwnerId, string Name, IReadOnlyList<OwnerWorldInventoryEntry> Items);
 
 public sealed record OwnerWorldInstruction(
     string InstructionId,
@@ -181,6 +189,7 @@ public sealed record OwnerWorldSnapshot(
     OwnerWorldActor? Actor,
     long LatestEventId)
 {
+    public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
 
     public OwnerWorldAuthoringState? Authoring { get; init; }

@@ -263,7 +263,7 @@ public sealed class PrivateWorldRuntimeTests
         Activate(runtime, package);
 
         var decisions = new List<SocietyCognitionDispatchResult>();
-        for (var tick = 0; tick < 6; tick++)
+        for (var tick = 0; tick < 100 && !runtime.WorldSimulation.ProductionJobs.Any(job => job.State == WorldProductionJobState.Completed); tick++)
         {
             var result = await runtime.AdvanceOneTickAsync();
             decisions.AddRange(result.Decisions);
@@ -294,7 +294,7 @@ public sealed class PrivateWorldRuntimeTests
         Activate(runtime, package);
 
         var decisions = new List<SocietyCognitionDispatchResult>();
-        for (var tick = 0; tick < 8; tick++)
+        for (var tick = 0; tick < 60 && !(runtime.WorldSimulation.CropBuilds ?? []).Any(job => job.State == WorldProductionJobState.Completed); tick++)
         {
             var result = await runtime.AdvanceOneTickAsync();
             decisions.AddRange(result.Decisions);

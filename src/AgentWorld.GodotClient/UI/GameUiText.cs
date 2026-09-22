@@ -51,7 +51,13 @@ public static class GameUiText
         if (normalized.StartsWith("build:recipe:", StringComparison.Ordinal) ||
             normalized.StartsWith("build:building:", StringComparison.Ordinal))
         {
-            return $"build {HumanizeIdentifier(normalized[(normalized.LastIndexOf(':') + 1)..])}";
+            var localId = normalized[(Math.Max(normalized.LastIndexOf('/'), normalized.LastIndexOf(':')) + 1)..];
+            var versionSeparator = localId.IndexOf('@');
+            if (versionSeparator >= 0)
+            {
+                localId = localId[..versionSeparator];
+            }
+            return $"build {HumanizeIdentifier(localId)}";
         }
 
         var known = normalized switch
@@ -60,6 +66,8 @@ public static class GameUiText
             "seek_food" => "find food",
             "seek_rest" => "rest",
             "eat_food" => "eat",
+            "consume_food" => "eat",
+            "collect_shared_food" => "collect food from camp",
             "harvest_food" => "gather food",
             _ => null,
         };

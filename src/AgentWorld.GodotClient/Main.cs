@@ -58,6 +58,7 @@ public partial class Main : Control
     private readonly Label climateLabel = new();
     private readonly Button inhabitantsButton = new();
     private readonly Button eventsButton = new();
+    private readonly Button settlementButton = new();
     private readonly Button menuButton = new();
     private readonly GridContainer worldGrid = new();
     private readonly Control mapCanvas = new();
@@ -76,6 +77,7 @@ public partial class Main : Control
     private readonly RichTextLabel eventLog = new();
     private readonly PanelContainer rosterPanel = new();
     private readonly PanelContainer eventsPanel = new();
+    private readonly PanelContainer settlementPanel = new();
     private readonly PanelContainer gameMenuPanel = new();
     private readonly PanelContainer settingsPanel = new();
     private readonly ColorRect menuShade = new();
@@ -180,10 +182,17 @@ public partial class Main : Control
                         {
                             throw new InvalidOperationException($"Menu escaped its centered bounds: window={size}, settings={settingsVisible}, selected={selected}, menu={menu}, bounds={bounds}");
                         }
+                        settlementPanel.Show();
+                        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                        if (!mapCanvas.GetGlobalRect().Encloses(settlementPanel.GetGlobalRect()))
+                        {
+                            throw new InvalidOperationException($"Settlement panel escaped the world viewport: window={size}");
+                        }
+                        settlementPanel.Hide();
                     }
                 }
             }
-            GD.Print("UI layout checks passed: centered menu with/without selection and settings at three window sizes.");
+            GD.Print("UI layout checks passed: centered menu with/without selection and settings, and settlement panel at three window sizes.");
             GetTree().Quit();
         }
         catch (Exception exception)
@@ -1174,6 +1183,16 @@ public partial class Main : Control
         inhabitantsButton.Pressed += ToggleInhabitants;
         topBar.AddChild(inhabitantsButton);
 
+        settlementButton.Text = "Settlement";
+        StyleButton(settlementButton);
+        settlementButton.Pressed += () =>
+        {
+            rosterPanel.Hide();
+            eventsPanel.Hide();
+            settlementPanel.Visible = !settlementPanel.Visible;
+        };
+        topBar.AddChild(settlementButton);
+
         eventsButton.Text = "Events";
         StyleButton(eventsButton);
         eventsButton.Pressed += ToggleEvents;
@@ -1439,6 +1458,13 @@ public partial class Main : Control
         eventsPanel.ZIndex = 80;
         eventsPanel.Hide();
         content.AddChild(eventsPanel);
+
+        ConfigureTextPanel(worldDetails, 320);
+        AddPanelContents(settlementPanel, "Settlement · stores and projects", worldDetails);
+        settlementPanel.CustomMinimumSize = new Vector2(420, 380);
+        settlementPanel.ZIndex = 80;
+        settlementPanel.Hide();
+        content.AddChild(settlementPanel);
     }
 
     private void BuildOwnerColumn(Control content)
@@ -1604,8 +1630,6 @@ public partial class Main : Control
         deviceManagementBody.AddChild(revokeDeviceButton);
         developerBody.AddChild(NewPanel("Paired-device management · signed server requests", deviceManagementBody));
 
-        ConfigureTextPanel(worldDetails, 180);
-        developerBody.AddChild(NewPanel("World projection details", worldDetails));
         developerScroll.Hide();
         body.AddChild(developerScroll);
         AddPanelContents(gameMenuPanel, body);
@@ -1647,7 +1671,7 @@ public partial class Main : Control
         ConfigureTextPanel(inhabitantDetails, 96);
         body.AddChild(inhabitantDetails);
 
-        ConfigureTextPanel(inhabitantSocialDetails, 62);
+        ConfigureTextPanel(inhabitantSocialDetails, 104);
         body.AddChild(inhabitantSocialDetails);
 
         var instructionHeading = new Label { Text = "Speak to them" };
@@ -1687,6 +1711,7 @@ public partial class Main : Control
     private void ToggleInhabitants()
     {
         var show = !rosterPanel.Visible;
+        settlementPanel.Hide();
         eventsPanel.Hide();
         rosterPanel.Visible = show;
     }
@@ -1694,6 +1719,7 @@ public partial class Main : Control
     private void ToggleEvents()
     {
         var show = !eventsPanel.Visible;
+        settlementPanel.Hide();
         rosterPanel.Hide();
         eventsPanel.Visible = show;
     }
@@ -1715,6 +1741,7 @@ public partial class Main : Control
         rosterPanel.Hide();
         eventsPanel.Hide();
         menuHeadingLabel.Text = "Paused";
+        settlementPanel.Hide();
         gameMenuPanel.Show();
         menuShade.Show();
         ApplyResponsiveLayout();
@@ -2095,8 +2122,13 @@ public partial class Main : Control
         var decision = snapshot.Cognition?.Decisions?.FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
         var activity = decision is null
             ? "No decision yet"
-            : $"{Pretty(decision.Provider)}{(decision.FellBack ? " (fallback)" : "")} · {Pretty(decision.CandidateId)} · tick {decision.WorldTick:N0}";
-        inhabitantSocialDetails.Text = $"{intention}\n{relationships}\n{activity}";
+            : $"{Pretty(decision.Provider)}{(decision.FellBack ? " (fallback)" : "")} · {GameUiText.HumanizeIdentifier(decision.CandidateId)}";
+        var projectText = inhabitant.Project is { } project
+            ? $"{project.Label} · {Pretty(project.Stage)} · {project.WorkDone}/{project.WorkRequired}" +
+                (project.Blocker is null ? "" : $"\n{project.Blocker}")
+            : "No settlement project";
+        var socialNotes = inhabitant.SocialNotes.Count == 0 ? "" : "\n" + string.Join("\n", inhabitant.SocialNotes);
+        inhabitantSocialDetails.Text = $"{(inhabitant.Project is null ? intention : projectText)}\n{relationships}{socialNotes}\n{activity}";
         inhabitantSocialDetails.TooltipText = decision is null ? "" :
             $"Last accepted decision\nRole: {decision.Role ?? "not reported"}\nModel: {decision.Model ?? "not reported"}\nConfidence: {decision.Confidence:P0}\n" +
             $"Latency: {decision.LatencyMilliseconds?.ToString(CultureInfo.CurrentCulture) ?? "—"} ms\n" +
@@ -2134,7 +2166,14 @@ public partial class Main : Control
             return;
         }
 
-        worldDetails.AppendText(
+        var stores = snapshot.Stockpiles.Count == 0 ? "No shared stores" : string.Join("\n", snapshot.Stockpiles.Select(stockpile =>
+            $"{stockpile.Name}: " + (stockpile.Items.Count == 0 ? "empty" : string.Join(" · ", stockpile.Items.Select(item => $"{Pretty(item.Kind)} {item.Quantity}")))));
+        var projects = snapshot.Inhabitants.Where(person => person.Project is not null).Select(person =>
+            $"{person.DisplayName}: {person.Project!.Label} · {Pretty(person.Project.Stage)}" +
+            (person.Project.Blocker is null ? "" : $"\n  {person.Project.Blocker}"));
+        worldDetails.Text = $"{(authoring.IsPaused ? "Paused" : "Playing")} · {GameUiText.FormatWorldClock(snapshot.WorldTick)}\n" +
+            $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}\n\nShared stores\n{stores}\n\nProjects\n{string.Join("\n", projects)}";
+        worldDetails.TooltipText =
             $"tick {snapshot.WorldTick} · revision {authoring.Revision} · epoch {authoring.RunEpoch}\n" +
             $"state: {(authoring.IsPaused ? "PAUSED — authoring allowed" : "RUNNING — authoring disabled")}\n" +
             $"weather/season: {authoring.Weather} / {authoring.Season}\n" +
@@ -2144,7 +2183,7 @@ public partial class Main : Control
             $"richer systems: {systems}\n" +
             $"content packages: {content}\n" +
             $"approved assets: {(authoring.ApprovedAssetReferences.Count == 0 ? "none" : string.Join(", ", authoring.ApprovedAssetReferences))}\n\n" +
-            $"queued instructions:\n{instructions}");
+            $"queued instructions:\n{instructions}";
     }
 
     private void RenderEventLog()
@@ -2326,6 +2365,7 @@ public partial class Main : Control
         }
 
         rosterPanel.Position = new Vector2(14, 14);
+        settlementPanel.Position = new Vector2(14, 14);
         eventsPanel.Position = new Vector2(
             Math.Max(14, viewport.X - Math.Max(eventsPanel.Size.X, eventsPanel.CustomMinimumSize.X) - 14),
             14);
@@ -2681,6 +2721,9 @@ public partial class Main : Control
     {
         "food" => "FOOD",
         "construction" => "WOOD",
+        "stone" => "STONE",
+        "fiber" => "FIBER",
+        "seed" => "SEEDS",
         _ => ShortMarker(kind),
     };
 
@@ -2688,6 +2731,9 @@ public partial class Main : Control
     {
         "food" => "●",
         "construction" => "▰",
+        "stone" => "⬟",
+        "fiber" => "♧",
+        "seed" => "✦",
         _ => "◆",
     };
 

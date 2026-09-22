@@ -137,6 +137,13 @@ chain-of-thought as authoritative state.
 
 ## Persistence and replay
 
+Private-world schema 5 persists bounded public settlement projects (goal,
+phase, work, blocker and job), not hidden model reasoning. The built-in
+settlement supplement may add stone/fiber/seed nodes to free passable cells;
+restore verifies the original generator output after removing only those
+registered additions. Existing paused checkpoints are not migrated on load.
+See the [schema policy](versioning-and-releases.md#private-world-save-schema-5).
+
 The integrated host atomically replaces its checkpoint after committed ticks.
 World, society, inventory, scheduler and individual cognition event histories
 compact from more than 2,048 entries to the latest 1,024 entries on save. Global

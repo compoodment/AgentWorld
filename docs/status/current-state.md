@@ -44,7 +44,8 @@ Provider work runs against an isolated proposed tick, so owner observations and
 pause remain responsive. Cancellation or intervening owner changes discard the
 proposal without partial world mutations. In-flight provider work is cancelled
 on manual pause or client lease expiry.
-Save schema 4 bounds hot histories
+Save schema 5 preserves work projects and additive settlement resources;
+the schema-4 history mechanism bounds hot histories
 and archives older events with verified hashes; reconnect explicitly resets
 stale cursors. See [persistence and backup requirements](../planning/architecture.md#persistence-and-replay).
 Signed polling uses process-local one-use challenges rather than rewriting
@@ -60,16 +61,16 @@ the authority file; old challenges fail closed after restart.
 | Survival | **Playable** | Hunger, energy, gathering, carried food, eating, sleep, resource depletion and regeneration | Shelter, exposure, varied nutrition and illness are not connected loops |
 | Observation and control | **Playable** | World view, inhabitants, needs, intentions, inventories, relationships, events, pause/resume and suggestive/must-do instructions | UI remains early-alpha and some diagnostics are operator-only |
 | Cognition | **Playable** | World defaults and per-inhabitant provider/model overrides; Jev for routine and OpenAI/Ollama Cloud for planning; validation, fallback, retry, safe logs and selection-card telemetry | Legal planning remains bounded to building/recipe choices, not free-form social reasoning |
-| Inventory and ownership | **Integrated but thin** | Authoritative lots, reservations, household/personal inventory, transfer and production completion | Very few useful item kinds are present in normal play; ownership is not yet a visible economy |
-| Buildings and production | **Integrated but thin** | Automatically staged starter shelter/storage/fire/workshop and crop/meal/tool recipes; placement, jobs, reservations, completion and household food pickup | Material acquisition and persistent multi-step projects are still incomplete |
+| Inventory and ownership | **Playable** | Carried items and shared stores, gathering wood/stone/fiber/seeds, material requests, household sharing and food pickup | Negotiated barter and a broader economy remain incomplete |
+| Buildings and production | **Playable** | Starter and settlement packages; persistent projects acquire inputs, travel, work, build or produce, survive pause/restart and report blockers | Bedding/clothing/tools can be produced but do not yet provide their intended survival/work benefits |
 | Trade and economy | **Verified primitive** | Atomic direct transfer, barter settlement, ownership and currency state are implemented and tested | Inhabitants do not autonomously request, negotiate or repeat trade in the live world |
-| Relationships and households | **Integrated but thin** | Persistent relationship/household state, social interactions and owner projection | Few world events change relationships; cooperation and conflict are not yet lived loops |
+| Relationships and households | **Integrated but thin** | Persistent households/relationships, material-request cooperation and visible public gratitude memories | Conflict, changing trust and negotiated allocation remain incomplete |
 | Family, aging and death | **Integrated but thin** | Lifecycle, caregiving, birth, aging, death, estates and inheritance exist in society runtime/tests | Timescale and default play do not yet make this a practical player experience |
 | Ecology and weather | **Integrated but thin** | Renewable resources, seasons, deterministic weather and world summaries | Weather has little survival/economic consequence |
 | Factions, law, currency and culture | **Integrated but thin** | Bounded persistent state and deterministic contracts | Mostly summaries/state containers; inhabitants do not create or contest institutions in normal play |
 | Content governance | **Integrated but thin** | Canonical data-only packages and bundled starter content; validation, approval, staging, activation, rollback and quarantine | No friendly player proposal/approval workflow |
 | Asset governance | **Verified primitive** | Provenance, rights metadata, quotas, cache/reservation accounting, preview contracts and artifact envelopes | No end-to-end creator/approval experience and no production art pipeline |
-| Client presentation | **Playable** | World-first view, selection-card provider activity, compact per-inhabitant settings, centered menu and Windows export | Prototype visuals; project/blocker presentation remains thin |
+| Client presentation | **Playable** | World-first view, shared stores, project phases/blockers, social notes, provider activity, compact per-inhabitant settings and centered menu | Prototype visuals; no dedicated economy/project management screen |
 | Multiplayer/public worlds | **Excluded** | Single-player only by owner decision | Multiple paired owner devices are not multiplayer |
 | Executable generated mods | **Planned/disabled** | Data-only packages are fail-closed | No sandbox has been selected; arbitrary generated code does not run on the host |
 
@@ -89,6 +90,16 @@ boundary and supplies legal building/recipe choices. This also works for old
 saves; already registered, rolled-back or quarantined starter packages are not
 silently reinstalled. A manually paused save is not migrated merely by starting
 the service.
+
+A dependency-linked settlement supplement adds hearth/weaving/grain content
+and stone, fiber and seed sources on free, passable cells. It never replaces
+the starter package or silently reactivates quarantined content. Map restore
+verifies both the original generator output and the bounded registered resource
+additions. Work projects persist their phase, accumulated work and production
+job; urgent needs interrupt work, and missing materials create requests that
+other inhabitants can help fulfil. Blocked projects become eligible for
+reconsideration after 60 ticks. Food production feeds ordinary eating; useful
+effects of clothing, bedding and tools belong to consequential survival.
 
 Settings select either **World defaults** or a named inhabitant. Each role may
 inherit its world default or override its provider/model. API keys remain in

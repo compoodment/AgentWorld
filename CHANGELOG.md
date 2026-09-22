@@ -8,6 +8,19 @@ release yet.
 
 ### Added
 
+- Added persistent settlement projects with material acquisition, travel, work,
+  interruption/restart recovery and explicit blockers. Other inhabitants can
+  fulfil material requests; successful help leaves inspectable public memories.
+- Added a versioned settlement supplement with stone, fiber and seed sources,
+  hearth/weaving buildings, bedding, clothing, meals and grain production.
+  Existing worlds receive additive resources only after resuming; schema 5
+  preserves projects and validates additions against the original seeded map.
+- Show shared stores, project progress and cooperation memories in the normal
+  world/inhabitant UI, with technical identifiers relegated to diagnostics.
+- Added a Settlement toolbar panel and secret-safe `settlement_activity` logs
+  for project transitions and fulfilled requests, without logging content text.
+- Kept authoring revisions monotonic after event-history compaction.
+
 - Bounded hot event histories with durable, hash-verified archive segments and
   explicit stale-cursor snapshot resets. Save schema 4 keeps global event IDs;
   backups must include the save's adjacent `.history` directory.

@@ -75,12 +75,23 @@ different build revision cannot falsely appear as a simulation change.
 
 ## Release checklist
 
+### Private-world save schema 5
+
+Schema 5 adds optional persistent settlement projects and validated additive
+resource nodes from the built-in settlement package. Schemas 1–4 remain
+readable. Loading or observing an older paused save preserves its bytes;
+creating a project, adding settlement resources or compacting history upgrades
+the checkpoint. New worlds use schema 5. Null project fields remain omitted.
+Restore checks the seeded map plus only the registered resource additions and
+rejects invalid project phases/work counters. Rollback requires the matching
+pre-upgrade save and application, not loading a schema-5 save in an older host.
+
 ### Private-world save schema 4
 
 Schema 4 adds event-history floors and a content-addressed archive head.
 Schemas 1–3 remain readable; a schema-3 save is not rewritten to schema 4 merely
-by loading it. Its first history compaction upgrades it. New worlds use schema
-4. Default/zero history fields are omitted to preserve legacy checkpoint bytes.
+by loading it. Its first history compaction upgrades it to the current schema.
+Default/zero history fields are omitted to preserve legacy checkpoint bytes.
 Downgrading a compacted save to an older binary is unsupported: restore the
 pre-upgrade application and matching save backup instead.
 

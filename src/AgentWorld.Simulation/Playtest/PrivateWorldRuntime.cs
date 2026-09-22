@@ -19,7 +19,8 @@ public sealed record PlaytestInhabitantState(
     int MoveWaitTicks,
     string Personality,
     string Aspiration,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? LastDecisionContext = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? LastDecisionContext = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementProject? Project = null);
 
 public sealed record PlaytestResourceState(string ResourceId, ResourceState State);
 
@@ -61,9 +62,9 @@ public sealed record PrivateWorldStepResult(
 /// and the world-facing event stream. It is intentionally separate from the
 /// legacy one-actor owner fixture while the owner protocol is migrated.
 /// </summary>
-public sealed class PrivateWorldRuntime : IDisposable
+public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 4;
+    public const int StateSchemaVersion = 5;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
@@ -184,7 +185,7 @@ public sealed class PrivateWorldRuntime : IDisposable
             state.Society.Cognition.MaxQueueLength,
             maxCognitionDispatchPerCycle,
             minimumCognitionConfidence);
-        if (!string.Equals(runtime.map.ManifestDigest, state.Map.ManifestDigest, StringComparison.Ordinal))
+        if (!IsCompatibleSavedMap(runtime.map, state))
         {
             runtime.Dispose();
             throw new InvalidDataException("The private-world map does not match deterministic regeneration.");
@@ -354,6 +355,7 @@ public sealed class PrivateWorldRuntime : IDisposable
 
             var startingEvent = events.Count;
             var targetTick = checked(WorldTick + 1);
+            StageSettlementContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
@@ -399,6 +401,10 @@ public sealed class PrivateWorldRuntime : IDisposable
             foreach (var activated in contentRegistry.ActivateReady(targetTick))
             {
                 AppendEvent("content_activated", activated.Manifest.PackageId);
+                if (activated.Manifest.PackageId == SettlementContent.PackageId)
+                {
+                    AddSettlementResources();
+                }
                 if (activated.Manifest.Definitions.Any(definition => !string.IsNullOrWhiteSpace(definition.PayloadJson)))
                 {
                     AppendEvent(
@@ -928,6 +934,14 @@ public sealed class PrivateWorldRuntime : IDisposable
 
         foreach (var inhabitant in inhabitants.Values)
         {
+            if (inhabitant.Project is { } project)
+            {
+                ValidateProject(project, WorldTick);
+                if (checkpointSchemaVersion < 5)
+                {
+                    throw new InvalidDataException("Persistent projects require private-world schema 5.");
+                }
+            }
             if (!map.IsPassable(inhabitant.Position) ||
                 inhabitant.HungerBasisPoints is < 0 or > 10_000 ||
                 inhabitant.EnergyBasisPoints is < 0 or > 10_000 ||
@@ -1061,8 +1075,7 @@ public sealed class PrivateWorldRuntime : IDisposable
             for (var x = 0; x < map.Width; x++)
             {
                 var candidate = new GridPoint(x, y);
-                if (CanPlaceBuilding(definition, candidate, out _) &&
-                    HasAvailableQuantities(definition.BuildCosts))
+                if (CanPlaceBuilding(definition, candidate, out _))
                 {
                     position = candidate;
                     return true;
@@ -1651,6 +1664,12 @@ public sealed class PrivateWorldRuntime : IDisposable
                      .OrderBy(item => item.Id, StringComparer.Ordinal))
         {
             var physical = inhabitants[inhabitant.Id];
+            if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
+                (physical.HungerBasisPoints < 3_500 || physical.EnergyBasisPoints < 2_500))
+            {
+                SetProject(inhabitant.Id, project with { Stage = "paused", Blocker = "Meeting food or rest needs" });
+                physical = inhabitants[inhabitant.Id];
+            }
             var candidates = CreateCandidates(inhabitant.Id, physical);
             var current = runtimes[inhabitant.Id].CurrentIntention;
             if (!NeedsCognition(inhabitant.Id, current, candidates))
@@ -1690,6 +1709,11 @@ public sealed class PrivateWorldRuntime : IDisposable
         if (PendingInstructionFor(inhabitantId) is not null)
         {
             return true;
+        }
+
+        if (CanContinueProject(inhabitants[inhabitantId]))
+        {
+            return false;
         }
 
         if (candidates.Count == 1 && candidates[0].Id == "safe_idle")
@@ -1735,9 +1759,16 @@ public sealed class PrivateWorldRuntime : IDisposable
                      .Where(item => item.Status == SocietyInhabitantStatus.Active)
                      .OrderBy(item => item.Id, StringComparer.Ordinal))
         {
-            if (dispatched.Contains(inhabitant.Id) ||
-                runtimes[inhabitant.Id].CurrentIntention is not { } intention ||
-                !inhabitants.TryGetValue(inhabitant.Id, out var state) ||
+            if (dispatched.Contains(inhabitant.Id) || !inhabitants.TryGetValue(inhabitant.Id, out var state))
+            {
+                continue;
+            }
+            if (CanContinueProject(state))
+            {
+                ContinueProject(inhabitant.Id, state);
+                continue;
+            }
+            if (runtimes[inhabitant.Id].CurrentIntention is not { } intention ||
                 !CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId))
             {
                 continue;
@@ -1787,7 +1818,12 @@ public sealed class PrivateWorldRuntime : IDisposable
     {
         if (candidateId.StartsWith("build:", StringComparison.Ordinal))
         {
-            ApplyBuildDecision(inhabitantId, state, candidateId);
+            BeginProject(inhabitantId, state, candidateId);
+            return;
+        }
+        if (candidateId.StartsWith("assist:", StringComparison.Ordinal))
+        {
+            AssistProject(inhabitantId, state, candidateId[7..]);
             return;
         }
 
@@ -2149,6 +2185,7 @@ public sealed class PrivateWorldRuntime : IDisposable
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
             AddBuildCandidates(candidates, inhabitant, state);
+            AddProjectAssistanceCandidates(candidates, inhabitantId);
         }
 
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
@@ -2168,7 +2205,7 @@ public sealed class PrivateWorldRuntime : IDisposable
             {
                 var instanceId = BuildInstanceId(inhabitant.Id, definition);
                 if (worldSimulation.Buildings.Any(item => item.InstanceId == instanceId) ||
-                    !HasAvailableQuantities(definition.BuildCosts) ||
+                    !CanAcquireProjectInputs(definition.BuildCosts) ||
                     !TryFindBuildingPosition(definition, out var position))
                 {
                     continue;
@@ -2176,7 +2213,7 @@ public sealed class PrivateWorldRuntime : IDisposable
 
                 candidates.Add(new CognitionCandidate(
                     $"build:building:{definition.CanonicalId}",
-                    $"Build {definition.DisplayName} on a valid site.",
+                    $"Plan {definition.DisplayName}: acquire materials, travel, and build.",
                     20,
                     $"build-site:{position.X},{position.Y}"));
             }
@@ -2188,8 +2225,7 @@ public sealed class PrivateWorldRuntime : IDisposable
             SocietyWorkRole.Builder or SocietyWorkRole.Trader or SocietyWorkRole.Organizer;
         foreach (var recipe in worldContent.Recipes.Where(item => item.IsCrop ? canGrow : canProduce))
         {
-            if (!HasAvailableQuantities(recipe.Inputs) ||
-                !TryFindRecipeSite(recipe, out _, out var position))
+            if (!CanAcquireProjectInputs(recipe.Inputs) || !TryFindRecipeSite(recipe, out _, out var position))
             {
                 continue;
             }
@@ -2284,7 +2320,7 @@ public sealed class PrivateWorldRuntime : IDisposable
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (state.SchemaVersion is not (1 or 2 or 3 or StateSchemaVersion) || string.IsNullOrWhiteSpace(state.WorldSeed) || state.EventHistoryFloor < 0)
+        if (state.SchemaVersion is not (1 or 2 or 3 or 4 or StateSchemaVersion) || string.IsNullOrWhiteSpace(state.WorldSeed) || state.EventHistoryFloor < 0)
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");
         }
@@ -2355,6 +2391,17 @@ public sealed class PrivateWorldRuntime : IDisposable
         if (!activeIds.SequenceEqual(physicalIds))
         {
             throw new InvalidDataException("The saved private-world populations disagree.");
+        }
+        foreach (var inhabitant in state.Inhabitants)
+        {
+            if (inhabitant.Project is { } project)
+            {
+                if (state.SchemaVersion < 5)
+                {
+                    throw new InvalidDataException("Settlement projects require save schema 5.");
+                }
+                ValidateProject(project, state.Society.Society.WorldTick);
+            }
         }
     }
 

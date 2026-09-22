@@ -238,10 +238,12 @@ public sealed class OwnerWorldObservationStore
             Inhabitants = activeInhabitants
                 .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]))
                 .ToArray(),
+            Stockpiles = state.Society.Society.Households.Select(household =>
+                new ViewerStockpile(household.Id, household.Name, InventoryFor(state, household.Id))).ToArray(),
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,
                 state.Society.Society.RunEpoch,
-                state.Events.Count,
+                state.EventHistoryFloor + state.Events.Count,
                 0,
                 map.ManifestDigest,
                 map.ManifestDigest,
@@ -460,6 +462,11 @@ public sealed class OwnerWorldObservationStore
                 ? ToPublicIntention(publicIntention.CandidateId, publicIntention.Provider.ToString().ToLowerInvariant(), publicIntention.WorldTick)
                 : null,
             Relationships = RelationshipsFor(state, inhabitant.Id),
+            Project = physical.Project is { } project
+                ? new ViewerProject(project.Label, project.Stage, project.WorkDone, 10, project.Blocker, project.StartedTick)
+                : null,
+            SocialNotes = state.Society.Society.Memories.Where(memory => memory.OwnerId == inhabitant.Id && memory.Visibility == "public")
+                .OrderByDescending(memory => memory.SourceTick).Take(3).Select(memory => memory.Summary).ToArray(),
         };
     }
 

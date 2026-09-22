@@ -79,8 +79,16 @@ public sealed record ViewerInhabitant(
 {
     public ViewerPublicIntention? PublicIntention { get; init; }
 
+    public ViewerProject? Project { get; init; }
+
+    public IReadOnlyList<string> SocialNotes { get; init; } = [];
+
     public IReadOnlyList<ViewerInhabitantRelationship> Relationships { get; init; } = [];
 }
+
+public sealed record ViewerProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
+
+public sealed record ViewerStockpile(string OwnerId, string Name, IReadOnlyList<ViewerInventoryEntry> Items);
 
 public sealed record ViewerInstruction(
     string InstructionId,
@@ -182,6 +190,7 @@ public sealed record ViewerWorldSnapshot(
     ViewerActor? Actor,
     long LatestEventId)
 {
+    public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];
     /// <summary>
     /// The inspectable population projection. <see cref="Actor"/> remains for
     /// backwards-compatible Phase 2 diagnostic clients.

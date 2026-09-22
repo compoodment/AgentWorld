@@ -27,6 +27,8 @@ public sealed class GameUiTextTests
 
     [Theory]
     [InlineData("build:recipe:carrot", "build Carrot")]
+    [InlineData("build:building:sha256:abcdef/building/stone-hearth@1.0.0", "build Stone hearth")]
+    [InlineData("consume_food", "eat")]
     [InlineData("seek_food", "find food")]
     [InlineData("religion_founded", "Religion founded")]
     public void InternalIdentifiersBecomeReadablePhrases(string value, string expected)

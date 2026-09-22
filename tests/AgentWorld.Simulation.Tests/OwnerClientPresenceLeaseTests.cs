@@ -119,9 +119,16 @@ public sealed class OwnerClientPresenceLeaseTests
                 message.Contains("cognition_decision tick=1", StringComparison.Ordinal));
 
             runtime.Resume();
+            for (var tick = 0; tick < 20; tick++)
+            {
+                Assert.True(await service.TryAdvanceOnceAsync());
+            }
+            Assert.Contains(logger.Messages, message => message.Contains("settlement_activity", StringComparison.Ordinal));
+            Assert.DoesNotContain(logger.Messages, message => message.Contains("Cooking fire", StringComparison.Ordinal));
+            var tickBeforeDisconnect = runtime.WorldTick;
             clock.Advance(TimeSpan.FromSeconds(5));
             Assert.False(await service.TryAdvanceOnceAsync());
-            Assert.Equal(1, runtime.WorldTick);
+            Assert.Equal(tickBeforeDisconnect, runtime.WorldTick);
         }
         finally
         {

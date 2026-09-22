@@ -63,6 +63,19 @@ public sealed partial class PrivateWorldRuntimeService(
                 var checkpoint = runtime.ExportState();
                 LogHistoryCompacted(logger, result.WorldTick, checkpoint.EventHistoryFloor, checkpoint.Events.Count);
             }
+            if (logger?.IsEnabled(LogLevel.Information) == true)
+            {
+                var projects = runtime.Inhabitants.Where(person => person.Project is not null)
+                    .ToDictionary(person => person.InhabitantId, person => person.Project!, StringComparer.Ordinal);
+                foreach (var worldEvent in result.Events.Where(item => item.Kind is "project_chosen" or "project_progress" or "project_request_fulfilled"))
+                {
+                    var actor = worldEvent.Detail.Split(':', 2)[0];
+                    var project = projects.GetValueOrDefault(actor);
+                    LogSettlementActivity(logger, result.WorldTick, worldEvent.Kind, actor,
+                        project?.Stage ?? "helping", project?.WorkDone ?? 0,
+                        project?.Blocker is not null);
+                }
+            }
         }
 
         foreach (var decision in result.Decisions.OrderBy(item => item.InhabitantId, StringComparer.Ordinal))
@@ -127,6 +140,11 @@ public sealed partial class PrivateWorldRuntimeService(
     [LoggerMessage(EventId = 2203, Level = LogLevel.Information,
         Message = "world_history_compacted tick={WorldTick} event_floor={EventFloor} recent_events={RecentEvents}")]
     private static partial void LogHistoryCompacted(ILogger logger, long worldTick, long eventFloor, int recentEvents);
+
+    [LoggerMessage(EventId = 2204, Level = LogLevel.Information,
+        Message = "settlement_activity tick={WorldTick} event={EventKind} inhabitant={InhabitantId} stage={Stage} work={WorkDone} blocked={Blocked}")]
+    private static partial void LogSettlementActivity(ILogger logger, long worldTick, string eventKind,
+        string inhabitantId, string stage, int workDone, bool blocked);
 
     [LoggerMessage(
         EventId = 2201,
