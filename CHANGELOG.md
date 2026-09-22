@@ -8,6 +8,13 @@ release yet.
 
 ### Added
 
+- Resource markers show remaining stock and capacity, with working hover help
+  for finite deposits and seasonal regrowth. Markers persist across refreshes
+  so updates no longer discard the hovered control.
+- Unfinished production and crop jobs are cancelled when their worker dies,
+  releasing remaining reserved inputs before completion can produce output.
+  Finished work remains intact; operators receive a safe cancellation event.
+
 - Added managed coppice: farmers reserve seeds and a fertile plot for a full
   world day, then harvest timber and replacement seeds. Exhausted wild wood is
   not refilled; food crops and forestry compete for the same growing space.

@@ -26,6 +26,7 @@ public partial class Main : Control
     private readonly Dictionary<long, OwnerWorldEvent> knownEvents = [];
     private readonly Dictionary<string, OwnerWorldPosition> renderedInhabitantPositions =
         new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Label> mapObjectVisuals = new(StringComparer.Ordinal);
 
     private readonly Label statusLabel = new();
     private readonly PanelContainer statusToast = new();
@@ -196,7 +197,27 @@ public partial class Main : Control
                     }
                 }
             }
-            GD.Print("UI layout checks passed: centered menu with/without selection and settings, and settlement panel at three window sizes.");
+            gameMenuPanel.Hide();
+            menuShade.Hide();
+            selectedInhabitantCard.Hide();
+            var sampleResource = new OwnerWorldResource("wood", "construction", new(1, 1), false, "available", 8, 12, 0, 0, "spring");
+            var sample = new OwnerWorldSnapshot("ui-test", 0, "ui-map", Enumerable.Range(0, 16)
+                .Select(index => new OwnerWorldTile(index % 4, index / 4, "meadow")).ToArray(), [], [sampleResource], null, 0);
+            RenderMap(sample);
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            var marker = mapObjectVisuals["resource:wood"];
+            var identity = marker.GetInstanceId();
+            var entered = false;
+            marker.MouseEntered += () => entered = true;
+            GetViewport().PushInput(new InputEventMouseMotion { Position = marker.GetGlobalRect().GetCenter(), GlobalPosition = marker.GetGlobalRect().GetCenter() }, inLocalCoords: true);
+            for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            RenderMap(sample with { Resources = [sampleResource with { Quantity = 7 }] });
+            if (!entered || marker.MouseFilter == MouseFilterEnum.Ignore || marker.GetInstanceId() != identity ||
+                !marker.TooltipText.Contains("7/12", StringComparison.Ordinal) || !marker.Text.Contains("7/12", StringComparison.Ordinal))
+                throw new InvalidOperationException($"Resource hover/update failed: entered={entered}, filter={marker.MouseFilter}, stable={marker.GetInstanceId() == identity}, text={marker.Text}, rect={marker.GetGlobalRect()}, hovered={GetViewport().GuiGetHoveredControl()?.GetPath()}.");
+            RenderMap(sample with { Resources = [] });
+            if (mapObjectVisuals.ContainsKey("resource:wood")) throw new InvalidOperationException("Removed resource marker was retained.");
+            GD.Print("UI checks passed: centered menus and settlement panel at three sizes; resource hover, live stock updates and marker removal.");
             GetTree().Quit();
         }
         catch (Exception exception)
@@ -1921,9 +1942,12 @@ public partial class Main : Control
         {
             child.QueueFree();
         }
-        foreach (var child in objectLayer.GetChildren())
+        var objectIds = snapshot.Resources.Select(resource => "resource:" + resource.Id)
+            .Concat(snapshot.Objects.Select(item => "object:" + item.Id)).ToHashSet(StringComparer.Ordinal);
+        foreach (var id in mapObjectVisuals.Keys.Where(id => !objectIds.Contains(id)).ToArray())
         {
-            child.QueueFree();
+            mapObjectVisuals[id].QueueFree();
+            mapObjectVisuals.Remove(id);
         }
 
         if (snapshot.Tiles.Count == 0)
@@ -1954,15 +1978,17 @@ public partial class Main : Control
         foreach (var resource in snapshot.Resources)
         {
             AddMapObjectVisual(
+                "resource:" + resource.Id,
                 resource.Position,
                 ResourceGlyph(resource.Kind),
-                ResourceMarker(resource.Kind),
-                $"{Pretty(resource.Kind)} resource");
+                ResourceMarker(resource.Kind) + (resource.Quantity is null ? "" : " " + GameUiText.ResourceQuantity(resource.Kind, resource.Quantity, resource.Capacity)),
+                GameUiText.ResourceTooltip(resource));
         }
 
         foreach (var mapObject in snapshot.Objects)
         {
             AddMapObjectVisual(
+                "object:" + mapObject.Id,
                 mapObject.Position,
                 ObjectGlyph(mapObject.Kind),
                 ObjectMarker(mapObject.Kind),
@@ -2033,29 +2059,34 @@ public partial class Main : Control
     }
 
     private void AddMapObjectVisual(
+        string id,
         OwnerWorldPosition position,
         string glyph,
         string label,
         string tooltip)
     {
         var stride = currentTileSize + TileGap;
-        var visual = new Label
+        if (!mapObjectVisuals.TryGetValue(id, out var visual))
         {
-            Text = $"{glyph}\n{label}",
-            Position = new Vector2(position.X * stride + 4, position.Y * stride + 4),
-            Size = new Vector2(currentTileSize - 8, currentTileSize - 8),
-            TooltipText = tooltip,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            MouseFilter = Control.MouseFilterEnum.Ignore,
-            ZIndex = 5,
-        };
-        visual.AddThemeFontSizeOverride("font_size", 12);
-        visual.AddThemeColorOverride("font_color", new Color("E8F0D8"));
-        visual.AddThemeColorOverride("font_shadow_color", new Color("18211D"));
-        visual.AddThemeConstantOverride("shadow_offset_x", 1);
-        visual.AddThemeConstantOverride("shadow_offset_y", 1);
-        objectLayer.AddChild(visual);
+            visual = new Label
+            {
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                MouseFilter = Control.MouseFilterEnum.Pass,
+                ZIndex = 5,
+            };
+            visual.AddThemeFontSizeOverride("font_size", 12);
+            visual.AddThemeColorOverride("font_color", new Color("E8F0D8"));
+            visual.AddThemeColorOverride("font_shadow_color", new Color("18211D"));
+            visual.AddThemeConstantOverride("shadow_offset_x", 1);
+            visual.AddThemeConstantOverride("shadow_offset_y", 1);
+            objectLayer.AddChild(visual);
+            mapObjectVisuals.Add(id, visual);
+        }
+        visual.Text = $"{glyph}\n{label}";
+        visual.Position = new Vector2(position.X * stride + 4, position.Y * stride + 4);
+        visual.Size = new Vector2(currentTileSize - 8, currentTileSize - 8);
+        visual.TooltipText = tooltip;
     }
 
     private void RenderWorldHud(OwnerWorldSnapshot snapshot)

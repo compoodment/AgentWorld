@@ -121,6 +121,12 @@ wood is not replenished. Crowded shelter/food-access regressions preserve
 reachable alternatives and allow inferior outdoor rest without removing
 exposure risk.
 
+Resource stock/capacity and seasonal renewal rules are now visible on stable
+map markers. Worker-death regressions cover cancellation and reservation
+release for both crafting and crops, including the completion boundary.
+These checks improve lifecycle correctness and feedback; seasonal/population
+balance remains an open gate.
+
 ## Then — Social continuity
 
 Deepen society only after daily life generates actual stakes:

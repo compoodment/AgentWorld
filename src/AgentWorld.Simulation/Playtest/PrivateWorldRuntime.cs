@@ -423,6 +423,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 }
             }
             worldContent = activatedWorldContent;
+            CancelUnavailableWorkers();
             ProcessProduction(targetTick);
             ProcessCropBuilds(targetTick);
 

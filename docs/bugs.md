@@ -14,6 +14,16 @@ path.
 
 ## Original reports and resolution evidence
 
+- **AW-B018 — fixed:** household-owned production reservations outlived a dead
+  worker, allowing unfinished crafting and crops to complete. Running jobs now
+  cancel before completion and release remaining inputs. Six regressions cover
+  both job types, completion-boundary death, already-finished work, safe logs
+  and restart preservation.
+- **AW-B019 — fixed:** map object labels ignored mouse hover and were recreated
+  on every observation refresh. Resource/object labels now accept hover and
+  retain identity across updates. An engine check verifies actual mouse entry,
+  updated stock/help and removal of absent markers.
+
 The reports below describe the original defects; their resolution is recorded
 in the following repair evidence, not implied to remain open.
 

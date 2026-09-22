@@ -3,12 +3,122 @@ using AgentWorld.Simulation.Cognition;
 using AgentWorld.Simulation.Kernel;
 using AgentWorld.Simulation.Harness;
 using AgentWorld.Simulation.World;
+using AgentWorld.Simulation.Society;
 using AgentWorld.Viewer.Observation;
 
 namespace AgentWorld.Simulation.Tests;
 
 public sealed class SettlementSurvivalTests
 {
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
+    public async Task WorkerDeathRespectsProductionCompletionAndReleasesUnfinishedInputs(bool crop, bool completionDue, bool completedBeforeDeath)
+    {
+        using var seed = new PrivateWorldRuntime("worker-death", _ => new IdleProvider());
+        seed.StageStarterContent();
+        for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
+        var state = seed.ExportState();
+        var worker = state.Inhabitants[0];
+        var site = crop ? state.Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position :
+            state.Map.Tiles.First(tile => state.Map.IsPassable(tile.Position) &&
+                !state.Map.CampObjects.Any(item => item.Position == tile.Position) &&
+                !state.Map.Resources.Any(item => item.Position == tile.Position) &&
+                !state.Inhabitants.Any(person => person.InhabitantId != worker.InhabitantId && person.Position == tile.Position)).Position;
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == worker.InhabitantId ? person with { Position = site }
+                : person.Position == site ? person with { Position = worker.Position } : person).ToArray(),
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "death-seeds", "seed", "household:camp-alpha", 2),
+                },
+            },
+        };
+        using var preparing = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
+        var recipe = preparing.WorldContent.Recipes.Single(item => item.LocalId == (crop ? "managed-coppice" : "meal"));
+        var workstation = WorldBuildSiteRules.FertileLandSiteId(site);
+        if (!crop)
+        {
+            var fire = preparing.WorldContent.Buildings.Single(building => building.LocalId == "fire");
+            var placement = preparing.PlaceBuilding("death-test-fire", fire.CanonicalId, site);
+            Assert.True(placement.Applied, placement.Failure);
+            workstation = placement.InstanceId;
+        }
+        var started = preparing.StartProduction(recipe.CanonicalId, workstation, worker.InhabitantId);
+        Assert.True(started.Applied, started.Failure);
+        if (completionDue)
+            for (var tick = 1; tick < recipe.DurationTicks; tick++) await preparing.AdvanceOneTickAsync();
+        if (completedBeforeDeath) await preparing.AdvanceOneTickAsync();
+        state = preparing.ExportState();
+        var produced = state.Society.Society.Inventory.Lots.Where(lot => lot.Id.StartsWith(started.JobId + ":output:", StringComparison.Ordinal))
+            .Select(lot => (lot.Id, lot.Quantity)).ToArray();
+        using var society = SocietyWorldRuntime.Restore(state.Society);
+        society.Apply(checkpoint => SocietyFixture.Kill(checkpoint, worker.InhabitantId, SocietyDeathCause.Accident, checkpoint.WorldTick));
+        state = state with
+        {
+            Society = society.ExportState() with
+            {
+                Society = society.Checkpoint with
+                {
+                    Inhabitants = society.Checkpoint.Inhabitants.Select(person => person with { Name = "sk-private-production-test" }).ToArray(),
+                },
+            },
+            Inhabitants = state.Inhabitants.Where(person => person.InhabitantId != worker.InhabitantId).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
+        var messages = await AdvanceProductionWithLogs(world);
+        var job = world.WorldSimulation.ProductionJobs.Concat(world.WorldSimulation.CropBuilds ?? []).Single(item => item.JobId == started.JobId);
+        var expectedState = completedBeforeDeath ? WorldProductionJobState.Completed : WorldProductionJobState.Cancelled;
+        Assert.Equal(expectedState, job.State);
+        Assert.NotEmpty(job.InputReservationIds);
+        Assert.All(job.InputReservationIds, id => Assert.Equal(completedBeforeDeath ? InventoryReservationState.Completed : InventoryReservationState.Released,
+            world.Society.Inventory.GetReservation(id).State));
+        Assert.Equal(produced, world.Society.Inventory.Lots.Where(lot => lot.Id.StartsWith(job.JobId + ":output:", StringComparison.Ordinal))
+            .Select(lot => (lot.Id, lot.Quantity)).ToArray());
+        Assert.DoesNotContain(messages, message => message.Contains("sk-private-production-test", StringComparison.Ordinal));
+        if (!completedBeforeDeath)
+        {
+            Assert.Contains(world.ExportState().Events, item => item.Kind == "production_worker_unavailable" && item.Detail == job.JobId);
+            Assert.Contains(messages, message => message.Contains("production_cancelled", StringComparison.Ordinal) &&
+                message.Contains("job=" + job.JobId, StringComparison.Ordinal) && message.Contains("reason=worker_unavailable", StringComparison.Ordinal));
+        }
+        else Assert.DoesNotContain(messages, message => message.Contains("production_cancelled", StringComparison.Ordinal));
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        world.Pause();
+        var bytes = PrivateWorldRuntimeCodec.Encode(world.ExportState());
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes), _ => new IdleProvider());
+        Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        restored.Resume();
+        await restored.AdvanceOneTickAsync();
+        Assert.Equal(expectedState,
+            restored.WorldSimulation.ProductionJobs.Concat(restored.WorldSimulation.CropBuilds ?? []).Single(item => item.JobId == job.JobId).State);
+    }
+
+    private static async Task<IReadOnlyList<string>> AdvanceProductionWithLogs(PrivateWorldRuntime world)
+    {
+        var directory = Directory.CreateTempSubdirectory("production-death-");
+        try
+        {
+            var presence = new OwnerClientPresenceLease(TimeSpan.FromSeconds(30));
+            presence.RecordAuthenticatedReconnect("owner");
+            var logger = new RecordingLogger<PrivateWorldRuntimeService>();
+            using var service = new PrivateWorldRuntimeService(world, new PrivateWorldStateFile(Path.Combine(directory.FullName, "world.json")), presence, logger);
+            Assert.True(await service.TryAdvanceOnceAsync());
+            return logger.Messages.ToArray();
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
     [Fact]
     public async Task UrgentColdStillAllowsProtectiveConstruction()
     {

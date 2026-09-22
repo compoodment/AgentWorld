@@ -113,6 +113,17 @@ the affected production job and release its remaining inputs rather than
 stalling the world. These are bounded first survival rules, not a finished
 nutrition/health/ecology model.
 
+Worker death cancels unfinished production and crop jobs before the next
+completion pass, releasing unused reservations without undoing completed work.
+The operator journal records `production_cancelled` with tick, job and worker
+IDs, never private inhabitant text. Regression coverage includes death exactly
+at the completion boundary and save/reload afterwards.
+
+Resource markers display authoritative stock/capacity and stable hover help
+for finite deposits or seasonal regrowth. Legacy hosts without these optional
+fields show unknown details rather than fabricated quantities. Engine checks
+exercise hover, stock refresh and marker removal alongside menu geometry.
+
 An additive forestry package supplies managed coppice: two seeds and a fertile
 plot are committed for 1,440 world ticks, producing 24 wood and two replacement
 seeds. This competes with food cultivation and leaves depleted wild timber

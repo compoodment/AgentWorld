@@ -191,6 +191,7 @@ public sealed class OwnerWorldObservationStore
     private static ViewerWorldSnapshot ToSnapshot(PrivateWorldRuntimeState state)
     {
         var map = state.Map;
+        var ecology = state.WorldSystems?.Ecology.Resources.ToDictionary(resource => resource.Id, StringComparer.Ordinal);
         var activeInhabitants = state.Society.Society.Inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Active)
             .OrderBy(item => item.Id, StringComparer.Ordinal)
@@ -231,7 +232,12 @@ public sealed class OwnerWorldObservationStore
                     resource.IsRenewable,
                     resourceStates.TryGetValue(resource.Id, out var resourceState)
                         ? ToWireValue(resourceState)
-                        : "available"))
+                        : "available",
+                    ecology?.GetValueOrDefault(resource.Id)?.Quantity,
+                    ecology?.GetValueOrDefault(resource.Id)?.Capacity,
+                    ecology?.GetValueOrDefault(resource.Id)?.RegenerationAmount,
+                    ecology?.GetValueOrDefault(resource.Id)?.RegenerationIntervalDays,
+                    ecology?.GetValueOrDefault(resource.Id)?.RegenerationSeason.ToString().ToLowerInvariant()))
                 .ToArray(),
             actor,
             latestEventId)

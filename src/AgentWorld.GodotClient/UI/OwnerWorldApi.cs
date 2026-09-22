@@ -26,7 +26,12 @@ public sealed record OwnerWorldResource(
     string Kind,
     OwnerWorldPosition Position,
     bool IsRenewable,
-    string State);
+    string State,
+    int? Quantity = null,
+    int? Capacity = null,
+    int? RegenerationAmount = null,
+    int? RegenerationIntervalDays = null,
+    string? RegenerationSeason = null);
 
 public sealed record OwnerWorldInventoryEntry(string Kind, int Quantity);
 

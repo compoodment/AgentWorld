@@ -9,6 +9,26 @@ public static class GameUiText
 {
     private const int MinutesPerDay = 1_440;
 
+    public static string ResourceQuantity(string kind, int? quantity, int? capacity) => quantity is null ? "" :
+        (kind == "fertile_land" ? "Soil " : "") + quantity + (capacity is null ? "" : "/" + capacity);
+
+    public static string ResourceTooltip(OwnerWorldResource resource)
+    {
+        var title = resource.Kind switch
+        {
+            "construction" => "Wild timber",
+            "food" => "Wild food",
+            "fertile_land" => "Growing plot",
+            _ => HumanizeIdentifier(resource.Kind),
+        };
+        var stock = ResourceQuantity(resource.Kind, resource.Quantity, resource.Capacity);
+        var renewal = !resource.IsRenewable ? "Finite — no natural regrowth." :
+            resource.RegenerationAmount is > 0 && resource.RegenerationIntervalDays is > 0 && resource.RegenerationSeason is not null
+                ? $"Regrowth: +{resource.RegenerationAmount} every {resource.RegenerationIntervalDays} world day(s) in {HumanizeIdentifier(resource.RegenerationSeason)}."
+                : "Renewable — regrowth details unavailable from this host.";
+        return title + (stock.Length == 0 ? "" : " · " + stock) + "\n" + HumanizeIdentifier(resource.State) + "\n" + renewal;
+    }
+
     public static string FormatWorldClock(long worldTick)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(worldTick);

@@ -4,6 +4,19 @@ namespace AgentWorld.Simulation.Tests;
 
 public sealed class GameUiTextTests
 {
+    [Fact]
+    public void ResourceHelpDistinguishesExhaustionRegrowthAndLegacyUnknownQuantities()
+    {
+        var wood = new OwnerWorldResource("wood", "construction", new(0, 0), false, "depleted", 0, 12, 0, 0, "spring");
+        Assert.Equal("Wild timber · 0/12\nDepleted\nFinite — no natural regrowth.", GameUiText.ResourceTooltip(wood));
+        var berries = wood with { Id = "food", Kind = "food", IsRenewable = true, RegenerationAmount = 4, RegenerationIntervalDays = 1 };
+        Assert.Contains("+4 every 1 world day(s) in Spring", GameUiText.ResourceTooltip(berries), StringComparison.Ordinal);
+        Assert.Equal("Soil 3/3", GameUiText.ResourceQuantity("fertile_land", 3, 3));
+        var legacy = new OwnerWorldResource("old", "food", new(0, 0), true, "available");
+        Assert.Contains("details unavailable", GameUiText.ResourceTooltip(legacy), StringComparison.Ordinal);
+        Assert.DoesNotContain("0/", GameUiText.ResourceTooltip(legacy), StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(0, "Day 1 · 00:00")]
     [InlineData(62, "Day 1 · 01:02")]

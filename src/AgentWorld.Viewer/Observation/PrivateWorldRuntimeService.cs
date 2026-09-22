@@ -91,6 +91,12 @@ public sealed partial class PrivateWorldRuntimeService(
                 {
                     LogSurvivalEnvironment(logger, result.WorldTick, worldEvent.Kind);
                 }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind == "production_worker_unavailable"))
+                {
+                    var job = runtime.WorldSimulation.ProductionJobs.Concat(runtime.WorldSimulation.CropBuilds ?? [])
+                        .FirstOrDefault(item => item.JobId == worldEvent.Detail);
+                    if (job is not null) LogProductionCancelled(logger, result.WorldTick, job.JobId, job.WorkerId);
+                }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "settlement_trade_offered" or
                              "settlement_trade_declined" or "settlement_trade_completed" or "settlement_trade_cancelled"))
                 {
@@ -175,6 +181,10 @@ public sealed partial class PrivateWorldRuntimeService(
             LogWorldTickGate(logger, state, worldTick, clientPresence.ActiveClientCount);
         }
     }
+
+    [LoggerMessage(EventId = 2212, Level = LogLevel.Information,
+        Message = "production_cancelled tick={WorldTick} job={JobId} inhabitant={InhabitantId} reason=worker_unavailable")]
+    private static partial void LogProductionCancelled(ILogger logger, long worldTick, string jobId, string inhabitantId);
 
     [LoggerMessage(EventId = 2209, Level = LogLevel.Information,
         Message = "settlement_lesson tick={WorldTick} event={EventKind}")]

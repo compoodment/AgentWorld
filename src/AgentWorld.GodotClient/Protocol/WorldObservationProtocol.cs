@@ -21,7 +21,12 @@ public sealed record WorldResource(
     string Kind,
     WorldPosition Position,
     bool IsRenewable,
-    string State);
+    string State,
+    int? Quantity = null,
+    int? Capacity = null,
+    int? RegenerationAmount = null,
+    int? RegenerationIntervalDays = null,
+    string? RegenerationSeason = null);
 
 public sealed record WorldActor(
     string Id,

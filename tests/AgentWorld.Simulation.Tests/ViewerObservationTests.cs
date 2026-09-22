@@ -8,6 +8,29 @@ namespace AgentWorld.Simulation.Tests;
 public sealed class ViewerObservationTests
 {
     [Fact]
+    public void ResourceProjectionCarriesAuthoritativeStockAndRegrowthIntoTheClient()
+    {
+        using var runtime = new PrivateWorldRuntime("ecology-projection");
+        var snapshot = new OwnerWorldObservationStore(runtime).GetSnapshot();
+        var options = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        var client = System.Text.Json.JsonSerializer.Deserialize<AgentWorld.GodotClient.UI.OwnerWorldSnapshot>(
+            System.Text.Json.JsonSerializer.Serialize(snapshot, options), options)!;
+        foreach (var resource in runtime.WorldSystems.Ecology.Resources)
+        {
+            var projected = snapshot.Resources.Single(item => item.Id == resource.Id);
+            Assert.Equal(resource.Quantity, projected.Quantity);
+            Assert.Equal(resource.Capacity, projected.Capacity);
+            Assert.Equal(resource.RegenerationAmount, projected.RegenerationAmount);
+            Assert.Equal(resource.RegenerationIntervalDays, projected.RegenerationIntervalDays);
+            Assert.Equal(resource.RegenerationSeason.ToString().ToLowerInvariant(), projected.RegenerationSeason);
+            var displayed = client.Resources.Single(item => item.Id == resource.Id);
+            Assert.Equal(projected.Quantity, displayed.Quantity);
+            Assert.Equal(projected.Capacity, displayed.Capacity);
+            Assert.Equal(projected.RegenerationSeason, displayed.RegenerationSeason);
+        }
+    }
+
+    [Fact]
     public async Task CropJobsAreVisibleAlongsideWorkstationJobs()
     {
         using var runtime = new PrivateWorldRuntime("playtest-alpha");

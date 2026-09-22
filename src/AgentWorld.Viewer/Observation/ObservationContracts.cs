@@ -16,7 +16,9 @@ public sealed record ViewerTile(int X, int Y, string Terrain);
 
 public sealed record ViewerMapObject(string Id, string Kind, ViewerPosition Position);
 
-public sealed record ViewerResource(string Id, string Kind, ViewerPosition Position, bool IsRenewable, string State);
+public sealed record ViewerResource(string Id, string Kind, ViewerPosition Position, bool IsRenewable, string State,
+    int? Quantity = null, int? Capacity = null, int? RegenerationAmount = null,
+    int? RegenerationIntervalDays = null, string? RegenerationSeason = null);
 
 public sealed record ViewerActor(
     string Id,
