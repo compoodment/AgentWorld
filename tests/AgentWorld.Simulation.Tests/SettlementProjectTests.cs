@@ -2,11 +2,62 @@ using AgentWorld.Simulation.Playtest;
 using AgentWorld.Simulation.Cognition;
 using AgentWorld.Viewer.Observation;
 using AgentWorld.Simulation.Harness;
+using AgentWorld.Simulation.Kernel;
 
 namespace AgentWorld.Simulation.Tests;
 
 public sealed class SettlementProjectTests
 {
+    [Fact]
+    public async Task FinishedWorkBuildsAtTheCurrentValidSiteInsteadOfRetargetingAnEarlierTile()
+    {
+        using var seed = new PrivateWorldRuntime("stable-project-site", _ => new IdleProvider());
+        seed.StageStarterContent();
+        for (var tick = 0; tick < 3; tick++) await seed.AdvanceOneTickAsync();
+        var state = seed.ExportState();
+        var actor = state.Inhabitants[0];
+        var position = state.Map.Tiles.Last(tile => state.Map.IsPassable(tile.Position) &&
+            !state.Map.CampObjects.Any(item => item.Position == tile.Position) &&
+            !state.Map.Resources.Any(item => item.Position == tile.Position) &&
+            !state.Inhabitants.Any(person => person.Position == tile.Position)).Position;
+        var definition = seed.WorldContent.Buildings.Single(building => building.LocalId == "fire");
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Inventory = InventoryFixture.AddLot(state.Society.Society.Inventory, "site-tool", "tool", actor.InhabitantId, 1),
+                },
+            },
+            Inhabitants = state.Inhabitants.Select(person => person == actor ? person with
+            {
+                Position = position,
+                HungerBasisPoints = 9_000,
+                EnergyBasisPoints = 9_000,
+                Project = new("build:building:" + definition.CanonicalId, definition.DisplayName, seed.WorldTick, "working", 10,
+                    LastTransitionTick: seed.WorldTick),
+            } : person).ToArray(),
+        };
+        using var world = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
+        await world.AdvanceOneTickAsync();
+        Assert.True(world.WorldSimulation.Buildings.Any(building => building.DefinitionId == definition.CanonicalId && building.Position == position),
+            System.Text.Json.JsonSerializer.Serialize(world.Inhabitants.Single(person => person.InhabitantId == actor.InhabitantId)) +
+            System.Text.Json.JsonSerializer.Serialize(world.ExportState().Events.TakeLast(12)));
+        Assert.Equal("completed", world.Inhabitants.Single(person => person.InhabitantId == actor.InhabitantId).Project!.Stage);
+    }
+
+    private sealed class IdleProvider : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+        public long ProviderEpoch => 0;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(CognitionDecisionRequest request, CancellationToken cancellationToken = default) =>
+            new DeterministicDecisionProvider().DecideAsync(request with
+            {
+                Observation = request.Observation with { Candidates = request.Observation.Candidates.Where(candidate => candidate.Id == "safe_idle").ToArray() },
+            }, cancellationToken);
+    }
+
     [Fact]
     public async Task UnregisteredMapAdditionIsRejectedEvenWithARecomputedDigest()
     {

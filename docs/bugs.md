@@ -2,7 +2,7 @@
 title: Known Bugs and Product Gaps
 type: defect-register
 status: active
-updated: 2026-09-22
+updated: 2026-09-23
 ---
 
 # Known bugs and product gaps
@@ -63,6 +63,35 @@ keeps the existing world manually paused.
   construction and heating remain possible instead of permanent path retries.
 
 ## Runtime audit issues
+
+- **AW-B017 — fixed:** descendant IDs contain
+  colons, making directly interpolated building IDs invalid. Placement rejected
+  after completed work. Noncanonical society IDs now produce stable hashed
+  building IDs; existing canonical founder IDs retain their original mapping.
+- **AW-B012 — fixed:** continuing project work
+  could suppress a mentor's decision to answer a teaching request until expiry.
+  Pending requests now interrupt project continuation for an independent response.
+- **AW-B013 — fixed:** sleeping always targeted
+  the first shelter, even if all access was occupied; unreachable shared food
+  could outrank nearby berries. Rest now chooses a reachable shelter or bedding,
+  with slower outdoor recovery if neither is accessible. Shared-food candidates
+  require a reachable pickup point.
+- **AW-B014 — fixed:** construction rescanned
+  sites during work and could abandon a legal current site when another person
+  vacated an earlier tile. The current legal site now takes precedence.
+- **AW-B015 — fixed:** finite wild timber left
+  later generations without renewable building/fuel inputs. A dependency-linked
+  coppice package adds delayed cultivation without refilling depleted wild nodes.
+- **AW-B016 — fixed:** activity/condition logs
+  split descendant IDs at the first colon. Known complete IDs now resolve event
+  ownership; private prose remains excluded.
+
+Focused regressions cover mentor interruption, occupied shelters, outdoor rest,
+current-site completion, additive forestry activation/rollback and descendant
+condition logs. A controlled parenthood scenario with opt-in fast biological
+aging verifies birth, real feeding, two save/reloads, adulthood, earned training
+and completed construction within 12,000 ticks, using deterministic providers.
+It is not a claim that arbitrary seeds or population growth are balanced.
 
 - **AW-B010 — fixed:** partnership kinship checks discarded death-ended
   parentage and only checked direct parents, allowing siblings after parental

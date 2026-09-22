@@ -23,6 +23,9 @@ public sealed partial class PrivateWorldRuntime
     private PlaytestInhabitantState? ActiveStudent(string teacher) => inhabitants.Values.FirstOrDefault(person =>
         person.Lesson is { Stage: "accepted" or "training" } lesson && lesson.TeacherId == teacher);
 
+    private bool HasLearningDecision(string actor) => ReadyForLesson(actor) && inhabitants.Values.Any(person =>
+        person.Lesson is { Stage: "requested" } lesson && lesson.TeacherId == actor);
+
     private bool CanContinueLesson(string actor)
     {
         if (!ReadyForLesson(actor) || HasCouncilDecision(actor) || HasTradeResponse(actor) || HasFamilyDecision(actor) || HasParenthoodDecision(actor) || HasDependentCareDecision(actor))

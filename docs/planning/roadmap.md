@@ -2,7 +2,7 @@
 title: Product Roadmap
 type: roadmap
 status: active
-updated: 2026-09-22
+updated: 2026-09-23
 ---
 
 # Roadmap
@@ -114,6 +114,13 @@ have deterministic effects and regression coverage. Wider ecology and long-run
 balance remain open; this bounded crisis gate does not establish that the whole
 simulation is balanced across seasons.
 
+Managed coppice now provides a renewable timber path through ordinary planting
+and harvesting, with a full-day fertile-plot commitment and seed inputs. Tests
+cover delayed output, restart, paused migration and rollback; depleted wild
+wood is not replenished. Crowded shelter/food-access regressions preserve
+reachable alternatives and allow inferior outdoor rest without removing
+exposure risk.
+
 ## Then — Social continuity
 
 Deepen society only after daily life generates actual stakes:
@@ -152,6 +159,15 @@ cover competing volunteers, restart, refusal/expiry and actual feeding without
 rewriting parentage. This is caregiving, not a complete legal-guardianship system.
 Historical parentage now also preserves sibling/direct-ancestor partnership
 exclusions across deaths and rejects ordinary attempts to edit biological ties.
+
+A controlled parenthood scenario now verifies a born child receiving real care,
+surviving two saves/reloads, reaching adulthood under the optional fast life
+pace, earning a builder role and completing construction within 12,000 ticks.
+It uses deterministic providers and a prepared parental household, not a claim
+that every unassisted seed forms a family. This exposed and repaired descendant
+building-ID rejection, crowded needs access and mentor/project interactions.
+General skills, quantitative social consequences and long-run population
+balance remain open.
 
 ## Later — Creation and richer worlds
 

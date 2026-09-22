@@ -8,6 +8,20 @@ release yet.
 
 ### Added
 
+- Added managed coppice: farmers reserve seeds and a fertile plot for a full
+  world day, then harvest timber and replacement seeds. Exhausted wild wood is
+  not refilled; food crops and forestry compete for the same growing space.
+- Fixed crowded rest and food access: inhabitants choose reachable shelters,
+  fall back to bedding or slower outdoor rest, and do not keep choosing blocked
+  shared food over reachable alternatives. Outdoor rest retains exposure risk.
+- Construction retains the worker's current legal site instead of chasing newly
+  vacated earlier tiles. Busy mentors can respond to teaching requests before
+  finishing their existing project.
+- Descendant activity/condition logs preserve complete colon-bearing inhabitant
+  IDs instead of truncating them or silently losing condition events.
+- Descendants can now finish buildings: generated instance IDs are canonical
+  stable hashes when society IDs contain separators. Existing founder-building
+  IDs remain unchanged, so already-built structures are still recognized.
 - Preserved sibling and direct-ancestor partnership exclusions after relatives
   die, including grandparents. Ordinary relationship commands can no longer
   revoke historical parentage or accept a fabricated parentage proposal.

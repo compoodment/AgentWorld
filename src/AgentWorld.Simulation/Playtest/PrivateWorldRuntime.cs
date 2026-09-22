@@ -365,6 +365,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             var startingEvent = events.Count;
             var targetTick = checked(WorldTick + 1);
             StageSettlementContent();
+            StageForestryContent();
             var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
@@ -1116,6 +1117,16 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
     private bool TryFindBuildingPosition(BuildingDefinition definition, string actor, out GridPoint position)
     {
+        // Once the worker reaches a legal site, retain it even if another
+        // inhabitant has since vacated an earlier tile in the map scan.
+        var current = inhabitants[actor].Position;
+        if (CanPlaceBuilding(definition, current, out _) &&
+            !WorldContentSimulationRules.Footprint(definition, current).Any(point =>
+                inhabitants.Values.Any(person => person.InhabitantId != actor && person.Position == point)))
+        {
+            position = current;
+            return true;
+        }
         for (var y = 0; y < map.Height; y++)
         {
             for (var x = 0; x < map.Width; x++)
@@ -1212,8 +1223,14 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         return true;
     }
 
-    private static string BuildInstanceId(string inhabitantId, BuildingDefinition definition) =>
-        $"build-{inhabitantId}-{definition.PackageDigest[7..15]}-{definition.LocalId}";
+    private static string BuildInstanceId(string inhabitantId, BuildingDefinition definition)
+    {
+        // Preserve valid legacy IDs; descendant identities contain separators
+        // that are legal society IDs but invalid content instance IDs.
+        if (inhabitantId.All(character => char.IsLower(character) || char.IsDigit(character) || character is '.' or '-' or '_'))
+            return $"build-{inhabitantId}-{definition.PackageDigest[7..15]}-{definition.LocalId}";
+        return "build-v2-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(inhabitantId + "\n" + definition.CanonicalId)));
+    }
 
     private bool CanPlaceBuilding(
         BuildingDefinition definition,
@@ -2226,9 +2243,22 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
     private void Sleep(string inhabitantId, PlaytestInhabitantState state)
     {
-        var restPosition = BuildingsWithTag("shelter").FirstOrDefault()?.Position ?? map.GetObject("bedroll").Position;
+        var restPosition = BuildingsWithTag("shelter")
+            .Select(building => new { building.Position, Route = FindUnoccupiedRoute(inhabitantId, state.Position, building.Position, ResourceInteractionRange) })
+            .Where(site => site.Route.Count > 0)
+            .OrderBy(site => site.Route.Count)
+            .Select(site => (GridPoint?)site.Position)
+            .FirstOrDefault() ?? map.GetObject("bedroll").Position;
         if (!IsWithinInteractionRange(state.Position, restPosition, ResourceInteractionRange))
         {
+            if (FindUnoccupiedRoute(inhabitantId, state.Position, restPosition, ResourceInteractionRange).Count < 2)
+            {
+                // Congestion cannot make rest physically impossible. Outdoor
+                // rest is less effective and does not remove exposure hazards.
+                inhabitants[inhabitantId] = state with { EnergyBasisPoints = Math.Min(10_000, state.EnergyBasisPoints + 500) };
+                AppendEvent("inhabitant_rested_outdoors", inhabitantId);
+                return;
+            }
             MoveToward(inhabitantId, state, restPosition, "sleep", ResourceInteractionRange);
             return;
         }
@@ -2266,7 +2296,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000;
         if (shouldGatherFood && contentRegistry.ExportState().Packages.Any(package =>
                 package.Manifest.PackageId == StarterContent.PackageId && package.Lifecycle == ContentPackageLifecycle.Active) &&
-            AvailableSharedFood(inhabitantId) is not null)
+            AvailableSharedFood(inhabitantId) is not null &&
+            FindUnoccupiedRoute(inhabitantId, state.Position, map.GetObject("bedroll").Position, ResourceInteractionRange).Count > 0)
         {
             candidates.Add(new CognitionCandidate("collect_shared_food",
                 "Collect one available household food serving at camp, then eat it.",
@@ -2307,7 +2338,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         if (state.EnergyBasisPoints < 3_500 && !candidates.Any(item => item.Id == "sleep"))
         {
             var sleepPriority = state.EnergyBasisPoints < 1_500 ? 1 : 10;
-            candidates.Add(new CognitionCandidate("sleep", "Sleep near the bedroll to recover energy.", sleepPriority, "bedroll"));
+            candidates.Add(new CognitionCandidate("sleep", "Rest at reachable shelter or bedding; recover less outdoors if access is blocked.", sleepPriority, "bedroll"));
         }
 
         AddSurvivalCandidates(candidates, inhabitantId, state);

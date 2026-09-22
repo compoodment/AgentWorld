@@ -65,11 +65,14 @@ public sealed partial class PrivateWorldRuntimeService(
             }
             if (logger?.IsEnabled(LogLevel.Information) == true)
             {
+                var actors = runtime.Inhabitants.Select(person => person.InhabitantId).OrderByDescending(id => id.Length).ToArray();
+                string? EventActor(string detail) => actors.FirstOrDefault(id => detail == id || detail.StartsWith(id + ":", StringComparison.Ordinal));
                 var projects = runtime.Inhabitants.Where(person => person.Project is not null)
                     .ToDictionary(person => person.InhabitantId, person => person.Project!, StringComparer.Ordinal);
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "project_chosen" or "project_progress" or "project_request_fulfilled"))
                 {
-                    var actor = worldEvent.Detail.Split(':', 2)[0];
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is null) continue;
                     var project = projects.GetValueOrDefault(actor);
                     LogSettlementActivity(logger, result.WorldTick, worldEvent.Kind, actor,
                         project?.Stage ?? "helping", project?.WorkDone ?? 0,
@@ -77,7 +80,8 @@ public sealed partial class PrivateWorldRuntimeService(
                 }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind == "survival_condition_changed"))
                 {
-                    var actor = worldEvent.Detail.Split(':', 2)[0];
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is null) continue;
                     if (runtime.Inhabitants.FirstOrDefault(person => person.InhabitantId == actor)?.Survival is { } condition)
                     {
                         LogSurvivalCondition(logger, result.WorldTick, actor, condition.WarmthBasisPoints, condition.IllnessBasisPoints);

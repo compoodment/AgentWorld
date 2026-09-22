@@ -8,6 +8,30 @@ namespace AgentWorld.Simulation.Tests;
 public sealed class SettlementLearningTests
 {
     [Fact]
+    public async Task BusyMentorGetsAnIndependentTeachingDecisionBeforeFinishingTheirProject()
+    {
+        var state = await PreparedState();
+        var learner = state.Society.Society.Inhabitants.Single(person => person.CurrentRole == SocietyWorkRole.Trader).Id;
+        using var requesting = PrivateWorldRuntime.Restore(state, actor => new LessonProvider(actor == learner ? "learn:builder:" : "safe_idle"));
+        await requesting.AdvanceOneTickAsync();
+        state = requesting.ExportState();
+        var teacher = state.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.TeacherId;
+        var definition = state.WorldContent!.Buildings[0];
+        state = state with
+        {
+            Inhabitants = state.Inhabitants.Select(person => person.InhabitantId == teacher ? person with
+            {
+                Project = new("build:building:" + definition.CanonicalId, definition.DisplayName, requesting.WorldTick, "acquiring",
+                LastTransitionTick: requesting.WorldTick),
+            } : person).ToArray()
+        };
+        using var world = PrivateWorldRuntime.Restore(state, _ => new LessonProvider("lesson_accept:"));
+        await world.AdvanceOneTickAsync();
+        Assert.Equal("accepted", world.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Stage);
+        Assert.Equal(0, world.Inhabitants.Single(person => person.InhabitantId == teacher).Project!.WorkDone);
+    }
+
+    [Fact]
     public async Task AcceptedTrainingSurvivesPauseAndRestartAndUnlocksActualBuildingWork()
     {
         var state = await PreparedState();

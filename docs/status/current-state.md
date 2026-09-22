@@ -2,7 +2,7 @@
 title: Current Product State
 type: product-status
 status: active
-updated: 2026-09-22
+updated: 2026-09-23
 ---
 
 # Current product state
@@ -112,6 +112,21 @@ their diet score. Low scores add fatigue. Spoiled reserved ingredients cancel
 the affected production job and release its remaining inputs rather than
 stalling the world. These are bounded first survival rules, not a finished
 nutrition/health/ecology model.
+
+An additive forestry package supplies managed coppice: two seeds and a fertile
+plot are committed for 1,440 world ticks, producing 24 wood and two replacement
+seeds. This competes with food cultivation and leaves depleted wild timber
+depleted. Activation waits for an unpaused tick and an active settlement
+package; rollback is respected across restart. Rest chooses reachable shelter
+or bedding, with slower outdoor recovery when access is blocked; outdoor sleep
+does not remove weather exposure. Shared-food choices require reachable pickup.
+Workers retain a valid current building site, and pending teaching requests
+give busy mentors a decision point without forcing acceptance.
+Descendant building IDs use a stable canonical hash when society IDs contain
+separators; existing founder-building IDs remain unchanged. The controlled
+generation regression verifies birth, feeding, two save/reloads, adulthood,
+earned training and completed construction with deterministic providers and
+optional fast aging. This is a connected path, not population-balance proof.
 
 Barter candidates require personal surplus and a useful different item held by
 another inhabitant. Offers reserve one unit from each side for at most 120 ticks;
