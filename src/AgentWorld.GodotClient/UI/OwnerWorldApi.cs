@@ -43,6 +43,20 @@ public sealed record OwnerWorldSpatialKnowledge(
     IReadOnlyList<OwnerWorldPosition> PerceivedTiles,
     IReadOnlyList<OwnerWorldPosition> KnownTiles);
 
+public sealed record OwnerWorldPublicIntention(
+    string CandidateId,
+    string Summary,
+    string Provider,
+    long WorldTick);
+
+public sealed record OwnerWorldInhabitantRelationship(
+    string RelationshipId,
+    string OtherPartyId,
+    string Type,
+    string State,
+    string PrivacyClass,
+    long EffectiveTick);
+
 public sealed record OwnerWorldInhabitant(
     string Id,
     string DisplayName,
@@ -54,7 +68,12 @@ public sealed record OwnerWorldInhabitant(
     IReadOnlyList<OwnerWorldDecisionFactor> DecisionFactors,
     OwnerWorldRoute Route,
     OwnerWorldSpatialKnowledge SpatialKnowledge,
-    bool IsDraft);
+    bool IsDraft)
+{
+    public OwnerWorldPublicIntention? PublicIntention { get; init; }
+
+    public IReadOnlyList<OwnerWorldInhabitantRelationship> Relationships { get; init; } = [];
+}
 
 public sealed record OwnerWorldInstruction(
     string InstructionId,

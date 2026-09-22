@@ -43,6 +43,24 @@ public sealed record ViewerSpatialKnowledge(
     IReadOnlyList<ViewerPosition> KnownTiles);
 
 /// <summary>
+/// A safe owner-facing summary of what an inhabitant is currently trying to
+/// do. This is an intention label, never private model chain-of-thought.
+/// </summary>
+public sealed record ViewerPublicIntention(
+    string CandidateId,
+    string Summary,
+    string Provider,
+    long WorldTick);
+
+public sealed record ViewerInhabitantRelationship(
+    string RelationshipId,
+    string OtherPartyId,
+    string Type,
+    string State,
+    string PrivacyClass,
+    long EffectiveTick);
+
+/// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
 /// is visible as such but is not a living simulation actor yet.
 /// </summary>
@@ -57,7 +75,12 @@ public sealed record ViewerInhabitant(
     IReadOnlyList<ViewerDecisionFactor> DecisionFactors,
     ViewerRoute Route,
     ViewerSpatialKnowledge SpatialKnowledge,
-    bool IsDraft);
+    bool IsDraft)
+{
+    public ViewerPublicIntention? PublicIntention { get; init; }
+
+    public IReadOnlyList<ViewerInhabitantRelationship> Relationships { get; init; } = [];
+}
 
 public sealed record ViewerInstruction(
     string InstructionId,

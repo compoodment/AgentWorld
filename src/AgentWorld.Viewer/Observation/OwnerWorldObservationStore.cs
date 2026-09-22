@@ -386,7 +386,12 @@ public sealed class OwnerWorldObservationStore
             decisionFactors,
             route,
             new ViewerSpatialKnowledge(ToPosition(actor.Position), perceived, known),
-            IsDraft: false);
+            IsDraft: false)
+        {
+            PublicIntention = cognition?.CurrentIntention is { } publicIntention
+                ? ToPublicIntention(publicIntention.CandidateId, publicIntention.Provider.ToString().ToLowerInvariant(), publicIntention.WorldTick)
+                : null,
+        };
     }
 
     private static ViewerInhabitant ToFounderDraft(OwnerFounderDraft draft) => new(
@@ -444,8 +449,71 @@ public sealed class OwnerWorldObservationStore
             decisionFactors,
             route,
             new ViewerSpatialKnowledge(ToPosition(physical.Position), perceived, known),
-            IsDraft: false);
+            IsDraft: false)
+        {
+            PublicIntention = runtime?.CurrentIntention is { } publicIntention
+                ? ToPublicIntention(publicIntention.CandidateId, publicIntention.Provider.ToString().ToLowerInvariant(), publicIntention.WorldTick)
+                : null,
+            Relationships = RelationshipsFor(state, inhabitant.Id),
+        };
     }
+
+    private static ViewerInhabitantRelationship[] RelationshipsFor(
+        PrivateWorldRuntimeState state,
+        string inhabitantId) => state.Society.Society.Relationships
+        .Where(relationship =>
+            (relationship.ProposerId == inhabitantId || relationship.TargetId == inhabitantId) &&
+            relationship.State is SocietyRelationshipState.Proposed or SocietyRelationshipState.Accepted)
+        .OrderBy(relationship => relationship.Type)
+        .ThenBy(relationship => relationship.Id, StringComparer.Ordinal)
+        .Select(relationship => new ViewerInhabitantRelationship(
+            relationship.Id,
+            relationship.ProposerId == inhabitantId ? relationship.TargetId : relationship.ProposerId,
+            ToWireValue(relationship.Type),
+            ToWireValue(relationship.State),
+            relationship.PrivacyClass,
+            relationship.EffectiveTick))
+        .ToArray();
+
+    private static ViewerPublicIntention ToPublicIntention(
+        string candidateId,
+        string provider,
+        long worldTick) => new(
+        candidateId,
+        PublicIntentionSummary(candidateId),
+        provider,
+        worldTick);
+
+    private static string PublicIntentionSummary(string candidateId) => candidateId switch
+    {
+        "seek_food" => "looking for food",
+        "harvest_food" => "gathering food",
+        "consume_food" => "eating carried food",
+        "sleep" => "looking for rest",
+        "safe_idle" => "keeping a safe routine",
+        _ => candidateId.Replace('_', ' '),
+    };
+
+    private static string ToWireValue(SocietyRelationshipType type) => type switch
+    {
+        SocietyRelationshipType.Partnership => "partnership",
+        SocietyRelationshipType.Caregiver => "caregiver",
+        SocietyRelationshipType.HouseholdMembership => "household_membership",
+        SocietyRelationshipType.BiologicalParentage => "biological_parentage",
+        SocietyRelationshipType.LegalGuardian => "legal_guardian",
+        _ => throw new ArgumentOutOfRangeException(nameof(type)),
+    };
+
+    private static string ToWireValue(SocietyRelationshipState state) => state switch
+    {
+        SocietyRelationshipState.Proposed => "proposed",
+        SocietyRelationshipState.Accepted => "accepted",
+        SocietyRelationshipState.Rejected => "rejected",
+        SocietyRelationshipState.Revoked => "revoked",
+        SocietyRelationshipState.Dissolved => "dissolved",
+        SocietyRelationshipState.EndedByDeath => "ended_by_death",
+        _ => throw new ArgumentOutOfRangeException(nameof(state)),
+    };
 
     private static ViewerInventoryEntry[] InventoryFor(
         PrivateWorldRuntimeState state,

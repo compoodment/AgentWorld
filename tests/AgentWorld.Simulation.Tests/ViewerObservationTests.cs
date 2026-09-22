@@ -147,6 +147,11 @@ public sealed class ViewerObservationTests
             Assert.Contains(inhabitant.DecisionFactors, factor => factor.Key == "personality");
             Assert.Contains(inhabitant.DecisionFactors, factor => factor.Key == "household");
             Assert.NotEmpty(inhabitant.SpatialKnowledge.PerceivedTiles);
+            Assert.Contains(
+                inhabitant.Relationships,
+                relationship => relationship.Type == "household_membership" &&
+                    relationship.State == "accepted" &&
+                    relationship.OtherPartyId == "household:camp-alpha");
         });
         Assert.NotNull(snapshot.Cognition);
         Assert.NotNull(snapshot.WorldSystems);
@@ -154,6 +159,23 @@ public sealed class ViewerObservationTests
         Assert.Equal(2, snapshot.WorldSystems.EcologyResourceCount);
         Assert.Equal(1, snapshot.WorldSystems.FactionCount);
         Assert.Equal(4, snapshot.Inhabitants.Select(inhabitant => inhabitant.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task PrivateWorldObservationExposesPublicIntentionsWithoutModelTrace()
+    {
+        using var runtime = new PrivateWorldRuntime("playtest-alpha");
+        _ = await runtime.AdvanceOneTickAsync();
+
+        var snapshot = new OwnerWorldObservationStore(runtime).GetSnapshot();
+
+        Assert.Contains(snapshot.Inhabitants, inhabitant =>
+            inhabitant.PublicIntention is { WorldTick: 1, Summary: not null });
+        Assert.All(snapshot.Inhabitants.Where(inhabitant => inhabitant.PublicIntention is not null), inhabitant =>
+        {
+            Assert.DoesNotContain("chain", inhabitant.PublicIntention!.Summary, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("prompt", inhabitant.PublicIntention.Summary, StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     [Fact]

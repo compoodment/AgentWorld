@@ -522,3 +522,17 @@ security design defines its sandbox, resource limits, communication protocol,
 failure/rollback semantics, and operational proof. This keeps the current
 content path useful without pretending that an unreviewed process boundary is
 already safe.
+
+## 2026-09-22 — Minimal observatory client scope
+
+The player-facing client is a small observatory, not a construction or
+production-management dashboard. Inhabitants choose and perform construction,
+crafting, and production through the background simulation. The human may
+observe those outcomes and inspect an inhabitant, but ordinary gameplay UI does
+not provide direct “place building” or “start production” buttons.
+
+The selected-inhabitant view may show compact public-facing information such as
+current intention summaries, needs, decision factors, and relationship edges.
+It must not expose raw private model chain-of-thought. Developer-only paused
+authoring tools remain a separate diagnostic/control surface and are not the
+shape of the final product UI.

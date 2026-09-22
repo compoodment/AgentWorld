@@ -71,6 +71,9 @@ active lifecycle population after every society mutation.
   boundary and rejects schema or active-population mismatches on restore.
 - `InventoryFixture` exposes authoritative reservation consumption and
   provenance-preserving transfers for society operations.
+- `OwnerWorldObservationStore` projects compact public intention labels and
+  current relationship edges per inhabitant without exporting prompts,
+  responses, or private model reasoning.
 - `SocietyTests` covers relationship consent/cardinality, idempotent
   birth, mortality and estate settlement, transfer/barter, cognition fairness,
   lifecycle reconciliation, death cleanup, combined runtime persistence,

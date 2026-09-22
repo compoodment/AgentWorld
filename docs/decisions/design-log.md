@@ -635,3 +635,15 @@ Executable packages are deferred until the project deliberately designs and
 proves an isolated helper process with strict resource limits and explicit
 rollback behavior. This preserves a useful mod/content workflow now while
 avoiding a fake sandbox made from optimistic configuration flags.
+
+## 2026-09-22 — Minimal observatory client scope
+
+The player-facing client remains a compact observatory. Construction, crafting,
+and production are background simulation work chosen and performed by
+inhabitants; the ordinary gameplay UI does not add direct building-placement or
+production-start controls. Clicking an inhabitant may open a small inspection
+card with needs, public intention summaries, and relationship edges.
+
+This is intentionally not a raw model-trace viewer. Private chain-of-thought is
+not exposed, and developer-only paused authoring tools remain separate from the
+final product experience.

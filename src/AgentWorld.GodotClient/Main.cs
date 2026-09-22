@@ -65,6 +65,7 @@ public partial class Main : Control
     private readonly Button clearSelectionButton = new();
     private readonly ItemList inhabitantList = new();
     private readonly RichTextLabel inhabitantDetails = new();
+    private readonly RichTextLabel inhabitantSocialDetails = new();
     private readonly RichTextLabel worldDetails = new();
     private readonly RichTextLabel eventLog = new();
     private readonly Button rosterToggleButton = new();
@@ -1241,6 +1242,9 @@ public partial class Main : Control
         ConfigureTextPanel(inhabitantDetails, 112);
         body.AddChild(inhabitantDetails);
 
+        ConfigureTextPanel(inhabitantSocialDetails, 82);
+        body.AddChild(inhabitantSocialDetails);
+
         clearSelectionButton.Text = "Clear selection";
         StyleButton(clearSelectionButton);
         clearSelectionButton.Pressed += ClearInhabitantSelection;
@@ -1547,6 +1551,8 @@ public partial class Main : Control
         {
             selectedActorNameLabel.Text = "No inhabitant selected";
             selectedActorSummaryLabel.Text = "Choose a person from the map or roster to inspect them and compose an instruction.";
+            inhabitantSocialDetails.Clear();
+            inhabitantSocialDetails.AppendText("Public intention and relationships appear here.");
             selectedInhabitantCard.Show();
             return;
         }
@@ -1555,6 +1561,21 @@ public partial class Main : Control
         selectedActorSummaryLabel.Text =
             $"{Pretty(inhabitant.Lifecycle)}  ·  {Pretty(inhabitant.Route.Status)}  ·  {inhabitant.Position.X}, {inhabitant.Position.Y}\n" +
             (inhabitant.IsDraft ? "Draft only · instructions are unavailable until the server reports an active inhabitant." : "Ready for an owner instruction.");
+        var intention = inhabitant.PublicIntention is { } publicIntention
+            ? $"Public intention  {Pretty(publicIntention.Summary)} · {Pretty(publicIntention.Provider)} · tick {publicIntention.WorldTick:N0}"
+            : "Public intention  not reported yet";
+        var relationships = inhabitant.Relationships.Count == 0
+            ? "Relationships  none currently reported"
+            : "Relationships  " + string.Join(
+                "; ",
+                inhabitant.Relationships.Select(relationship =>
+                {
+                    var other = snapshot.Inhabitants.FirstOrDefault(item => item.Id == relationship.OtherPartyId)?.DisplayName
+                        ?? Pretty(relationship.OtherPartyId);
+                    return $"{other} ({Pretty(relationship.Type)}, {Pretty(relationship.State)})";
+                }));
+        inhabitantSocialDetails.Clear();
+        inhabitantSocialDetails.AppendText($"{intention}\n{relationships}");
         selectedInhabitantCard.Show();
     }
 
