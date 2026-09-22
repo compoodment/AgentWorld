@@ -8,6 +8,14 @@ release yet.
 
 ### Added
 
+- Added Menu → Create: a data-only building workbench for named shelters,
+  storehouses and fuelled hearths. Isolated construction previews consume no
+  live materials or paid cognition. Saved designs require separate validation,
+  approval and staging; activation waits while paused. Used designs cannot be
+  withdrawn destructively. Inhabitants can select and construct active designs.
+- Constructed buildings now appear on the map with readable names, footprints
+  and hover help instead of existing only in the server's building list.
+
 - Package withdrawal now rejects committed building, production-history and
   settlement-project references until an explicit migration is available.
   A rejected request preserves the world; withdrawing unused content no longer

@@ -196,13 +196,23 @@ public partial class Main : Control
                         settlementPanel.Hide();
                     }
                 }
+                creationOverlay.Show();
+                for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                var creationBounds = creationOverlay.GetGlobalRect();
+                if (!creationBounds.Encloses(creationPanel.GetGlobalRect()) ||
+                    creationBounds.GetCenter().DistanceTo(creationPanel.GetGlobalRect().GetCenter()) > 2)
+                    throw new InvalidOperationException($"Creation workbench escaped its centered bounds at {size}.");
+                creationOverlay.Hide();
             }
             gameMenuPanel.Hide();
             menuShade.Hide();
             selectedInhabitantCard.Hide();
             var sampleResource = new OwnerWorldResource("wood", "construction", new(1, 1), false, "available", 8, 12, 0, 0, "spring");
             var sample = new OwnerWorldSnapshot("ui-test", 0, "ui-map", Enumerable.Range(0, 16)
-                .Select(index => new OwnerWorldTile(index % 4, index / 4, "meadow")).ToArray(), [], [sampleResource], null, 0);
+                .Select(index => new OwnerWorldTile(index % 4, index / 4, "meadow")).ToArray(), [], [sampleResource], null, 0)
+            {
+                PlacedBuildings = [new("test-hall", "test-definition", new(0, 2), 0, "Test hall", ["shelter"], 2, 1)],
+            };
             RenderMap(sample);
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var marker = mapObjectVisuals["resource:wood"];
@@ -215,9 +225,13 @@ public partial class Main : Control
             if (!entered || marker.MouseFilter == MouseFilterEnum.Ignore || marker.GetInstanceId() != identity ||
                 !marker.TooltipText.Contains("7/12", StringComparison.Ordinal) || !marker.Text.Contains("7/12", StringComparison.Ordinal))
                 throw new InvalidOperationException($"Resource hover/update failed: entered={entered}, filter={marker.MouseFilter}, stable={marker.GetInstanceId() == identity}, text={marker.Text}, rect={marker.GetGlobalRect()}, hovered={GetViewport().GuiGetHoveredControl()?.GetPath()}.");
-            RenderMap(sample with { Resources = [] });
+            var builtMarker = mapObjectVisuals["building:test-hall"];
+            if (!builtMarker.Text.Contains("Test hall", StringComparison.Ordinal) || builtMarker.Size.X <= builtMarker.Size.Y)
+                throw new InvalidOperationException("Built structures must render their name and multi-tile footprint.");
+            RenderMap(sample with { Resources = [], PlacedBuildings = [] });
             if (mapObjectVisuals.ContainsKey("resource:wood")) throw new InvalidOperationException("Removed resource marker was retained.");
-            GD.Print("UI checks passed: centered menus and settlement panel at three sizes; resource hover, live stock updates and marker removal.");
+            if (mapObjectVisuals.ContainsKey("building:test-hall")) throw new InvalidOperationException("Removed building marker was retained.");
+            GD.Print("UI checks passed: centered menus/workbench and settlement panel at three sizes; resource hover, stock updates and building footprints.");
             GetTree().Quit();
         }
         catch (Exception exception)
@@ -1190,6 +1204,7 @@ public partial class Main : Control
         BuildInspectorColumn(mapCanvas);
         BuildOwnerColumn(mapCanvas);
         BuildStatusToast(mapCanvas);
+        BuildCreationWorkbench();
 
         Resized += ApplyResponsiveLayout;
         ApplyResponsiveLayout();
@@ -1547,6 +1562,18 @@ public partial class Main : Control
         StyleButton(connectionSettingsButton);
         connectionSettingsButton.Pressed += ToggleConnectionSettings;
         menuActions.AddChild(connectionSettingsButton);
+
+        var creationButton = new Button { Text = "Create" };
+        StyleButton(creationButton);
+        creationButton.Pressed += () =>
+        {
+            creationOverlay.Show();
+            designStatus.Text = observationSession.Current?.Handshake.ServerCapabilities.Contains("owner-building-design.v1", StringComparer.Ordinal) == true
+                ? "Designs require your review before activation."
+                : "Connect to a paired host that supports the building workbench.";
+            RefreshCreationAvailability();
+        };
+        menuActions.AddChild(creationButton);
 
         developerToggleButton.Text = "Developer tools";
         StyleButton(developerToggleButton);
@@ -1928,6 +1955,7 @@ public partial class Main : Control
         RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
         RenderWorldDetails(snapshot);
+        RenderDesignPackages(snapshot);
         RenderEventLog();
         RefreshControlAvailability();
     }
@@ -1943,7 +1971,8 @@ public partial class Main : Control
             child.QueueFree();
         }
         var objectIds = snapshot.Resources.Select(resource => "resource:" + resource.Id)
-            .Concat(snapshot.Objects.Select(item => "object:" + item.Id)).ToHashSet(StringComparer.Ordinal);
+            .Concat(snapshot.Objects.Select(item => "object:" + item.Id))
+            .Concat(snapshot.PlacedBuildings.Select(item => "building:" + item.InstanceId)).ToHashSet(StringComparer.Ordinal);
         foreach (var id in mapObjectVisuals.Keys.Where(id => !objectIds.Contains(id)).ToArray())
         {
             mapObjectVisuals[id].QueueFree();
@@ -1993,6 +2022,16 @@ public partial class Main : Control
                 ObjectGlyph(mapObject.Kind),
                 ObjectMarker(mapObject.Kind),
                 Pretty(mapObject.Kind));
+        }
+
+        foreach (var building in snapshot.PlacedBuildings)
+        {
+            var tags = building.Tags ?? [];
+            var kind = tags.Contains("shelter", StringComparer.Ordinal) ? "shelter" :
+                tags.Any(tag => tag is "warmth" or "cooking") ? "campfire" : "building";
+            var name = building.DisplayName ?? "Building";
+            AddMapObjectVisual("building:" + building.InstanceId, building.Position, ObjectGlyph(kind), name,
+                $"{name}\nBuilt · {building.Width} × {building.Height} tiles", building.Width, building.Height);
         }
 
         foreach (var group in snapshot.Inhabitants
@@ -2063,7 +2102,9 @@ public partial class Main : Control
         OwnerWorldPosition position,
         string glyph,
         string label,
-        string tooltip)
+        string tooltip,
+        int width = 1,
+        int height = 1)
     {
         var stride = currentTileSize + TileGap;
         if (!mapObjectVisuals.TryGetValue(id, out var visual))
@@ -2074,6 +2115,7 @@ public partial class Main : Control
                 VerticalAlignment = VerticalAlignment.Center,
                 MouseFilter = Control.MouseFilterEnum.Pass,
                 ZIndex = 5,
+                ClipText = true,
             };
             visual.AddThemeFontSizeOverride("font_size", 12);
             visual.AddThemeColorOverride("font_color", new Color("E8F0D8"));
@@ -2085,7 +2127,8 @@ public partial class Main : Control
         }
         visual.Text = $"{glyph}\n{label}";
         visual.Position = new Vector2(position.X * stride + 4, position.Y * stride + 4);
-        visual.Size = new Vector2(currentTileSize - 8, currentTileSize - 8);
+        visual.Size = new Vector2(stride * Math.Clamp(width, 1, 32) - TileGap - 8,
+            stride * Math.Clamp(height, 1, 32) - TileGap - 8);
         visual.TooltipText = tooltip;
     }
 
@@ -2416,6 +2459,7 @@ public partial class Main : Control
         // visible comparison value stable until it expires or activates.
         pairButton.Disabled = isPairingOperation || deviceKey is null || pendingPairing is not null || registration is not null;
         forgetRegistrationButton.Disabled = isPairingOperation || registration is null;
+        RefreshCreationAvailability();
     }
 
     private string SelectedAuthoringKind() => authoringKind.GetItemText(authoringKind.Selected);
@@ -2726,6 +2770,11 @@ public partial class Main : Control
 
         statusLabel.Text = text;
         statusLabel.Modulate = new Color(good ? "B9E8C5" : "F0B6A6");
+        if (creationOverlay.Visible)
+        {
+            designStatus.Text = text;
+            designStatus.Modulate = statusLabel.Modulate;
+        }
         statusToast.Show();
         ApplyResponsiveLayout();
     }

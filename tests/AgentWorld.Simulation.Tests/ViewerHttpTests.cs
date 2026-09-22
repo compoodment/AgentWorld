@@ -14,7 +14,7 @@ using Microsoft.Extensions.Logging;
 
 namespace AgentWorld.Simulation.Tests;
 
-public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClassFixture<ViewerWebApplicationFactory>
+public sealed partial class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClassFixture<ViewerWebApplicationFactory>
 {
     private static readonly System.Text.Json.JsonSerializerOptions WebJsonOptions =
         new(System.Text.Json.JsonSerializerDefaults.Web);

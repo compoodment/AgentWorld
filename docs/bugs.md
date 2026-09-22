@@ -147,6 +147,10 @@ pages retain reproductions and regression requirements.
 | [#119](https://github.com/compoodment/AgentWorld/issues/119) | Fixed; declared/chunked/misreported size tests | Unbounded provider response buffering |
 | [#120](https://github.com/compoodment/AgentWorld/issues/120) | Fixed; 600 signed polls with no authority writes | Idle authority write amplification |
 
+- **AW-B022 — fixed:** the client ignored placed-building observations, so
+  completed structures were absent from the map. Stable markers now show their
+  names, purpose and actual footprint; engine tests cover rendering and removal.
+
 ## Register maintenance
 
 - Record only reproduced defects or demonstrated product gaps.

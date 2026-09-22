@@ -132,7 +132,8 @@ public sealed record ViewerContentPackage(
     long? ValidationTick,
     long? StagedTick,
     long? ActivationTick,
-    string? ManifestDigest = null);
+    string? ManifestDigest = null,
+    string? DisplayName = null);
 
 public sealed record ViewerContentGovernanceEvent(
     long EventId,
@@ -163,7 +164,11 @@ public sealed record ViewerPlacedBuilding(
     string InstanceId,
     string DefinitionId,
     ViewerPosition Position,
-    long PlacedTick);
+    long PlacedTick,
+    string? DisplayName = null,
+    IReadOnlyList<string>? Tags = null,
+    int Width = 1,
+    int Height = 1);
 
 public sealed record ViewerProductionJob(
     string JobId,

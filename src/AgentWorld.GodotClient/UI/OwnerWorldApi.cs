@@ -128,7 +128,9 @@ public sealed record OwnerWorldContentPackage(
     string? LockDigest,
     long? ValidationTick,
     long? StagedTick,
-    long? ActivationTick);
+    long? ActivationTick,
+    string? ManifestDigest = null,
+    string? DisplayName = null);
 
 public sealed record OwnerWorldContentGovernanceEvent(
     long EventId,
@@ -159,7 +161,11 @@ public sealed record OwnerWorldPlacedBuilding(
     string InstanceId,
     string DefinitionId,
     OwnerWorldPosition Position,
-    long PlacedTick);
+    long PlacedTick,
+    string? DisplayName = null,
+    IReadOnlyList<string>? Tags = null,
+    int Width = 1,
+    int Height = 1);
 
 public sealed record OwnerWorldProductionJob(
     string JobId,
@@ -328,6 +334,11 @@ public sealed record OwnerContentPackageAction(
     IReadOnlyList<OwnerContentAssetReservationAction>? Assets = null);
 
 public sealed record OwnerContentPackageIdAction(string PackageId);
+
+public sealed record OwnerBuildingDesignAction(string Name, string Purpose, int WoodCost);
+
+public sealed record OwnerBuildingDesignPreview(OwnerBuildingDesignAction Design, OwnerContentPackageAction Package, string ManifestDigest,
+    string Summary, bool ConstructionPassed, int WoodConsumed);
 
 public sealed record OwnerContentRollbackAction(string PackageId, string Reason);
 
@@ -561,6 +572,12 @@ public static class OwnerWorldActionPayload
 
         return string.Join('\n', lines);
     }
+
+    public static string BuildingDesign(OwnerBuildingDesignAction action) => string.Join('\n',
+        "agentworld.owner-building-design.v1",
+        "name=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(action.Name)),
+        "purpose=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(action.Purpose)),
+        "wood-cost=" + action.WoodCost.ToString(CultureInfo.InvariantCulture));
 
     public static string ContentPropose(OwnerContentPackageAction action)
     {
@@ -840,6 +857,20 @@ public sealed class OwnerWorldApi
             action,
             deviceKey,
             cancellationToken);
+
+    public Task<OwnerBuildingDesignPreview> ReviewBuildingAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId, OwnerContentPackageIdAction action,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerContentPackageIdAction, OwnerBuildingDesignPreview>(serverUri, authority, deviceId,
+            "/api/v1/owner/content/building-review", OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.ContentPackageId("building-review", action), action, deviceKey, cancellationToken);
+
+    public Task<OwnerBuildingDesignPreview> PreviewBuildingAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId, OwnerBuildingDesignAction action,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerBuildingDesignAction, OwnerBuildingDesignPreview>(serverUri, authority, deviceId,
+            "/api/v1/owner/content/building-preview", OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.BuildingDesign(action), action, deviceKey, cancellationToken);
 
     public Task<OwnerContentPackageReceipt> ProposeContentAsync(
         Uri serverUri,

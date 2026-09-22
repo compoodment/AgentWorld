@@ -195,6 +195,16 @@ projects is rejected atomically. A usable creator workflow must expose that
 restriction and eventually provide explicit, previewed conversion; it must not
 describe destructive deletion as rollback.
 
+**Connected first slice:** Menu → Create authors named 1×1 shelters, storehouses
+and fuelled hearths with bounded wood costs. A separate deterministic world
+tests construction without live mutations or paid cognition. Saved proposals
+can be reviewed again, then separately validated, approved and staged; pause
+still prevents activation. Runtime tests prove inhabitants choose and construct
+all three purposes through normal planning. Godot engine tests cover workbench
+geometry and visible placed-building names/footprints. This does not complete
+inhabitant invention, arbitrary recipes, art provenance/cache UI, or explicit
+conversion of already-used packages.
+
 ## Single-player release
 
 Public packaging comes after the private world is coherent:

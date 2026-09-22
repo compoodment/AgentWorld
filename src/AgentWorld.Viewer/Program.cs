@@ -523,6 +523,8 @@ app.MapPost("/api/v1/owner/instructions", (
     }
 });
 
+app.MapBuildingDesign(isPrivateWorld);
+
 app.MapPost("/api/v1/owner/content/propose", (
     OwnerSignedHttpRequest<OwnerContentPackageAction> request,
     OwnerRequestAuthorizer authorizer,

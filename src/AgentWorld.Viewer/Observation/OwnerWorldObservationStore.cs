@@ -55,7 +55,7 @@ public sealed class OwnerWorldObservationStore
 
     public ViewerHandshake GetOwnerHandshake() => new(
         new ProtocolVersion(Major: 1, Minor: 1),
-        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1"],
+        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1", "owner-building-design.v1"],
         OwnerClientCapabilities.ToArray());
 
     public ViewerWorldSnapshot GetSnapshot() => privateRuntime is not null
@@ -192,6 +192,7 @@ public sealed class OwnerWorldObservationStore
     {
         var map = state.Map;
         var ecology = state.WorldSystems?.Ecology.Resources.ToDictionary(resource => resource.Id, StringComparer.Ordinal);
+        var buildingDefinitions = state.WorldContent?.Buildings.ToDictionary(building => building.CanonicalId, StringComparer.Ordinal);
         var activeInhabitants = state.Society.Society.Inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Active)
             .OrderBy(item => item.Id, StringComparer.Ordinal)
@@ -287,7 +288,8 @@ public sealed class OwnerWorldObservationStore
                     package.ValidationTick,
                     package.StagedTick,
                     package.ActivationTick,
-                    package.ManifestDigest))
+                    package.ManifestDigest,
+                    package.Manifest.Definitions.Count == 0 ? null : package.Manifest.Definitions[0].DisplayName))
                 .ToArray() ?? [],
             ContentEvents = state.Content?.Events
                 .OrderBy(item => item.EventId)
@@ -338,7 +340,11 @@ public sealed class OwnerWorldObservationStore
                     item.InstanceId,
                     item.DefinitionId,
                     ToPosition(item.Position),
-                    item.PlacedTick))
+                    item.PlacedTick,
+                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.DisplayName,
+                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Tags,
+                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Width ?? 1,
+                    buildingDefinitions?.GetValueOrDefault(item.DefinitionId)?.Height ?? 1))
                 .ToArray() ?? [],
             ProductionJobs = jobs
                 .OrderBy(item => item.JobId, StringComparer.Ordinal)
