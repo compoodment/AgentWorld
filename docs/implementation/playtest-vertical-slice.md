@@ -52,7 +52,9 @@ The alpha is ready for first human playtesting when a fresh checkout can:
 1. start one private world and the Godot client with a documented command;
 2. show a small group of actual active inhabitants rather than authoring drafts
    or a single scripted actor;
-3. advance a persistent world clock with pause, resume, and speed controls;
+3. advance a persistent world clock while an authenticated game client is
+   present, stop shortly after the last client leaves, and retain explicit
+   pause, resume, and speed controls without offline catch-up;
 4. let the owner inspect inhabitants, needs, inventories, current intentions,
    relationships, work, and recent events;
 5. let the owner issue suggestive and must-do instructions and observe their
@@ -118,5 +120,5 @@ more speculative systems.
 No product decision currently blocks the alpha. The executable-content sandbox
 question remains deferred and disabled; it is the one documented capability
 that is not safe to invent. Multiplayer/public worlds remain deferred by
-choice. Provider credentials are supplied by the operator outside the
-repository and are never written to saves or the Godot client.
+choice. Provider credentials are supplied by the paired owner in the game and
+are never returned to the client or written to saves or the Godot client.

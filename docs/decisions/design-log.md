@@ -694,3 +694,27 @@ The Godot client is the game, not a protocol dashboard. Persistent diagnostic
 chrome made the small temporary map feel secondary and exposed concepts that
 have no player meaning. Keeping diagnostics available but hidden preserves the
 authority and support surfaces without making them the visual identity of play.
+
+## 2026-09-22 — Active-client private-world lifetime
+
+### Decision
+
+The private-world host remains a continuously reachable service, but the
+simulation advances only while at least one authenticated game client has a
+current presence lease. A signed reconnect refreshes that short lease. Closing
+or crashing the last client stops ticks and provider calls after the bounded
+grace period. Reopening the game restores presence but does not clear an
+explicit manual pause, and elapsed wall time is never replayed as offline
+simulation.
+
+This supersedes the 2026-09-18 decision that an unpaused private world would
+continue unattended and could keep spending provider resources.
+
+### Reason
+
+The VPS should make a private world available from anywhere, not turn closing
+the game into an invisible paid automation job. Client presence is an
+ephemeral host concern rather than persisted world state, so a disconnect can
+gate execution without corrupting the durable pause epoch or world history.
+Supporting multiple active paired devices also avoids treating one transport
+connection as a new source of simulation authority.

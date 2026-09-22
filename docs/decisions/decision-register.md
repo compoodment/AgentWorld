@@ -33,11 +33,14 @@ The first design interview established these decisions:
 - The world uses a 365-day in-world calendar, four simple seasons, and a
   provisional four-real-minute day: about 2:40 daylight and 1:20 night. The
   timing is configurable after playtesting.
-- The world continues while unpaused and unattended. Model calls may continue
-  and incur provider cost; provider/account limits remain the external billing
-  boundary. Numeric game-side cognition ceilings are not an initial promise;
-  runtime admission, queue/backpressure, provider-outage pause, and
-  emergency-stop behavior follow the
+- The private-world host remains reachable continuously, but simulation time
+  and model calls advance only while at least one authenticated game client has
+  a current presence lease. Closing or losing every client stops ticks after a
+  short grace period; reconnecting restores the presence gate without clearing
+  a manual pause or simulating missed time. Provider/account limits remain the
+  external billing boundary. Numeric game-side cognition ceilings are not an
+  initial promise; runtime admission, queue/backpressure, provider-outage
+  pause, and emergency-stop behavior follow the
   [cognition and society contract](../planning/cognition-and-society-contract.md).
 - The prototype starts from a seeded, procedurally generated world with a
   living ecosystem. A small temperate biome is enough for the first test;

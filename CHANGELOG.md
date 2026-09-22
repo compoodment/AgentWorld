@@ -68,6 +68,10 @@ release yet.
 
 ### Changed
 
+- Changed private-world lifetime so simulation ticks and hosted-provider calls
+  run only while at least one authenticated game client remains connected.
+  Closing or losing the last client stops the world after a five-second grace
+  period; reconnecting does not clear a manual pause or simulate offline time.
 - Changed inhabitant cognition from one provider request per person per world
   second to bounded, persistent intentions. Inhabitants now carry out legal
   movement, rest, gathering, eating, and building work locally until the plan

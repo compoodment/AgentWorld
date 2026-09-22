@@ -12,6 +12,7 @@ EnvironmentFile=-/etc/agentworld-viewer/provider.env
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=AgentWorld__Runtime__WorldMode=private
 Environment=AgentWorld__Runtime__AdvanceScript=true
+Environment=AgentWorld__Runtime__ClientPresenceTimeoutSeconds=5
 Environment=AgentWorld__Http__Port=5188
 Environment=AgentWorld__Pairing__LocalApprovalPort=5189
 Environment=AgentWorld__Pairing__StatePath=/var/lib/agentworld-viewer/private-owner-authority.json

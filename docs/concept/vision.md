@@ -2,7 +2,7 @@
 title: AgentWorld Vision
 type: concept
 status: frozen
-updated: 2026-09-19
+updated: 2026-09-22
 ---
 
 # AgentWorld Vision
@@ -63,12 +63,16 @@ they currently perceive, have explored, remember, or learn from others.
 
 ## Design pillars
 
-### Autonomous, not unattended automation
+### Autonomous while inhabited
 
-The simulation is a long-running process. It is not a cron script that wakes
+The authoritative host is a long-running service, not a cron script that wakes
 up, performs a task, and disappears. The world has its own clock and event
-loop. Human viewers and external agents are observers or participants, not the
-world's heartbeat.
+loop, and inhabitants act autonomously while the game is open. The private
+world does not, however, spend simulation time or provider resources after all
+authenticated game clients leave: client presence opens the runtime gate, and
+closing the game stops ticks after a short grace period without offline
+catch-up. The human is not required to issue heartbeat commands or direct each
+action; the paired client maintains presence automatically.
 
 ### Consequences before spectacle
 

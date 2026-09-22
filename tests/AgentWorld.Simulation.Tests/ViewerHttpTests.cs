@@ -92,6 +92,34 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
     }
 
     [Fact]
+    public async Task RejectedReconnectDoesNotCreateAClientPresenceLease()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            $"agentworld-viewer-presence-auth-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using var host = new ViewerWebApplicationFactory(directory);
+            using var client = host.CreateClient();
+
+            using var rejected = await client.PostAsJsonAsync(
+                "/api/v1/owner/reconnect",
+                new { });
+
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            Assert.False(host.Services.GetRequiredService<OwnerClientPresenceLease>().HasActiveClient);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task PairedDeviceCanObserveThenIssueServerValidatedControlAndPausedAuthoringRequests()
     {
         using var client = factory.CreateClient();
@@ -113,6 +141,7 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
         Assert.Contains("owner-observation.read.v1", reconnect.Handshake.ServerCapabilities);
         Assert.Contains("owner-control.request.v1", reconnect.Handshake.ServerCapabilities);
         Assert.Contains("owner-provider-configuration.v1", reconnect.Handshake.ServerCapabilities);
+        Assert.True(factory.Services.GetRequiredService<OwnerClientPresenceLease>().HasActiveClient);
         Assert.Single(reconnect.Baseline.Snapshot.Inhabitants);
         Assert.NotNull(reconnect.Baseline.Snapshot.Authoring);
 

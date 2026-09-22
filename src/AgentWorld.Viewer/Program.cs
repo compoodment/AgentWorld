@@ -20,6 +20,14 @@ var advanceFixture = builder.Configuration.GetValue<bool>("AgentWorld:Runtime:Ad
 var advanceRuntime = isPrivateWorld
     ? builder.Configuration.GetValue("AgentWorld:Runtime:AdvanceScript", true)
     : advanceFixture;
+var clientPresenceTimeoutSeconds = builder.Configuration.GetValue(
+    "AgentWorld:Runtime:ClientPresenceTimeoutSeconds",
+    5);
+if (clientPresenceTimeoutSeconds is < 2 or > 60)
+{
+    throw new InvalidOperationException(
+        "AgentWorld:Runtime:ClientPresenceTimeoutSeconds must be between 2 and 60 seconds.");
+}
 var configuredDecisionProvider = builder.Configuration["AgentWorld:Runtime:DecisionProvider"] ?? "deterministic";
 var configuredJevModel = builder.Configuration["AgentWorld:Runtime:JevModel"] ?? "jev-1.13.0";
 var configuredModel = builder.Configuration["AgentWorld:Runtime:Model"];
@@ -113,6 +121,8 @@ builder.Services.AddSingleton<OwnerAuthorityStore>(services =>
         new OwnerAuthorityIdentity(configuredAuthorityId, worldId));
 });
 builder.Services.AddSingleton<OwnerRequestAuthorizer>();
+builder.Services.AddSingleton(new OwnerClientPresenceLease(
+    TimeSpan.FromSeconds(clientPresenceTimeoutSeconds)));
 if (advanceRuntime)
 {
     if (isPrivateWorld)
@@ -266,7 +276,8 @@ app.MapPost("/api/v1/owner/challenges", (
 app.MapPost("/api/v1/owner/reconnect", (
     OwnerSignedHttpRequest<OwnerReconnectAction> request,
     OwnerRequestAuthorizer authorizer,
-    OwnerWorldObservationStore observations) =>
+    OwnerWorldObservationStore observations,
+    OwnerClientPresenceLease clientPresence) =>
 {
     if (request?.Action is null || request.Action.AfterEventId < 0)
     {
@@ -285,6 +296,8 @@ app.MapPost("/api/v1/owner/reconnect", (
     {
         return OwnerFailures.ToHttpResult(authorization.Failure);
     }
+
+    clientPresence.RecordAuthenticatedReconnect(authorization.Value!.DeviceId);
 
     return Results.Ok(new ViewerOwnerReconnect(
         observations.GetOwnerHandshake(),

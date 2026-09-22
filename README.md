@@ -53,7 +53,8 @@ while inhabitants only know what they perceive, remember, or learn. The player
 can inspect an inhabitant and send either a suggestive instruction or a must-do
 instruction, as well as persistent world directives and direct broadcasts.
 The world uses a configurable 365-day calendar with simple seasons and a
-day/night cycle; it continues spending provider resources while unpaused.
+day/night cycle. It advances—and may spend provider resources—only while an
+authenticated game client is connected.
 
 ## Design boundaries
 
@@ -122,9 +123,15 @@ See the
 boundary rather than treating the browser page as an owner console.
 
 By default the host loads or creates the persistent four-inhabitant private
-world and advances it once per second. Its state is stored at
-`saves/private-world.json`; set `AgentWorld__Runtime__AdvanceScript=false` to
-start paused. The older owner fixture can be selected explicitly with
+world and advances it once per second while at least one authenticated game
+client is connected. Signed reconnect polling maintains a five-second presence
+lease; after the last client closes or loses contact, ticks and hosted-provider
+calls stop without offline catch-up. Reconnecting opens the presence gate but
+does not clear an explicit manual pause. The timeout can be changed with
+`AgentWorld__Runtime__ClientPresenceTimeoutSeconds` (2–60 seconds). State is
+stored at `saves/private-world.json`; set
+`AgentWorld__Runtime__AdvanceScript=false` to disable automatic advancement.
+The older owner fixture can be selected explicitly with
 `AgentWorld__Runtime__WorldMode=fixture`, which is useful for protocol
 compatibility tests and diagnostics. Deterministic decisions are the default.
 A paired owner configures cognition under **Menu → Settings → Inhabitant
