@@ -30,6 +30,7 @@ public partial class Main : Control
     private readonly Button connectionSettingsButton = new();
     private readonly LineEdit worldUrlInput = new();
     private readonly Button connectButton = new();
+    private readonly Button pairAgainButton = new();
     private readonly PanelContainer pairingPanel = new();
     private readonly Label pairingInstructionLabel = new();
     private readonly Label pairingCodeLabel = new();
@@ -930,6 +931,11 @@ public partial class Main : Control
         connectButton.Text = "Connect";
         connectButton.Pressed += () => _ = ConnectUsingCurrentUrlAsync();
         body.AddChild(connectButton);
+        pairAgainButton.Text = "Pair again";
+        pairAgainButton.TooltipText = "Replace this device's saved world registration and pair its Windows key with the current world.";
+        pairAgainButton.Visible = false;
+        pairAgainButton.Pressed += () => _ = PairAgainAsync();
+        body.AddChild(pairAgainButton);
         AddPanelContents(connectionPanel, "World connection", body);
     }
 
@@ -965,6 +971,17 @@ public partial class Main : Control
             return;
         }
 
+        await StartPairingAsync();
+    }
+
+    private async Task PairAgainAsync()
+    {
+        if (isPairingOperation || isOwnerAction || isRefreshing)
+        {
+            return;
+        }
+
+        ForgetLocalRegistration();
         await StartPairingAsync();
     }
 
@@ -1829,6 +1846,8 @@ public partial class Main : Control
         var actionDisabled = !paired || isOwnerAction || pendingSubmission is not null;
         worldUrlInput.Editable = registration is null && pendingPairing is null && !isPairingOperation && !isOwnerAction && !isRefreshing;
         connectButton.Disabled = registeredEndpointInvalid || pendingPairing is not null || isPairingOperation || isOwnerAction || isRefreshing;
+        pairAgainButton.Visible = registration is not null;
+        pairAgainButton.Disabled = isPairingOperation || isOwnerAction || isRefreshing;
         pauseButton.Disabled = actionDisabled || snapshot is null;
         submitInstructionButton.Disabled = actionDisabled || selected is null || selected.IsDraft;
         submitAuthoringButton.Disabled = actionDisabled || !paused;

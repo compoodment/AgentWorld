@@ -85,6 +85,9 @@ release yet.
 
 ### Fixed
 
+- Fixed re-pairing after a world-authority change by exposing a `Pair again`
+  action in Settings; players no longer need to find and delete client files to
+  replace an obsolete saved registration.
 - Fixed restart and replay edge cases across inventories, reservations,
   owner-control idempotency, cognition scheduling, stale provider responses,
   and durable command recovery.
