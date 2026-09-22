@@ -3,7 +3,7 @@ using AgentWorld.Viewer.Observation;
 
 namespace AgentWorld.Simulation.Tests;
 
-public sealed class PhaseTwoWorldStateFileTests
+public sealed class OwnerWorldStateFileTests
 {
     [Fact]
     public void SavedCompositeRuntimeSurvivesRestartWithEventsAndIdempotencyIntact()
@@ -14,20 +14,20 @@ public sealed class PhaseTwoWorldStateFileTests
         Directory.CreateDirectory(directory);
         try
         {
-            var stateFile = new PhaseTwoWorldStateFile(
+            var stateFile = new OwnerWorldStateFile(
                 System.IO.Path.Combine(directory, "runtime.json"));
             var first = stateFile.LoadOrCreate("camp-alpha");
             Assert.True(first.TryAdvanceOneAction());
             Assert.True(first.Pause("owner-device:restart-test"));
-            var instruction = first.SubmitInstruction(new PhaseTwoInstructionRequest(
+            var instruction = first.SubmitInstruction(new OwnerInstructionRequest(
                 "restart-instruction",
                 "owner-device:restart-test",
                 "actor-scout",
-                PhaseTwoInstructionKind.MustDo,
+                OwnerInstructionKind.MustDo,
                 "Return to camp."));
             var water = first.Capture().Snapshot.CurrentMap.Tiles
                 .Single(tile => tile.Terrain == TerrainKind.Water).Position;
-            var authored = first.ApplyAuthoringBatch(new PhaseTwoAuthoringBatch(
+            var authored = first.ApplyAuthoringBatch(new OwnerAuthoringBatch(
                 "restart-authoring",
                 [new SetTerrainOperation(water, TerrainKind.Mountain)],
                 "owner-device:restart-test"));
@@ -49,13 +49,13 @@ public sealed class PhaseTwoWorldStateFileTests
             Assert.Equal(expected.Snapshot.Climate, restored.Snapshot.Climate);
             Assert.Equal(expected.Snapshot.Instructions, restored.Snapshot.Instructions);
             Assert.Equal(expected.Events, restored.Events);
-            Assert.Equal(instruction, restarted.SubmitInstruction(new PhaseTwoInstructionRequest(
+            Assert.Equal(instruction, restarted.SubmitInstruction(new OwnerInstructionRequest(
                 "restart-instruction",
                 "owner-device:restart-test",
                 "actor-scout",
-                PhaseTwoInstructionKind.MustDo,
+                OwnerInstructionKind.MustDo,
                 "Return to camp.")));
-            Assert.Equal(authored, restarted.ApplyAuthoringBatch(new PhaseTwoAuthoringBatch(
+            Assert.Equal(authored, restarted.ApplyAuthoringBatch(new OwnerAuthoringBatch(
                 "restart-authoring",
                 [new SetTerrainOperation(water, TerrainKind.Mountain)],
                 "owner-device:restart-test")));
@@ -79,7 +79,7 @@ public sealed class PhaseTwoWorldStateFileTests
         Directory.CreateDirectory(directory);
         try
         {
-            var stateFile = new PhaseTwoWorldStateFile(
+            var stateFile = new OwnerWorldStateFile(
                 System.IO.Path.Combine(directory, "runtime.json"));
             _ = stateFile.LoadOrCreate("camp-alpha");
 

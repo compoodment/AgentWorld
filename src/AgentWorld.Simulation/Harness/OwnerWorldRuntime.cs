@@ -10,7 +10,7 @@ namespace AgentWorld.Simulation.Harness;
 /// fixture. The request never carries an instruction ID: that ID is minted by
 /// the authoritative runtime after validation.
 /// </summary>
-public enum PhaseTwoInstructionKind
+public enum OwnerInstructionKind
 {
     Suggestive,
     MustDo,
@@ -22,7 +22,7 @@ public enum PhaseTwoInstructionKind
 /// rejected states without making a client responsible for changing a queued
 /// instruction's state.
 /// </summary>
-public enum PhaseTwoInstructionState
+public enum OwnerInstructionState
 {
     Queued,
 }
@@ -31,34 +31,34 @@ public enum PhaseTwoInstructionState
 /// An untrusted client request to queue a human instruction. The idempotency
 /// key is client supplied; every other durable identifier is server minted.
 /// </summary>
-public sealed record PhaseTwoInstructionRequest(
+public sealed record OwnerInstructionRequest(
     string IdempotencyKey,
     string IssuerId,
     string TargetInhabitantId,
-    PhaseTwoInstructionKind Kind,
+    OwnerInstructionKind Kind,
     string Text);
 
 /// <summary>
 /// The authoritative queued record retained by the world runtime.
 /// </summary>
-public sealed record PhaseTwoQueuedInstruction(
+public sealed record OwnerQueuedInstruction(
     string InstructionId,
     string IdempotencyKey,
     string IssuerId,
     string TargetInhabitantId,
-    PhaseTwoInstructionKind Kind,
+    OwnerInstructionKind Kind,
     string Text,
     long SubmittedTick,
     long RunEpoch,
     long SubmissionSequence,
-    PhaseTwoInstructionState State);
+    OwnerInstructionState State);
 
 /// <summary>
 /// A stable reply to an instruction submission. Repeating the same request
 /// with its idempotency key returns this exact receipt and does not append a
 /// second event.
 /// </summary>
-public sealed record PhaseTwoInstructionReceipt(
+public sealed record OwnerInstructionReceipt(
     string InstructionId,
     string IdempotencyKey,
     long SubmittedTick,
@@ -70,7 +70,7 @@ public sealed record PhaseTwoInstructionReceipt(
 /// deliberately separate from <see cref="HarnessWorld.Events"/>, whose IDs
 /// belong to the original Phase 1 scripted fixture only.
 /// </summary>
-public sealed record PhaseTwoWorldEvent(
+public sealed record OwnerWorldEvent(
     long EventId,
     long WorldTick,
     long Revision,
@@ -82,14 +82,14 @@ public sealed record PhaseTwoWorldEvent(
 /// yet feed the Phase 1 harness; retaining them here makes the observation and
 /// authoring boundary truthful without pretending the fixture simulates them.
 /// </summary>
-public sealed record PhaseTwoClimate(string Weather, string Season);
+public sealed record OwnerClimate(string Weather, string Season);
 
 /// <summary>
 /// A proposed founder. It is intentionally not a <see cref="HarnessActor"/>:
 /// paused authoring may stage future inhabitants but may not edit the protected
 /// actor record used by the existing deterministic fixture.
 /// </summary>
-public sealed record PhaseTwoFounderDraft(
+public sealed record OwnerFounderDraft(
     string Id,
     string DisplayName,
     GridPoint Position,
@@ -100,7 +100,7 @@ public sealed record PhaseTwoFounderDraft(
 /// actual asset bytes. Phase 2 stores only the approved reference, never bytes
 /// or an untrusted client-side asset payload.
 /// </summary>
-public sealed record PhaseTwoApprovedAssetReference(string AssetId, string AssetDigest);
+public sealed record OwnerApprovedAssetReference(string AssetId, string AssetDigest);
 
 /// <summary>
 /// Decides whether an asset reference has already been approved by the
@@ -108,28 +108,28 @@ public sealed record PhaseTwoApprovedAssetReference(string AssetId, string Asset
 /// rather than a client-provided allow-list, so an owner request can name an
 /// asset but cannot make that asset approved.
 /// </summary>
-public interface IPhaseTwoApprovedAssetReferencePolicy
+public interface IOwnerApprovedAssetReferencePolicy
 {
     /// <summary>
     /// Returns whether this exact canonical ID/digest pair is approved for
     /// attachment to the Phase 2 authored-world projection.
     /// </summary>
-    bool IsApproved(PhaseTwoApprovedAssetReference reference);
+    bool IsApproved(OwnerApprovedAssetReference reference);
 }
 
 /// <summary>
 /// Fail-closed default for asset references. Hosts must explicitly inject a
 /// server-owned catalog policy before they can accept asset attachments.
 /// </summary>
-public sealed class DenyAllPhaseTwoApprovedAssetReferencePolicy : IPhaseTwoApprovedAssetReferencePolicy
+public sealed class DenyAllApprovedAssetReferencePolicy : IOwnerApprovedAssetReferencePolicy
 {
-    public static DenyAllPhaseTwoApprovedAssetReferencePolicy Instance { get; } = new();
+    public static DenyAllApprovedAssetReferencePolicy Instance { get; } = new();
 
-    private DenyAllPhaseTwoApprovedAssetReferencePolicy()
+    private DenyAllApprovedAssetReferencePolicy()
     {
     }
 
-    public bool IsApproved(PhaseTwoApprovedAssetReference reference)
+    public bool IsApproved(OwnerApprovedAssetReference reference)
     {
         ArgumentNullException.ThrowIfNull(reference);
         return false;
@@ -158,12 +158,12 @@ public sealed class DenyAllPhaseTwoApprovedAssetReferencePolicy : IPhaseTwoAppro
 [JsonDerivedType(typeof(SetWeatherSeasonOperation), "set_weather_season")]
 [JsonDerivedType(typeof(AddApprovedAssetReferenceOperation), "add_approved_asset_reference")]
 [JsonDerivedType(typeof(RemoveApprovedAssetReferenceOperation), "remove_approved_asset_reference")]
-public abstract record PhaseTwoAuthoringOperation
+public abstract record OwnerAuthoringOperation
 {
     public abstract string OperationKind { get; }
 }
 
-public sealed record SetTerrainOperation(GridPoint Position, TerrainKind Terrain) : PhaseTwoAuthoringOperation
+public sealed record SetTerrainOperation(GridPoint Position, TerrainKind Terrain) : OwnerAuthoringOperation
 {
     public override string OperationKind => "set_terrain";
 }
@@ -172,12 +172,12 @@ public sealed record PlaceResourceOperation(
     string Id,
     string Kind,
     GridPoint Position,
-    bool IsRenewable) : PhaseTwoAuthoringOperation
+    bool IsRenewable) : OwnerAuthoringOperation
 {
     public override string OperationKind => "place_resource";
 }
 
-public sealed record RemoveResourceOperation(string Id) : PhaseTwoAuthoringOperation
+public sealed record RemoveResourceOperation(string Id) : OwnerAuthoringOperation
 {
     public override string OperationKind => "remove_resource";
 }
@@ -187,12 +187,12 @@ public sealed record RemoveResourceOperation(string Id) : PhaseTwoAuthoringOpera
 /// <c>plant:oak</c> or <c>object:landmark</c>; the existing map manifest is
 /// intentionally the common representation for objects, plants, and buildings.
 /// </summary>
-public sealed record PlaceObjectOperation(string Id, string Kind, GridPoint Position) : PhaseTwoAuthoringOperation
+public sealed record PlaceObjectOperation(string Id, string Kind, GridPoint Position) : OwnerAuthoringOperation
 {
     public override string OperationKind => "place_object";
 }
 
-public sealed record RemoveObjectOperation(string Id) : PhaseTwoAuthoringOperation
+public sealed record RemoveObjectOperation(string Id) : OwnerAuthoringOperation
 {
     public override string OperationKind => "remove_object";
 }
@@ -201,12 +201,12 @@ public sealed record RemoveObjectOperation(string Id) : PhaseTwoAuthoringOperati
 /// A convenience operation for a building placement. Its resulting map object
 /// uses <paramref name="BuildingKind"/> as its manifest kind.
 /// </summary>
-public sealed record PlaceBuildingOperation(string Id, string BuildingKind, GridPoint Position) : PhaseTwoAuthoringOperation
+public sealed record PlaceBuildingOperation(string Id, string BuildingKind, GridPoint Position) : OwnerAuthoringOperation
 {
     public override string OperationKind => "place_building";
 }
 
-public sealed record RemoveBuildingOperation(string Id) : PhaseTwoAuthoringOperation
+public sealed record RemoveBuildingOperation(string Id) : OwnerAuthoringOperation
 {
     public override string OperationKind => "remove_building";
 }
@@ -215,12 +215,12 @@ public sealed record RemoveBuildingOperation(string Id) : PhaseTwoAuthoringOpera
 /// A convenience operation for a plant placement. Its resulting map object
 /// uses <paramref name="PlantKind"/> as its manifest kind.
 /// </summary>
-public sealed record PlacePlantOperation(string Id, string PlantKind, GridPoint Position) : PhaseTwoAuthoringOperation
+public sealed record PlacePlantOperation(string Id, string PlantKind, GridPoint Position) : OwnerAuthoringOperation
 {
     public override string OperationKind => "place_plant";
 }
 
-public sealed record RemovePlantOperation(string Id) : PhaseTwoAuthoringOperation
+public sealed record RemovePlantOperation(string Id) : OwnerAuthoringOperation
 {
     public override string OperationKind => "remove_plant";
 }
@@ -228,39 +228,39 @@ public sealed record RemovePlantOperation(string Id) : PhaseTwoAuthoringOperatio
 public sealed record CreateFounderDraftOperation(
     string Id,
     string DisplayName,
-    GridPoint Position) : PhaseTwoAuthoringOperation
+    GridPoint Position) : OwnerAuthoringOperation
 {
     public override string OperationKind => "create_founder_draft";
 }
 
-public sealed record RemoveFounderDraftOperation(string Id) : PhaseTwoAuthoringOperation
+public sealed record RemoveFounderDraftOperation(string Id) : OwnerAuthoringOperation
 {
     public override string OperationKind => "remove_founder_draft";
 }
 
-public sealed record SetWeatherOperation(string Weather) : PhaseTwoAuthoringOperation
+public sealed record SetWeatherOperation(string Weather) : OwnerAuthoringOperation
 {
     public override string OperationKind => "set_weather";
 }
 
-public sealed record SetSeasonOperation(string Season) : PhaseTwoAuthoringOperation
+public sealed record SetSeasonOperation(string Season) : OwnerAuthoringOperation
 {
     public override string OperationKind => "set_season";
 }
 
-public sealed record SetWeatherSeasonOperation(string Weather, string Season) : PhaseTwoAuthoringOperation
+public sealed record SetWeatherSeasonOperation(string Weather, string Season) : OwnerAuthoringOperation
 {
     public override string OperationKind => "set_weather_season";
 }
 
 public sealed record AddApprovedAssetReferenceOperation(
     string AssetId,
-    string AssetDigest) : PhaseTwoAuthoringOperation
+    string AssetDigest) : OwnerAuthoringOperation
 {
     public override string OperationKind => "add_approved_asset_reference";
 }
 
-public sealed record RemoveApprovedAssetReferenceOperation(string AssetId) : PhaseTwoAuthoringOperation
+public sealed record RemoveApprovedAssetReferenceOperation(string AssetId) : OwnerAuthoringOperation
 {
     public override string OperationKind => "remove_approved_asset_reference";
 }
@@ -269,16 +269,16 @@ public sealed record RemoveApprovedAssetReferenceOperation(string AssetId) : Pha
 /// All operations in a batch are validated against a private candidate before
 /// any live Phase 2 state changes.
 /// </summary>
-public sealed record PhaseTwoAuthoringBatch(
+public sealed record OwnerAuthoringBatch(
     string BatchId,
-    IReadOnlyList<PhaseTwoAuthoringOperation> Operations,
+    IReadOnlyList<OwnerAuthoringOperation> Operations,
     string IssuerId = "system");
 
 /// <summary>
 /// The outcome of a paused authoring batch. A rejected receipt never represents
 /// a partial live mutation or an appended global event.
 /// </summary>
-public sealed record PhaseTwoAuthoringBatchReceipt(
+public sealed record OwnerAuthoringBatchReceipt(
     string BatchId,
     bool Applied,
     string? Failure,
@@ -292,7 +292,7 @@ public sealed record PhaseTwoAuthoringBatchReceipt(
 /// state, while <see cref="CurrentMap"/> is the separately versioned authoring
 /// topology.
 /// </summary>
-public sealed record PhaseTwoWorldSnapshot(
+public sealed record OwnerWorldSnapshot(
     HarnessWorld World,
     SeededMap CurrentMap,
     string InitialMapManifestDigest,
@@ -301,10 +301,10 @@ public sealed record PhaseTwoWorldSnapshot(
     bool IsPaused,
     long RunEpoch,
     long Revision,
-    PhaseTwoClimate Climate,
-    IReadOnlyList<PhaseTwoFounderDraft> FounderDrafts,
-    IReadOnlyList<PhaseTwoApprovedAssetReference> ApprovedAssetReferences,
-    IReadOnlyList<PhaseTwoQueuedInstruction> Instructions,
+    OwnerClimate Climate,
+    IReadOnlyList<OwnerFounderDraft> FounderDrafts,
+    IReadOnlyList<OwnerApprovedAssetReference> ApprovedAssetReferences,
+    IReadOnlyList<OwnerQueuedInstruction> Instructions,
     long LatestGlobalEventId)
 {
     /// <summary>
@@ -318,28 +318,28 @@ public sealed record PhaseTwoWorldSnapshot(
 /// An atomic reconnect-style observation: a detached state projection and the
 /// requested ordered suffix of the composite global stream.
 /// </summary>
-public sealed record PhaseTwoWorldCapture(
-    PhaseTwoWorldSnapshot Snapshot,
+public sealed record OwnerWorldCapture(
+    OwnerWorldSnapshot Snapshot,
     long AfterEventId,
-    IReadOnlyList<PhaseTwoWorldEvent> Events);
+    IReadOnlyList<OwnerWorldEvent> Events);
 
 /// <summary>
 /// One successfully applied authoring batch retained for idempotent retries.
 /// The receipt revision supplies the authoritative application order when a
 /// runtime is restored.
 /// </summary>
-public sealed record PhaseTwoAppliedAuthoringBatchState(
+public sealed record OwnerAppliedAuthoringBatchState(
     string BatchId,
     string IssuerId,
-    IReadOnlyList<PhaseTwoAuthoringOperation> Operations,
-    PhaseTwoAuthoringBatchReceipt Receipt);
+    IReadOnlyList<OwnerAuthoringOperation> Operations,
+    OwnerAuthoringBatchReceipt Receipt);
 
 /// <summary>
 /// Complete durable state of the Phase 2 composite runtime. It is deliberately
 /// separate from the owner-authority key registry: this document is simulation
 /// state and contains no credentials or anti-replay material.
 /// </summary>
-public sealed record PhaseTwoWorldRuntimeState(
+public sealed record OwnerWorldRuntimeState(
     int SchemaVersion,
     HarnessWorld World,
     SeededMap CurrentMap,
@@ -347,13 +347,13 @@ public sealed record PhaseTwoWorldRuntimeState(
     long RunEpoch,
     long Revision,
     long TopologyRevision,
-    PhaseTwoClimate Climate,
-    IReadOnlyList<PhaseTwoFounderDraft> FounderDrafts,
-    IReadOnlyList<PhaseTwoApprovedAssetReference> ApprovedAssetReferences,
-    IReadOnlyList<PhaseTwoQueuedInstruction> Instructions,
-    IReadOnlyList<PhaseTwoInstructionReceipt> InstructionReceipts,
-    IReadOnlyList<PhaseTwoAppliedAuthoringBatchState> AppliedAuthoringBatches,
-    IReadOnlyList<PhaseTwoWorldEvent> GlobalEvents,
+    OwnerClimate Climate,
+    IReadOnlyList<OwnerFounderDraft> FounderDrafts,
+    IReadOnlyList<OwnerApprovedAssetReference> ApprovedAssetReferences,
+    IReadOnlyList<OwnerQueuedInstruction> Instructions,
+    IReadOnlyList<OwnerInstructionReceipt> InstructionReceipts,
+    IReadOnlyList<OwnerAppliedAuthoringBatchState> AppliedAuthoringBatches,
+    IReadOnlyList<OwnerWorldEvent> GlobalEvents,
     long NextGlobalEventId,
     long NextInstructionSequence,
     CognitionRuntimeState? Cognition = null,
@@ -361,11 +361,11 @@ public sealed record PhaseTwoWorldRuntimeState(
 
 /// <summary>
 /// The result of one Phase 3 cognition/action boundary. The world state is
-/// still read through <see cref="PhaseTwoWorldRuntime.Capture"/>; this result
+/// still read through <see cref="OwnerWorldRuntime.Capture"/>; this result
 /// is useful to a scheduler and tests that need to distinguish a local
 /// fallback from a hosted decision.
 /// </summary>
-public sealed record PhaseTwoCognitionAdvanceResult(
+public sealed record OwnerCognitionAdvanceResult(
     bool Advanced,
     bool PausedForProviderOutage,
     string Outcome,
@@ -380,10 +380,10 @@ public sealed record PhaseTwoCognitionAdvanceResult(
 /// global event stream, pause/run-epoch controls, instruction ingress, paused
 /// authoring state, and the bounded cognition/action boundary.
 /// </summary>
-public sealed class PhaseTwoWorldRuntime
+public sealed class OwnerWorldRuntime
 {
     /// <summary>
-    /// The version of <see cref="PhaseTwoWorldRuntimeState"/> understood by
+    /// The version of <see cref="OwnerWorldRuntimeState"/> understood by
     /// this runtime. Saved worlds are rejected rather than guessed across a
     /// schema boundary.
     /// </summary>
@@ -398,21 +398,21 @@ public sealed class PhaseTwoWorldRuntime
     };
 
     private readonly object sync = new();
-    private readonly IPhaseTwoApprovedAssetReferencePolicy approvedAssetReferencePolicy;
+    private readonly IOwnerApprovedAssetReferencePolicy approvedAssetReferencePolicy;
     private readonly IDecisionProvider decisionProvider;
     private readonly double minimumCognitionConfidence;
-    private readonly Dictionary<string, PhaseTwoQueuedInstruction> instructionsByIdempotency =
+    private readonly Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
         new(StringComparer.Ordinal);
-    private readonly Dictionary<string, PhaseTwoInstructionReceipt> instructionReceipts =
+    private readonly Dictionary<string, OwnerInstructionReceipt> instructionReceipts =
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, AppliedAuthoringBatch> appliedAuthoringBatches =
         new(StringComparer.Ordinal);
-    private readonly List<PhaseTwoWorldEvent> globalEvents = [];
+    private readonly List<OwnerWorldEvent> globalEvents = [];
     private HarnessWorld world;
     private SeededMap currentMap;
-    private PhaseTwoClimate climate = new("clear", "spring");
-    private IReadOnlyList<PhaseTwoFounderDraft> founderDrafts = [];
-    private IReadOnlyList<PhaseTwoApprovedAssetReference> approvedAssetReferences = [];
+    private OwnerClimate climate = new("clear", "spring");
+    private IReadOnlyList<OwnerFounderDraft> founderDrafts = [];
+    private IReadOnlyList<OwnerApprovedAssetReference> approvedAssetReferences = [];
     private bool isPaused;
     private long runEpoch;
     private long revision;
@@ -428,15 +428,15 @@ public sealed class PhaseTwoWorldRuntime
     /// Creates a Phase 2 runtime. Asset references are denied unless the host
     /// supplies a policy backed by its approved server-side catalog.
     /// </summary>
-    public PhaseTwoWorldRuntime(
+    public OwnerWorldRuntime(
         string worldSeed,
-        IPhaseTwoApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
+        IOwnerApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
         IDecisionProvider? decisionProvider = null,
         double minimumCognitionConfidence = 0.5)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worldSeed);
         this.approvedAssetReferencePolicy = approvedAssetReferencePolicy ??
-            DenyAllPhaseTwoApprovedAssetReferencePolicy.Instance;
+            DenyAllApprovedAssetReferencePolicy.Instance;
         this.decisionProvider = decisionProvider ?? new DeterministicDecisionProvider();
         if (double.IsNaN(minimumCognitionConfidence) ||
             double.IsInfinity(minimumCognitionConfidence) ||
@@ -456,11 +456,11 @@ public sealed class PhaseTwoWorldRuntime
     /// boundary. Callers may serialize the returned record without retaining a
     /// mutable reference to the live world.
     /// </summary>
-    public PhaseTwoWorldRuntimeState ExportState()
+    public OwnerWorldRuntimeState ExportState()
     {
         lock (sync)
         {
-            return new PhaseTwoWorldRuntimeState(
+            return new OwnerWorldRuntimeState(
                 StateSchemaVersion,
                 CloneWorld(world),
                 CloneMap(currentMap),
@@ -482,7 +482,7 @@ public sealed class PhaseTwoWorldRuntime
                     .ToArray(),
                 appliedAuthoringBatches
                     .OrderBy(pair => pair.Key, StringComparer.Ordinal)
-                    .Select(pair => new PhaseTwoAppliedAuthoringBatchState(
+                    .Select(pair => new OwnerAppliedAuthoringBatchState(
                         pair.Key,
                         pair.Value.IssuerId,
                         CloneOperations(pair.Value.Operations),
@@ -501,10 +501,10 @@ public sealed class PhaseTwoWorldRuntime
     /// event log, idempotency records, and authored projection agree. An
     /// optional expected seed binds a save to a host's configured world.
     /// </summary>
-    public static PhaseTwoWorldRuntime Restore(
-        PhaseTwoWorldRuntimeState state,
+    public static OwnerWorldRuntime Restore(
+        OwnerWorldRuntimeState state,
         string? expectedWorldSeed = null,
-        IPhaseTwoApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
+        IOwnerApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
         IDecisionProvider? decisionProvider = null,
         double minimumCognitionConfidence = 0.5)
     {
@@ -526,7 +526,7 @@ public sealed class PhaseTwoWorldRuntime
             throw new InvalidDataException("The Phase 2 runtime state belongs to a different configured world seed.");
         }
 
-        var runtime = new PhaseTwoWorldRuntime(
+        var runtime = new OwnerWorldRuntime(
             state.World.Identity.WorldSeed,
             approvedAssetReferencePolicy,
             decisionProvider,
@@ -597,7 +597,7 @@ public sealed class PhaseTwoWorldRuntime
     /// action. The provider chooses only from candidates generated here; route
     /// stepping, needs, resources, and event commits remain local kernel work.
     /// </summary>
-    public async ValueTask<PhaseTwoCognitionAdvanceResult> AdvanceOneActionAsync(
+    public async ValueTask<OwnerCognitionAdvanceResult> AdvanceOneActionAsync(
         CancellationToken cancellationToken = default)
     {
         InhabitantObservation observation;
@@ -625,7 +625,7 @@ public sealed class PhaseTwoWorldRuntime
         {
             if (isPaused || decision.Intention is null)
             {
-                return new PhaseTwoCognitionAdvanceResult(
+                return new OwnerCognitionAdvanceResult(
                     false,
                     false,
                     isPaused ? "paused" : decision.Outcome,
@@ -660,7 +660,7 @@ public sealed class PhaseTwoWorldRuntime
                 pausedForOutage = true;
             }
 
-            return new PhaseTwoCognitionAdvanceResult(
+            return new OwnerCognitionAdvanceResult(
                 true,
                 pausedForOutage,
                 decision.Outcome,
@@ -675,7 +675,7 @@ public sealed class PhaseTwoWorldRuntime
     /// key and the same request returns the original receipt without mutation.
     /// A key cannot be reused for a different request.
     /// </summary>
-    public PhaseTwoInstructionReceipt SubmitInstruction(PhaseTwoInstructionRequest request)
+    public OwnerInstructionReceipt SubmitInstruction(OwnerInstructionRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateInstructionRequest(request);
@@ -706,7 +706,7 @@ public sealed class PhaseTwoWorldRuntime
 
             var sequence = nextInstructionSequence++;
             var instructionId = CreateInstructionId(sequence);
-            var queued = new PhaseTwoQueuedInstruction(
+            var queued = new OwnerQueuedInstruction(
                 instructionId,
                 request.IdempotencyKey,
                 request.IssuerId.Trim(),
@@ -716,10 +716,10 @@ public sealed class PhaseTwoWorldRuntime
                 world.Identity.WorldTick,
                 runEpoch,
                 sequence,
-                PhaseTwoInstructionState.Queued);
+                OwnerInstructionState.Queued);
             instructionsByIdempotency.Add(queued.IdempotencyKey, queued);
             AppendGlobalEvent("instruction_queued", $"{queued.InstructionId}:{ToWireValue(queued.Kind)}");
-            var receipt = new PhaseTwoInstructionReceipt(
+            var receipt = new OwnerInstructionReceipt(
                 queued.InstructionId,
                 queued.IdempotencyKey,
                 queued.SubmittedTick,
@@ -735,7 +735,7 @@ public sealed class PhaseTwoWorldRuntime
     /// validation happens against a private candidate; a failure returns a
     /// rejected receipt and leaves the live state/event log untouched.
     /// </summary>
-    public PhaseTwoAuthoringBatchReceipt ApplyAuthoringBatch(PhaseTwoAuthoringBatch batch)
+    public OwnerAuthoringBatchReceipt ApplyAuthoringBatch(OwnerAuthoringBatch batch)
     {
         ArgumentNullException.ThrowIfNull(batch);
 
@@ -825,7 +825,7 @@ public sealed class PhaseTwoWorldRuntime
             AppendGlobalEvent(
                 "authoring_batch_applied",
                 $"{normalizedBatchId}:issuer={normalizedIssuerId}:operations={normalizedOperations.Length.ToString(CultureInfo.InvariantCulture)}");
-            var receipt = new PhaseTwoAuthoringBatchReceipt(
+            var receipt = new OwnerAuthoringBatchReceipt(
                 normalizedBatchId,
                 true,
                 null,
@@ -847,7 +847,7 @@ public sealed class PhaseTwoWorldRuntime
     /// under the same lock. A client cannot combine a later map revision with an
     /// earlier control/instruction history through this API.
     /// </summary>
-    public PhaseTwoWorldCapture Capture(long afterEventId = 0)
+    public OwnerWorldCapture Capture(long afterEventId = 0)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(afterEventId);
 
@@ -857,11 +857,11 @@ public sealed class PhaseTwoWorldRuntime
                 .Where(worldEvent => worldEvent.EventId > afterEventId)
                 .Select(CloneEvent)
                 .ToArray();
-            return new PhaseTwoWorldCapture(CreateSnapshot(), afterEventId, events);
+            return new OwnerWorldCapture(CreateSnapshot(), afterEventId, events);
         }
     }
 
-    private void ImportState(PhaseTwoWorldRuntimeState state)
+    private void ImportState(OwnerWorldRuntimeState state)
     {
         var document = RequireStateDocument(state);
         ValidateCounters(state);
@@ -968,7 +968,7 @@ public sealed class PhaseTwoWorldRuntime
         }
     }
 
-    private static RequiredStateDocument RequireStateDocument(PhaseTwoWorldRuntimeState state)
+    private static RequiredStateDocument RequireStateDocument(OwnerWorldRuntimeState state)
     {
         var storedWorld = state.World ??
             throw new InvalidDataException("The Phase 2 runtime state has no fixture world.");
@@ -1013,7 +1013,7 @@ public sealed class PhaseTwoWorldRuntime
             storedEvents);
     }
 
-    private static void ValidateCounters(PhaseTwoWorldRuntimeState state)
+    private static void ValidateCounters(OwnerWorldRuntimeState state)
     {
         if (state.RunEpoch < 0 ||
             state.Revision < 0 ||
@@ -1058,8 +1058,8 @@ public sealed class PhaseTwoWorldRuntime
     }
 
     private static void ValidateGlobalEventShape(
-        PhaseTwoWorldRuntimeState state,
-        PhaseTwoWorldEvent[] events)
+        OwnerWorldRuntimeState state,
+        OwnerWorldEvent[] events)
     {
         if (state.Revision != events.Length ||
             state.NextGlobalEventId != checked(events.Length + 1L))
@@ -1083,12 +1083,12 @@ public sealed class PhaseTwoWorldRuntime
     }
 
     private static RestoredInstructionState RestoreInstructions(
-        IReadOnlyList<PhaseTwoQueuedInstruction> storedInstructions,
-        IReadOnlyList<PhaseTwoInstructionReceipt> storedReceipts,
+        IReadOnlyList<OwnerQueuedInstruction> storedInstructions,
+        IReadOnlyList<OwnerInstructionReceipt> storedReceipts,
         HarnessWorld restoredWorld,
-        PhaseTwoWorldRuntimeState state)
+        OwnerWorldRuntimeState state)
     {
-        var byIdempotency = new Dictionary<string, PhaseTwoQueuedInstruction>(StringComparer.Ordinal);
+        var byIdempotency = new Dictionary<string, OwnerQueuedInstruction>(StringComparer.Ordinal);
         var sequences = new HashSet<long>();
 
         foreach (var stored in storedInstructions)
@@ -1101,7 +1101,7 @@ public sealed class PhaseTwoWorldRuntime
                 "Instruction target inhabitant ID");
             var text = RequireCanonicalStoredText(stored.Text, "Instruction text");
             if (!Enum.IsDefined(stored.Kind) ||
-                stored.State != PhaseTwoInstructionState.Queued ||
+                stored.State != OwnerInstructionState.Queued ||
                 stored.SubmissionSequence <= 0 ||
                 stored.SubmittedTick < 0 ||
                 stored.SubmittedTick > restoredWorld.Identity.WorldTick ||
@@ -1136,8 +1136,8 @@ public sealed class PhaseTwoWorldRuntime
             throw new InvalidDataException("The saved instruction sequence counter is inconsistent.");
         }
 
-        var receipts = new Dictionary<string, PhaseTwoInstructionReceipt>(StringComparer.Ordinal);
-        var receiptsByRevision = new Dictionary<long, PhaseTwoInstructionReceipt>();
+        var receipts = new Dictionary<string, OwnerInstructionReceipt>(StringComparer.Ordinal);
+        var receiptsByRevision = new Dictionary<long, OwnerInstructionReceipt>();
         foreach (var stored in storedReceipts)
         {
             var idempotencyKey = stored.IdempotencyKey;
@@ -1165,11 +1165,11 @@ public sealed class PhaseTwoWorldRuntime
     }
 
     private static RestoredAuthoringState RestoreAuthoring(
-        IReadOnlyList<PhaseTwoAppliedAuthoringBatchState> storedBatches,
+        IReadOnlyList<OwnerAppliedAuthoringBatchState> storedBatches,
         HarnessWorld restoredWorld,
-        PhaseTwoWorldEvent[] events,
-        PhaseTwoWorldRuntimeState state,
-        IPhaseTwoApprovedAssetReferencePolicy approvedAssetReferencePolicy)
+        OwnerWorldEvent[] events,
+        OwnerWorldRuntimeState state,
+        IOwnerApprovedAssetReferencePolicy approvedAssetReferencePolicy)
     {
         var batches = new Dictionary<string, RestoredAuthoringBatch>(StringComparer.Ordinal);
         var batchesByRevision = new Dictionary<long, RestoredAuthoringBatch>();
@@ -1206,7 +1206,7 @@ public sealed class PhaseTwoWorldRuntime
             }
         }
 
-        var replay = new PhaseTwoWorldRuntime(
+        var replay = new OwnerWorldRuntime(
             restoredWorld.Identity.WorldSeed,
             approvedAssetReferencePolicy)
         {
@@ -1258,7 +1258,7 @@ public sealed class PhaseTwoWorldRuntime
                 replay.topologyRevision = checked(replay.topologyRevision + 1);
             }
 
-            var expectedReceipt = new PhaseTwoAuthoringBatchReceipt(
+            var expectedReceipt = new OwnerAuthoringBatchReceipt(
                 batch.BatchId,
                 true,
                 null,
@@ -1292,9 +1292,9 @@ public sealed class PhaseTwoWorldRuntime
     }
 
     private static void ValidateGlobalEventSemantics(
-        PhaseTwoWorldRuntimeState state,
+        OwnerWorldRuntimeState state,
         HarnessWorld restoredWorld,
-        IReadOnlyList<PhaseTwoWorldEvent> events,
+        IReadOnlyList<OwnerWorldEvent> events,
         RestoredInstructionState instructions,
         RestoredAuthoringState authoring)
     {
@@ -1466,14 +1466,14 @@ public sealed class PhaseTwoWorldRuntime
         left.CampObjects.SequenceEqual(right.CampObjects) &&
         left.Resources.SequenceEqual(right.Resources);
 
-    private static PhaseTwoAuthoringOperation[] CloneOperations(
-        IReadOnlyList<PhaseTwoAuthoringOperation> operations)
+    private static OwnerAuthoringOperation[] CloneOperations(
+        IReadOnlyList<OwnerAuthoringOperation> operations)
     {
         ArgumentNullException.ThrowIfNull(operations);
         return operations.Select(CloneOperation).ToArray();
     }
 
-    private static PhaseTwoAuthoringOperation CloneOperation(PhaseTwoAuthoringOperation? operation) => operation switch
+    private static OwnerAuthoringOperation CloneOperation(OwnerAuthoringOperation? operation) => operation switch
     {
         SetTerrainOperation setTerrain => setTerrain with { },
         PlaceResourceOperation placeResource => placeResource with { },
@@ -1584,16 +1584,16 @@ public sealed class PhaseTwoWorldRuntime
                     [new MovementActor(current.Actor.Id, current.Actor.Position, 0)],
                     [new MovementIntent(current.Actor.Id, route[1])]);
                 movementEvents.AddRange(movement.Events);
-                return ScriptedHarness.ApplyPhaseThreeMovement(current, movement.GetActor(current.Actor.Id).Position);
+                return ScriptedHarness.ApplyMovement(current, movement.GetActor(current.Actor.Id).Position);
             }
         }
 
         return candidate.Id switch
         {
-            "harvest_food" => ScriptedHarness.ApplyPhaseThreeHarvest(current, "berry-patch"),
-            "consume_food" => ScriptedHarness.ApplyPhaseThreeConsume(current),
-            "sleep" => ScriptedHarness.ApplyPhaseThreeSleep(current),
-            "safe_idle" => ScriptedHarness.ApplyPhaseThreeIdle(current),
+            "harvest_food" => ScriptedHarness.ApplyHarvest(current, "berry-patch"),
+            "consume_food" => ScriptedHarness.ApplyConsume(current),
+            "sleep" => ScriptedHarness.ApplySleep(current),
+            "safe_idle" => ScriptedHarness.ApplyIdle(current),
             _ => throw new InvalidDataException($"Cognition candidate '{candidate.Id}' has no executor."),
         };
     }
@@ -1617,10 +1617,10 @@ public sealed class PhaseTwoWorldRuntime
         outcome.StartsWith("provider_failure", StringComparison.Ordinal) ||
         outcome.StartsWith("provider_cancelled", StringComparison.Ordinal);
 
-    private static PhaseTwoCognitionAdvanceResult NotAdvanced(string outcome) =>
+    private static OwnerCognitionAdvanceResult NotAdvanced(string outcome) =>
         new(false, false, outcome, null, null, []);
 
-    private PhaseTwoWorldSnapshot CreateSnapshot() => new(
+    private OwnerWorldSnapshot CreateSnapshot() => new(
         CloneWorld(world),
         CloneMap(currentMap),
         world.Identity.InitialMapManifestDigest,
@@ -1645,7 +1645,7 @@ public sealed class PhaseTwoWorldRuntime
     private void AppendGlobalEvent(string kind, string detail)
     {
         revision = checked(revision + 1);
-        globalEvents.Add(new PhaseTwoWorldEvent(
+        globalEvents.Add(new OwnerWorldEvent(
             nextGlobalEventId++,
             world.Identity.WorldTick,
             revision,
@@ -1653,7 +1653,7 @@ public sealed class PhaseTwoWorldRuntime
             detail));
     }
 
-    private PhaseTwoAuthoringBatchReceipt RejectedBatch(PhaseTwoAuthoringBatch batch, string failure) => new(
+    private OwnerAuthoringBatchReceipt RejectedBatch(OwnerAuthoringBatch batch, string failure) => new(
         batch.BatchId,
         false,
         failure,
@@ -1661,7 +1661,7 @@ public sealed class PhaseTwoWorldRuntime
         topologyRevision,
         currentMap.ManifestDigest);
 
-    private void ApplyOperation(AuthoringCandidate candidate, PhaseTwoAuthoringOperation operation)
+    private void ApplyOperation(AuthoringCandidate candidate, OwnerAuthoringOperation operation)
     {
         switch (operation)
         {
@@ -1727,7 +1727,7 @@ public sealed class PhaseTwoWorldRuntime
                 return;
 
             case SetWeatherSeasonOperation setClimate:
-                candidate.Climate = new PhaseTwoClimate(
+                candidate.Climate = new OwnerClimate(
                     NormalizeRequiredText(setClimate.Weather, "Weather"),
                     NormalizeSeason(setClimate.Season));
                 return;
@@ -1874,7 +1874,7 @@ public sealed class PhaseTwoWorldRuntime
             throw new InvalidOperationException($"A founder draft with ID '{id}' already exists.");
         }
 
-        candidate.FounderDrafts.Add(new PhaseTwoFounderDraft(id, displayName, operation.Position, checked(revision + 1)));
+        candidate.FounderDrafts.Add(new OwnerFounderDraft(id, displayName, operation.Position, checked(revision + 1)));
     }
 
     private static void RemoveFounderDraft(AuthoringCandidate candidate, string founderDraftId)
@@ -1898,7 +1898,7 @@ public sealed class PhaseTwoWorldRuntime
             throw new InvalidOperationException($"An approved asset reference with ID '{id}' already exists.");
         }
 
-        var reference = new PhaseTwoApprovedAssetReference(id, digest);
+        var reference = new OwnerApprovedAssetReference(id, digest);
         if (!approvedAssetReferencePolicy.IsApproved(reference))
         {
             throw new InvalidOperationException(
@@ -1919,7 +1919,7 @@ public sealed class PhaseTwoWorldRuntime
         }
     }
 
-    private static void ValidateInstructionRequest(PhaseTwoInstructionRequest request)
+    private static void ValidateInstructionRequest(OwnerInstructionRequest request)
     {
         _ = NormalizeRequiredText(request.IdempotencyKey, "Instruction idempotency key");
         _ = NormalizeRequiredText(request.IssuerId, "Instruction issuer ID");
@@ -1931,7 +1931,7 @@ public sealed class PhaseTwoWorldRuntime
         }
     }
 
-    private static bool Matches(PhaseTwoQueuedInstruction instruction, PhaseTwoInstructionRequest request) =>
+    private static bool Matches(OwnerQueuedInstruction instruction, OwnerInstructionRequest request) =>
         string.Equals(instruction.IssuerId, request.IssuerId.Trim(), StringComparison.Ordinal) &&
         string.Equals(instruction.TargetInhabitantId, request.TargetInhabitantId.Trim(), StringComparison.Ordinal) &&
         instruction.Kind == request.Kind &&
@@ -1940,7 +1940,7 @@ public sealed class PhaseTwoWorldRuntime
     private static bool Matches(
         AppliedAuthoringBatch applied,
         string issuerId,
-        IReadOnlyList<PhaseTwoAuthoringOperation>? operations) =>
+        IReadOnlyList<OwnerAuthoringOperation>? operations) =>
         operations is not null &&
         string.Equals(applied.IssuerId, issuerId, StringComparison.Ordinal) &&
         applied.Operations.SequenceEqual(operations);
@@ -2011,42 +2011,42 @@ public sealed class PhaseTwoWorldRuntime
         Events = source.Events.Select(worldEvent => worldEvent with { }).ToArray(),
     };
 
-    private static PhaseTwoWorldEvent CloneEvent(PhaseTwoWorldEvent source) => source with { };
+    private static OwnerWorldEvent CloneEvent(OwnerWorldEvent source) => source with { };
 
-    private static string ToWireValue(PhaseTwoInstructionKind kind) => kind switch
+    private static string ToWireValue(OwnerInstructionKind kind) => kind switch
     {
-        PhaseTwoInstructionKind.Suggestive => "suggestive",
-        PhaseTwoInstructionKind.MustDo => "must_do",
+        OwnerInstructionKind.Suggestive => "suggestive",
+        OwnerInstructionKind.MustDo => "must_do",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
     private sealed record RequiredStateDocument(
         HarnessWorld World,
         SeededMap CurrentMap,
-        PhaseTwoClimate Climate,
-        IReadOnlyList<PhaseTwoFounderDraft> FounderDrafts,
-        IReadOnlyList<PhaseTwoApprovedAssetReference> ApprovedAssetReferences,
-        IReadOnlyList<PhaseTwoQueuedInstruction> Instructions,
-        IReadOnlyList<PhaseTwoInstructionReceipt> InstructionReceipts,
-        IReadOnlyList<PhaseTwoAppliedAuthoringBatchState> AppliedAuthoringBatches,
-        IReadOnlyList<PhaseTwoWorldEvent> GlobalEvents);
+        OwnerClimate Climate,
+        IReadOnlyList<OwnerFounderDraft> FounderDrafts,
+        IReadOnlyList<OwnerApprovedAssetReference> ApprovedAssetReferences,
+        IReadOnlyList<OwnerQueuedInstruction> Instructions,
+        IReadOnlyList<OwnerInstructionReceipt> InstructionReceipts,
+        IReadOnlyList<OwnerAppliedAuthoringBatchState> AppliedAuthoringBatches,
+        IReadOnlyList<OwnerWorldEvent> GlobalEvents);
 
     private sealed record RestoredInstructionState(
-        Dictionary<string, PhaseTwoQueuedInstruction> ByIdempotency,
-        Dictionary<string, PhaseTwoInstructionReceipt> Receipts,
-        Dictionary<long, PhaseTwoInstructionReceipt> ReceiptsByRevision);
+        Dictionary<string, OwnerQueuedInstruction> ByIdempotency,
+        Dictionary<string, OwnerInstructionReceipt> Receipts,
+        Dictionary<long, OwnerInstructionReceipt> ReceiptsByRevision);
 
     private sealed record RestoredAuthoringBatch(
         string BatchId,
         string IssuerId,
-        IReadOnlyList<PhaseTwoAuthoringOperation> Operations,
-        PhaseTwoAuthoringBatchReceipt Receipt);
+        IReadOnlyList<OwnerAuthoringOperation> Operations,
+        OwnerAuthoringBatchReceipt Receipt);
 
     private sealed record RestoredAuthoringState(
         SeededMap CurrentMap,
-        PhaseTwoClimate Climate,
-        IReadOnlyList<PhaseTwoFounderDraft> FounderDrafts,
-        IReadOnlyList<PhaseTwoApprovedAssetReference> ApprovedAssetReferences,
+        OwnerClimate Climate,
+        IReadOnlyList<OwnerFounderDraft> FounderDrafts,
+        IReadOnlyList<OwnerApprovedAssetReference> ApprovedAssetReferences,
         long TopologyRevision,
         Dictionary<string, AppliedAuthoringBatch> Batches,
         Dictionary<long, RestoredAuthoringBatch> BatchesByRevision);
@@ -2055,9 +2055,9 @@ public sealed class PhaseTwoWorldRuntime
     {
         public AuthoringCandidate(
             SeededMap map,
-            PhaseTwoClimate climate,
-            IEnumerable<PhaseTwoFounderDraft> drafts,
-            IEnumerable<PhaseTwoApprovedAssetReference> assets)
+            OwnerClimate climate,
+            IEnumerable<OwnerFounderDraft> drafts,
+            IEnumerable<OwnerApprovedAssetReference> assets)
         {
             Map = map;
             Climate = climate with { };
@@ -2067,17 +2067,17 @@ public sealed class PhaseTwoWorldRuntime
 
         public SeededMap Map { get; set; }
 
-        public PhaseTwoClimate Climate { get; set; }
+        public OwnerClimate Climate { get; set; }
 
-        public List<PhaseTwoFounderDraft> FounderDrafts { get; }
+        public List<OwnerFounderDraft> FounderDrafts { get; }
 
-        public List<PhaseTwoApprovedAssetReference> ApprovedAssetReferences { get; }
+        public List<OwnerApprovedAssetReference> ApprovedAssetReferences { get; }
 
         public bool MapTouched { get; set; }
     }
 
     private sealed record AppliedAuthoringBatch(
         string IssuerId,
-        IReadOnlyList<PhaseTwoAuthoringOperation> Operations,
-        PhaseTwoAuthoringBatchReceipt Receipt);
+        IReadOnlyList<OwnerAuthoringOperation> Operations,
+        OwnerAuthoringBatchReceipt Receipt);
 }

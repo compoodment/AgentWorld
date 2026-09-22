@@ -134,12 +134,12 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
             "/api/v1/owner/instructions",
             instructionAction,
             OwnerHttpBinding.InstructionPayload(instructionAction));
-        var instructionReceipt = await instruction.Content.ReadFromJsonAsync<PhaseTwoInstructionReceipt>();
+        var instructionReceipt = await instruction.Content.ReadFromJsonAsync<OwnerInstructionReceipt>();
         Assert.Equal(HttpStatusCode.OK, instruction.StatusCode);
         Assert.NotNull(instructionReceipt);
         Assert.Equal("instruction-0000000001", instructionReceipt.InstructionId);
 
-        var runtime = factory.Services.GetRequiredService<PhaseTwoWorldRuntime>();
+        var runtime = factory.Services.GetRequiredService<OwnerWorldRuntime>();
         var beforeAuthoring = runtime.Capture();
         var water = beforeAuthoring.Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Water).Position;
         var authoringAction = new OwnerAuthoringBatchAction(
@@ -159,7 +159,7 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
             "/api/v1/owner/authoring",
             authoringAction,
             OwnerHttpBinding.AuthoringPayload(authoringAction));
-        var authoringReceipt = await authoring.Content.ReadFromJsonAsync<PhaseTwoAuthoringBatchReceipt>();
+        var authoringReceipt = await authoring.Content.ReadFromJsonAsync<OwnerAuthoringBatchReceipt>();
         var afterAuthoring = runtime.Capture();
 
         Assert.Equal(HttpStatusCode.OK, authoring.StatusCode);
@@ -225,7 +225,7 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
                 "/api/v1/owner/authoring",
                 allowedAction,
                 OwnerHttpBinding.AuthoringPayload(allowedAction));
-            var allowedReceipt = await allowed.Content.ReadFromJsonAsync<PhaseTwoAuthoringBatchReceipt>();
+            var allowedReceipt = await allowed.Content.ReadFromJsonAsync<OwnerAuthoringBatchReceipt>();
 
             Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
             Assert.NotNull(allowedReceipt);
@@ -251,7 +251,7 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
                 "/api/v1/owner/authoring",
                 rejectedAction,
                 OwnerHttpBinding.AuthoringPayload(rejectedAction));
-            var rejectedReceipt = await rejected.Content.ReadFromJsonAsync<PhaseTwoAuthoringBatchReceipt>();
+            var rejectedReceipt = await rejected.Content.ReadFromJsonAsync<OwnerAuthoringBatchReceipt>();
 
             Assert.Equal(HttpStatusCode.OK, rejected.StatusCode);
             Assert.NotNull(rejectedReceipt);
@@ -286,7 +286,7 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
 
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, replay.StatusCode);
-        var runtime = factory.Services.GetRequiredService<PhaseTwoWorldRuntime>();
+        var runtime = factory.Services.GetRequiredService<OwnerWorldRuntime>();
         Assert.True(runtime.Capture().Snapshot.IsPaused);
         Assert.Single(runtime.Capture().Events, worldEvent => worldEvent.Kind == "paused");
     }
@@ -442,9 +442,9 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
             using (var firstClient = firstHost.CreateClient())
             {
                 pairedDevice = await StartAndActivateAsync(firstHost, firstClient, key);
-                var firstRuntime = firstHost.Services.GetRequiredService<PhaseTwoWorldRuntime>();
+                var firstRuntime = firstHost.Services.GetRequiredService<OwnerWorldRuntime>();
                 Assert.True(firstRuntime.Pause($"owner-device:{pairedDevice.DeviceId}"));
-                firstHost.Services.GetRequiredService<PhaseTwoWorldStateFile>().Save(firstRuntime);
+                firstHost.Services.GetRequiredService<OwnerWorldStateFile>().Save(firstRuntime);
             }
 
             using var restartedHost = new ViewerWebApplicationFactory(directory);

@@ -5,12 +5,12 @@ using AgentWorld.Simulation.Harness;
 
 namespace AgentWorld.Simulation.Tests;
 
-public sealed class PhaseThreeCognitionTests
+public sealed class CognitionTests
 {
     [Fact]
     public async Task DeterministicCognitionChoosesAndExecutesARealMovementIntention()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var runtime = new OwnerWorldRuntime("camp-alpha");
 
         var result = await runtime.AdvanceOneActionAsync();
         var snapshot = runtime.Capture().Snapshot;
@@ -29,12 +29,12 @@ public sealed class PhaseThreeCognitionTests
     [Fact]
     public async Task CognitionAndWorldStateSurviveAValidatedRestart()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var runtime = new OwnerWorldRuntime("camp-alpha");
         _ = await runtime.AdvanceOneActionAsync();
-        var state = JsonSerializer.Deserialize<PhaseTwoWorldRuntimeState>(
+        var state = JsonSerializer.Deserialize<OwnerWorldRuntimeState>(
             JsonSerializer.Serialize(runtime.ExportState())) ?? throw new InvalidDataException();
 
-        var restored = PhaseTwoWorldRuntime.Restore(state, "camp-alpha");
+        var restored = OwnerWorldRuntime.Restore(state, "camp-alpha");
 
         Assert.Equal(
             runtime.Capture().Snapshot.Cognition?.CurrentIntention,
@@ -55,7 +55,7 @@ public sealed class PhaseThreeCognitionTests
     [Fact]
     public async Task RepeatedHostedProviderFailureFallsBackThenPausesTheWorld()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha", decisionProvider: new ThrowingProvider());
+        var runtime = new OwnerWorldRuntime("camp-alpha", decisionProvider: new ThrowingProvider());
 
         var first = await runtime.AdvanceOneActionAsync();
         var second = await runtime.AdvanceOneActionAsync();

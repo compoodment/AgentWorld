@@ -11,7 +11,7 @@ public static class OwnerAuthoringMapper
 {
     public static bool TryMap(
         OwnerAuthoringBatchAction? action,
-        out PhaseTwoAuthoringBatch? batch,
+        out OwnerAuthoringBatch? batch,
         out string failure)
     {
         batch = null;
@@ -22,7 +22,7 @@ public static class OwnerAuthoringMapper
             return false;
         }
 
-        var operations = new List<PhaseTwoAuthoringOperation>(action.Operations.Count);
+        var operations = new List<OwnerAuthoringOperation>(action.Operations.Count);
         try
         {
             for (var index = 0; index < action.Operations.Count; index++)
@@ -42,13 +42,13 @@ public static class OwnerAuthoringMapper
             return false;
         }
 
-        batch = new PhaseTwoAuthoringBatch(action.BatchId.Trim(), operations);
+        batch = new OwnerAuthoringBatch(action.BatchId.Trim(), operations);
         return true;
     }
 
     private static bool TryMapOperation(
         OwnerAuthoringOperationAction? source,
-        out PhaseTwoAuthoringOperation? operation,
+        out OwnerAuthoringOperation? operation,
         out string failure)
     {
         operation = null;

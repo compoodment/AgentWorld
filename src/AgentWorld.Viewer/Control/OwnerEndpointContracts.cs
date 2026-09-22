@@ -16,7 +16,7 @@ public sealed record OwnerControlReceipt(
     long Revision,
     long LatestEventId)
 {
-    public static OwnerControlReceipt From(string operation, bool changed, PhaseTwoWorldSnapshot snapshot) => new(
+    public static OwnerControlReceipt From(string operation, bool changed, OwnerWorldSnapshot snapshot) => new(
         operation,
         changed,
         snapshot.IsPaused,

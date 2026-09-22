@@ -38,7 +38,7 @@ var configuredAuthorityId = builder.Configuration["AgentWorld:Pairing:ServerAuth
 // intentionally yields an empty, deny-all allow-list; malformed existing
 // catalog files stop startup rather than becoming a partial approval set.
 var approvedAssetCatalog = ApprovedAssetCatalog.LoadOrDeny(approvedAssetCatalogPath);
-builder.Services.AddSingleton<IPhaseTwoApprovedAssetReferencePolicy>(approvedAssetCatalog);
+builder.Services.AddSingleton<IOwnerApprovedAssetReferencePolicy>(approvedAssetCatalog);
 builder.Services.AddSingleton(approvedAssetCatalog);
 builder.Services.AddHttpClient("typesafe");
 builder.Services.AddSingleton<IDecisionProvider>(services =>
@@ -53,20 +53,20 @@ builder.Services.AddSingleton<IDecisionProvider>(services =>
         () => Environment.GetEnvironmentVariable("TYPESAFE_API_KEY"),
         model: configuredJevModel);
 });
-builder.Services.AddSingleton<PhaseTwoWorldStateFile>(services => new PhaseTwoWorldStateFile(
+builder.Services.AddSingleton<OwnerWorldStateFile>(services => new OwnerWorldStateFile(
     runtimeStatePath,
     approvedAssetCatalog,
     services.GetRequiredService<IDecisionProvider>()));
-builder.Services.AddSingleton<PhaseTwoWorldRuntime>(services => services
-    .GetRequiredService<PhaseTwoWorldStateFile>()
+builder.Services.AddSingleton<OwnerWorldRuntime>(services => services
+    .GetRequiredService<OwnerWorldStateFile>()
     .LoadOrCreate(runtimeSeed));
-builder.Services.AddSingleton<PhaseTwoWorldObservationStore>();
+builder.Services.AddSingleton<OwnerWorldObservationStore>();
 builder.Services.AddSingleton(new OwnerAuthorityStateFile(authorityStatePath));
 var pairingHostOptions = new OwnerPairingHostOptions(localApprovalPort);
 builder.Services.AddSingleton(pairingHostOptions);
 builder.Services.AddSingleton<OwnerAuthorityStore>(services =>
 {
-    var runtime = services.GetRequiredService<PhaseTwoWorldRuntime>();
+    var runtime = services.GetRequiredService<OwnerWorldRuntime>();
     var worldId = runtime.Capture().Snapshot.World.Identity.WorldId;
     return services.GetRequiredService<OwnerAuthorityStateFile>().LoadOrCreate(
         new OwnerAuthorityIdentity(configuredAuthorityId, worldId));
@@ -74,7 +74,7 @@ builder.Services.AddSingleton<OwnerAuthorityStore>(services =>
 builder.Services.AddSingleton<OwnerRequestAuthorizer>();
 if (advanceFixture)
 {
-    builder.Services.AddHostedService<PhaseTwoWorldRuntimeService>();
+    builder.Services.AddHostedService<OwnerWorldRuntimeService>();
 }
 
 var app = builder.Build();
@@ -218,7 +218,7 @@ app.MapPost("/api/v1/owner/challenges", (
 app.MapPost("/api/v1/owner/reconnect", (
     OwnerSignedHttpRequest<OwnerReconnectAction> request,
     OwnerRequestAuthorizer authorizer,
-    PhaseTwoWorldObservationStore observations) =>
+    OwnerWorldObservationStore observations) =>
 {
     if (request?.Action is null || request.Action.AfterEventId < 0)
     {
@@ -246,8 +246,8 @@ app.MapPost("/api/v1/owner/reconnect", (
 app.MapPost("/api/v1/owner/control/pause", (
     OwnerSignedHttpRequest<OwnerControlAction> request,
     OwnerRequestAuthorizer authorizer,
-    PhaseTwoWorldRuntime runtime,
-    PhaseTwoWorldStateFile stateFile) =>
+    OwnerWorldRuntime runtime,
+    OwnerWorldStateFile stateFile) =>
 {
     if (!IsControl(request, "pause"))
     {
@@ -279,8 +279,8 @@ app.MapPost("/api/v1/owner/control/pause", (
 app.MapPost("/api/v1/owner/control/resume", (
     OwnerSignedHttpRequest<OwnerControlAction> request,
     OwnerRequestAuthorizer authorizer,
-    PhaseTwoWorldRuntime runtime,
-    PhaseTwoWorldStateFile stateFile) =>
+    OwnerWorldRuntime runtime,
+    OwnerWorldStateFile stateFile) =>
 {
     if (!IsControl(request, "resume"))
     {
@@ -312,8 +312,8 @@ app.MapPost("/api/v1/owner/control/resume", (
 app.MapPost("/api/v1/owner/instructions", (
     OwnerSignedHttpRequest<OwnerInstructionAction> request,
     OwnerRequestAuthorizer authorizer,
-    PhaseTwoWorldRuntime runtime,
-    PhaseTwoWorldStateFile stateFile) =>
+    OwnerWorldRuntime runtime,
+    OwnerWorldStateFile stateFile) =>
 {
     if (request?.Action is null || !TryParseInstructionKind(request.Action.Kind, out var kind))
     {
@@ -347,7 +347,7 @@ app.MapPost("/api/v1/owner/instructions", (
         // The transport has no issuer field. This value is minted from the
         // authenticated server-side device identity rather than accepted from
         // a client payload.
-        var receipt = runtime.SubmitInstruction(new PhaseTwoInstructionRequest(
+        var receipt = runtime.SubmitInstruction(new OwnerInstructionRequest(
             request.Action.IdempotencyKey,
             $"owner-device:{authorization.Value!.DeviceId}",
             request.Action.TargetInhabitantId,
@@ -372,8 +372,8 @@ app.MapPost("/api/v1/owner/instructions", (
 app.MapPost("/api/v1/owner/authoring", (
     OwnerSignedHttpRequest<OwnerAuthoringBatchAction> request,
     OwnerRequestAuthorizer authorizer,
-    PhaseTwoWorldRuntime runtime,
-    PhaseTwoWorldStateFile stateFile) =>
+    OwnerWorldRuntime runtime,
+    OwnerWorldStateFile stateFile) =>
 {
     if (request?.Action is null)
     {
@@ -552,12 +552,12 @@ static bool IsControl(OwnerSignedHttpRequest<OwnerControlAction>? request, strin
     request?.Action is not null &&
     string.Equals(request.Action.Operation, expectedOperation, StringComparison.Ordinal);
 
-static bool TryParseInstructionKind(string? value, out PhaseTwoInstructionKind kind)
+static bool TryParseInstructionKind(string? value, out OwnerInstructionKind kind)
 {
     kind = value?.Trim().ToLowerInvariant() switch
     {
-        "suggestive" => PhaseTwoInstructionKind.Suggestive,
-        "must_do" => PhaseTwoInstructionKind.MustDo,
+        "suggestive" => OwnerInstructionKind.Suggestive,
+        "must_do" => OwnerInstructionKind.MustDo,
         _ => default,
     };
     return value is not null && (value.Trim().Equals("suggestive", StringComparison.OrdinalIgnoreCase) ||

@@ -2,16 +2,16 @@ using AgentWorld.Simulation.Cognition;
 
 namespace AgentWorld.Simulation.Society;
 
-public sealed record PhaseFourWorldRuntimeState(
+public sealed record SocietyWorldRuntimeState(
     int SchemaVersion,
     SocietyCheckpoint Society,
     SocietyCognitionSchedulerState Cognition);
 
-public sealed record PhaseFourWorldCapture(
+public sealed record SocietyWorldCapture(
     SocietyCheckpoint Society,
     SocietyCognitionSchedulerState Cognition);
 
-public sealed record PhaseFourDispatchCycleResult(
+public sealed record SocietyDispatchCycleResult(
     SocietyCheckpoint Society,
     IReadOnlyList<SocietyCognitionDispatchResult> Decisions);
 
@@ -21,7 +21,7 @@ public sealed record PhaseFourDispatchCycleResult(
 /// lifecycle mutation. Saving this record captures both together without
 /// allowing a provider or client to mutate society directly.
 /// </summary>
-public sealed class PhaseFourWorldRuntime : IDisposable
+public sealed class SocietyWorldRuntime : IDisposable
 {
     public const int StateSchemaVersion = 1;
 
@@ -29,7 +29,7 @@ public sealed class PhaseFourWorldRuntime : IDisposable
     private SocietyCheckpoint society;
     private SocietyCognitionScheduler cognition;
 
-    public PhaseFourWorldRuntime(
+    public SocietyWorldRuntime(
         SocietyCheckpoint checkpoint,
         Func<string, IDecisionProvider>? providerFactory = null,
         int maxCognitionQueueLength = 64,
@@ -48,12 +48,12 @@ public sealed class PhaseFourWorldRuntime : IDisposable
 
     public SocietyCheckpoint Checkpoint => society;
 
-    public PhaseFourWorldCapture Capture()
+    public SocietyWorldCapture Capture()
     {
         gate.Wait();
         try
         {
-            return new PhaseFourWorldCapture(society, cognition.ExportState());
+            return new SocietyWorldCapture(society, cognition.ExportState());
         }
         finally
         {
@@ -61,14 +61,14 @@ public sealed class PhaseFourWorldRuntime : IDisposable
         }
     }
 
-    public PhaseFourWorldRuntimeState ExportState()
+    public SocietyWorldRuntimeState ExportState()
     {
         var capture = Capture();
-        return new PhaseFourWorldRuntimeState(StateSchemaVersion, capture.Society, capture.Cognition);
+        return new SocietyWorldRuntimeState(StateSchemaVersion, capture.Society, capture.Cognition);
     }
 
-    public static PhaseFourWorldRuntime Restore(
-        PhaseFourWorldRuntimeState state,
+    public static SocietyWorldRuntime Restore(
+        SocietyWorldRuntimeState state,
         Func<string, IDecisionProvider>? providerFactory = null,
         double minimumCognitionConfidence = 0.5)
     {
@@ -84,7 +84,7 @@ public sealed class PhaseFourWorldRuntime : IDisposable
             providerFactory,
             minimumCognitionConfidence);
         scheduler.SyncInhabitants(state.Society.Inhabitants);
-        var runtime = new PhaseFourWorldRuntime(
+        var runtime = new SocietyWorldRuntime(
             state.Society,
             providerFactory,
             state.Cognition.MaxQueueLength,
@@ -147,14 +147,14 @@ public sealed class PhaseFourWorldRuntime : IDisposable
         }
     }
 
-    public async ValueTask<PhaseFourDispatchCycleResult> DispatchCognitionAsync(
+    public async ValueTask<SocietyDispatchCycleResult> DispatchCognitionAsync(
         CancellationToken cancellationToken = default)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var decisions = await cognition.DispatchAsync(cancellationToken).ConfigureAwait(false);
-            return new PhaseFourDispatchCycleResult(society, decisions);
+            return new SocietyDispatchCycleResult(society, decisions);
         }
         finally
         {

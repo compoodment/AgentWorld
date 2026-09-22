@@ -4,7 +4,7 @@ using AgentWorld.Simulation.Society;
 
 namespace AgentWorld.Simulation.Tests;
 
-public sealed class PhaseFourSocietyTests
+public sealed class SocietyTests
 {
     [Fact]
     public void RelationshipConsentAndCardinalityAreAuthoritative()
@@ -200,23 +200,23 @@ public sealed class PhaseFourSocietyTests
     }
 
     [Fact]
-    public async Task PhaseFourRuntimeReconcilesBirthsAndDeathsWithCognition()
+    public async Task SocietyRuntimeReconcilesBirthsAndDeathsWithCognition()
     {
         var config = TestConfig();
         var checkpoint = Genesis(config, "alice", "bob");
         checkpoint = SocietyFixture.CreateHousehold(checkpoint, "home", "The Home", ["alice", "bob"]).Checkpoint;
         checkpoint = AcceptPartnership(checkpoint, "alice", "bob");
 
-        using var runtime = new PhaseFourWorldRuntime(checkpoint);
+        using var runtime = new SocietyWorldRuntime(checkpoint);
         Assert.True(runtime.EnqueueCognition(Entry("alice-start", "alice", 1, 0)));
         var firstDispatch = await runtime.DispatchCognitionAsync();
         Assert.Single(firstDispatch.Decisions);
 
-        var encodedRuntime = PhaseFourWorldRuntimeCodec.Encode(runtime.ExportState());
-        var decodedRuntime = PhaseFourWorldRuntimeCodec.Decode(encodedRuntime);
+        var encodedRuntime = SocietyWorldRuntimeCodec.Encode(runtime.ExportState());
+        var decodedRuntime = SocietyWorldRuntimeCodec.Decode(encodedRuntime);
         Assert.Equal(
-            PhaseFourWorldRuntimeCodec.Digest(runtime.ExportState()),
-            PhaseFourWorldRuntimeCodec.Digest(decodedRuntime));
+            SocietyWorldRuntimeCodec.Digest(runtime.ExportState()),
+            SocietyWorldRuntimeCodec.Digest(decodedRuntime));
 
         var birth = new SocietyBirthRequest(
             "birth-runtime",
@@ -237,7 +237,7 @@ public sealed class PhaseFourSocietyTests
         await runtime.DispatchCognitionAsync();
 
         runtime.Apply(current => SocietyFixture.Kill(current, "bob", SocietyDeathCause.Hazard));
-        var restored = PhaseFourWorldRuntime.Restore(runtime.ExportState());
+        var restored = SocietyWorldRuntime.Restore(runtime.ExportState());
         using (restored)
         {
             restored.Validate();

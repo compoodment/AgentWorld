@@ -18,7 +18,7 @@ public sealed class ApprovedAssetCatalogTests
         var catalog = ApprovedAssetCatalog.LoadOrDeny(path);
 
         Assert.Empty(catalog.GetApprovedReferences());
-        Assert.False(catalog.IsApproved(new PhaseTwoApprovedAssetReference("portrait-alice", PortraitAliceDigest)));
+        Assert.False(catalog.IsApproved(new OwnerApprovedAssetReference("portrait-alice", PortraitAliceDigest)));
     }
 
     [Fact]
@@ -30,11 +30,11 @@ public sealed class ApprovedAssetCatalogTests
 
         var catalog = ApprovedAssetCatalog.LoadOrDeny(path);
 
-        Assert.True(catalog.IsApproved(new PhaseTwoApprovedAssetReference("portrait-alice", PortraitAliceDigest)));
-        Assert.False(catalog.IsApproved(new PhaseTwoApprovedAssetReference(
+        Assert.True(catalog.IsApproved(new OwnerApprovedAssetReference("portrait-alice", PortraitAliceDigest)));
+        Assert.False(catalog.IsApproved(new OwnerApprovedAssetReference(
             "portrait-alice",
             "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")));
-        Assert.False(catalog.IsApproved(new PhaseTwoApprovedAssetReference("portrait-bob", PortraitAliceDigest)));
+        Assert.False(catalog.IsApproved(new OwnerApprovedAssetReference("portrait-bob", PortraitAliceDigest)));
     }
 
     [Theory]
@@ -59,10 +59,10 @@ public sealed class ApprovedAssetCatalogTests
         File.WriteAllText(catalogPath, CatalogJson(("portrait-alice", PortraitAliceDigest)));
 
         var catalog = ApprovedAssetCatalog.LoadOrDeny(catalogPath);
-        var firstStateFile = new PhaseTwoWorldStateFile(statePath, catalog);
+        var firstStateFile = new OwnerWorldStateFile(statePath, catalog);
         var first = firstStateFile.LoadOrCreate("camp-alpha");
         Assert.True(first.Pause("owner-device:catalog-test"));
-        var applied = first.ApplyAuthoringBatch(new PhaseTwoAuthoringBatch(
+        var applied = first.ApplyAuthoringBatch(new OwnerAuthoringBatch(
             "catalog-asset",
             [new AddApprovedAssetReferenceOperation("portrait-alice", PortraitAliceDigest)],
             "owner-device:catalog-test"));
@@ -70,7 +70,7 @@ public sealed class ApprovedAssetCatalogTests
         firstStateFile.Save(first);
 
         File.Delete(catalogPath);
-        var denyStateFile = new PhaseTwoWorldStateFile(
+        var denyStateFile = new OwnerWorldStateFile(
             statePath,
             ApprovedAssetCatalog.LoadOrDeny(catalogPath));
 

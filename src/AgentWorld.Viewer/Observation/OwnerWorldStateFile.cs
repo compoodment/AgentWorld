@@ -9,7 +9,7 @@ namespace AgentWorld.Viewer.Observation;
 /// intentionally separate from paired-device authority state: a simulation
 /// recovery must not accidentally turn a world save into credential storage.
 /// </summary>
-public sealed class PhaseTwoWorldStateFile
+public sealed class OwnerWorldStateFile
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -17,12 +17,12 @@ public sealed class PhaseTwoWorldStateFile
     };
 
     private readonly object gate = new();
-    private readonly IPhaseTwoApprovedAssetReferencePolicy approvedAssetReferencePolicy;
+    private readonly IOwnerApprovedAssetReferencePolicy approvedAssetReferencePolicy;
     private readonly IDecisionProvider decisionProvider;
 
-    public PhaseTwoWorldStateFile(
+    public OwnerWorldStateFile(
         string path,
-        IPhaseTwoApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
+        IOwnerApprovedAssetReferencePolicy? approvedAssetReferencePolicy = null,
         IDecisionProvider? decisionProvider = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -31,7 +31,7 @@ public sealed class PhaseTwoWorldStateFile
         // current host catalog must approve every restored reference as the
         // runtime replays its authored history.
         this.approvedAssetReferencePolicy = approvedAssetReferencePolicy ??
-            DenyAllPhaseTwoApprovedAssetReferencePolicy.Instance;
+            DenyAllApprovedAssetReferencePolicy.Instance;
         this.decisionProvider = decisionProvider ?? new DeterministicDecisionProvider();
     }
 
@@ -42,22 +42,22 @@ public sealed class PhaseTwoWorldStateFile
     /// genesis state. A configured seed is an identity check, not a request to
     /// silently replace an existing world.
     /// </summary>
-    public PhaseTwoWorldRuntime LoadOrCreate(string worldSeed)
+    public OwnerWorldRuntime LoadOrCreate(string worldSeed)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worldSeed);
         lock (gate)
         {
             if (!File.Exists(Path))
             {
-                var created = new PhaseTwoWorldRuntime(worldSeed, approvedAssetReferencePolicy, decisionProvider);
+                var created = new OwnerWorldRuntime(worldSeed, approvedAssetReferencePolicy, decisionProvider);
                 SaveUnsafe(created.ExportState());
                 return created;
             }
 
             var json = File.ReadAllText(Path);
-            var state = JsonSerializer.Deserialize<PhaseTwoWorldRuntimeState>(json, JsonOptions) ??
+            var state = JsonSerializer.Deserialize<OwnerWorldRuntimeState>(json, JsonOptions) ??
                 throw new InvalidDataException("The Phase 2 runtime state file is empty.");
-            var restored = PhaseTwoWorldRuntime.Restore(
+            var restored = OwnerWorldRuntime.Restore(
                 state,
                 worldSeed,
                 approvedAssetReferencePolicy,
@@ -69,7 +69,7 @@ public sealed class PhaseTwoWorldStateFile
         }
     }
 
-    public void Save(PhaseTwoWorldRuntime runtime)
+    public void Save(OwnerWorldRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         lock (gate)
@@ -78,7 +78,7 @@ public sealed class PhaseTwoWorldStateFile
         }
     }
 
-    private void SaveUnsafe(PhaseTwoWorldRuntimeState state)
+    private void SaveUnsafe(OwnerWorldRuntimeState state)
     {
         var directory = System.IO.Path.GetDirectoryName(Path) ??
             throw new InvalidOperationException("The Phase 2 runtime state path has no directory.");

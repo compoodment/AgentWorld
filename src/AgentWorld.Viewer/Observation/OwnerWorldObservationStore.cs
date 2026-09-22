@@ -8,7 +8,7 @@ namespace AgentWorld.Viewer.Observation;
 /// distinction between the live fixture topology, cognition state, and paused
 /// authoring state.
 /// </summary>
-public sealed class PhaseTwoWorldObservationStore
+public sealed class OwnerWorldObservationStore
 {
     private static readonly string[] OwnerServerCapabilities =
     [
@@ -32,9 +32,9 @@ public sealed class PhaseTwoWorldObservationStore
         "owner-device-pairing.v1",
     ];
 
-    private readonly PhaseTwoWorldRuntime runtime;
+    private readonly OwnerWorldRuntime runtime;
 
-    public PhaseTwoWorldObservationStore(PhaseTwoWorldRuntime runtime)
+    public OwnerWorldObservationStore(OwnerWorldRuntime runtime)
     {
         this.runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
     }
@@ -67,7 +67,7 @@ public sealed class PhaseTwoWorldObservationStore
                 capture.Events.Select(ToEvent).ToArray()));
     }
 
-    private static ViewerWorldSnapshot ToSnapshot(PhaseTwoWorldSnapshot state)
+    private static ViewerWorldSnapshot ToSnapshot(OwnerWorldSnapshot state)
     {
         var map = state.CurrentMap;
         var resourceStates = state.World.Resources.ToDictionary(resource => resource.Id, StringComparer.Ordinal);
@@ -145,7 +145,7 @@ public sealed class PhaseTwoWorldObservationStore
         };
     }
 
-    private static List<ViewerInhabitant> CreateInhabitants(PhaseTwoWorldSnapshot state)
+    private static List<ViewerInhabitant> CreateInhabitants(OwnerWorldSnapshot state)
     {
         var inhabitants = new List<ViewerInhabitant>
         {
@@ -157,7 +157,7 @@ public sealed class PhaseTwoWorldObservationStore
         return inhabitants;
     }
 
-    private static ViewerInhabitant ToProtectedActor(PhaseTwoWorldSnapshot state)
+    private static ViewerInhabitant ToProtectedActor(OwnerWorldSnapshot state)
     {
         var world = state.World;
         var actor = world.Actor;
@@ -199,7 +199,7 @@ public sealed class PhaseTwoWorldObservationStore
             IsDraft: false);
     }
 
-    private static ViewerInhabitant ToFounderDraft(PhaseTwoFounderDraft draft) => new(
+    private static ViewerInhabitant ToFounderDraft(OwnerFounderDraft draft) => new(
         draft.Id,
         draft.DisplayName,
         "authoring_draft",
@@ -293,7 +293,7 @@ public sealed class PhaseTwoWorldObservationStore
         actor.FoodItems,
         actor.WoodItems);
 
-    private static ViewerEvent ToEvent(PhaseTwoWorldEvent worldEvent) => new(
+    private static ViewerEvent ToEvent(OwnerWorldEvent worldEvent) => new(
         worldEvent.EventId,
         worldEvent.WorldTick,
         worldEvent.Kind,
@@ -316,16 +316,16 @@ public sealed class PhaseTwoWorldObservationStore
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
 
-    private static string ToWireValue(PhaseTwoInstructionKind kind) => kind switch
+    private static string ToWireValue(OwnerInstructionKind kind) => kind switch
     {
-        PhaseTwoInstructionKind.Suggestive => "suggestive",
-        PhaseTwoInstructionKind.MustDo => "must_do",
+        OwnerInstructionKind.Suggestive => "suggestive",
+        OwnerInstructionKind.MustDo => "must_do",
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),
     };
 
-    private static string ToWireValue(PhaseTwoInstructionState state) => state switch
+    private static string ToWireValue(OwnerInstructionState state) => state switch
     {
-        PhaseTwoInstructionState.Queued => "queued",
+        OwnerInstructionState.Queued => "queued",
         _ => throw new ArgumentOutOfRangeException(nameof(state)),
     };
 }

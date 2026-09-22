@@ -559,7 +559,7 @@ public static class ScriptedHarness
     /// commit path while allowing cognition to select the action instead of a
     /// hard-coded script selecting it.
     /// </summary>
-    public static HarnessWorld ApplyPhaseThreeMovement(HarnessWorld world, GridPoint destination)
+    public static HarnessWorld ApplyMovement(HarnessWorld world, GridPoint destination)
     {
         ArgumentNullException.ThrowIfNull(world);
         if (world.Actor.Position == destination)
@@ -575,25 +575,25 @@ public static class ScriptedHarness
             $"move:{ActorId}:{destination.X},{destination.Y}");
     }
 
-    public static HarnessWorld ApplyPhaseThreeHarvest(HarnessWorld world, string resourceId)
+    public static HarnessWorld ApplyHarvest(HarnessWorld world, string resourceId)
     {
         ArgumentNullException.ThrowIfNull(world);
         return Harvest(world, resourceId);
     }
 
-    public static HarnessWorld ApplyPhaseThreeConsume(HarnessWorld world)
+    public static HarnessWorld ApplyConsume(HarnessWorld world)
     {
         ArgumentNullException.ThrowIfNull(world);
         return Consume(world);
     }
 
-    public static HarnessWorld ApplyPhaseThreeSleep(HarnessWorld world)
+    public static HarnessWorld ApplySleep(HarnessWorld world)
     {
         ArgumentNullException.ThrowIfNull(world);
         return Sleep(world);
     }
 
-    public static HarnessWorld ApplyPhaseThreeIdle(HarnessWorld world)
+    public static HarnessWorld ApplyIdle(HarnessWorld world)
     {
         ArgumentNullException.ThrowIfNull(world);
         return Commit(

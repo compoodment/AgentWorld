@@ -61,17 +61,17 @@ active lifecycle population after every society mutation.
 ## Evidence
 
 - `SocietyFixture` owns immutable checkpoint transitions.
-- `PhaseFourWorldRuntime` composes society and cognition into one save/restore
+- `SocietyWorldRuntime` composes society and cognition into one save/restore
   boundary and removes dead inhabitants from the active cognition population.
 - `SocietyCognitionScheduler` provides deterministic multi-inhabitant fairness,
   coalescing, backpressure, and runtime persistence.
 - `SocietyCheckpointCodec` provides versioned JSON round-tripping with stable
   state and event digests.
-- `PhaseFourWorldRuntimeCodec` persists the combined society and cognition
+- `SocietyWorldRuntimeCodec` persists the combined society and cognition
   boundary and rejects schema or active-population mismatches on restore.
 - `InventoryFixture` exposes authoritative reservation consumption and
   provenance-preserving transfers for society operations.
-- `PhaseFourSocietyTests` covers relationship consent/cardinality, idempotent
+- `SocietyTests` covers relationship consent/cardinality, idempotent
   birth, mortality and estate settlement, transfer/barter, cognition fairness,
   lifecycle reconciliation, death cleanup, combined runtime persistence,
   caregiver projection, organizations, and checkpoint replay (11 Phase 4

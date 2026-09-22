@@ -3,17 +3,17 @@ using System.Text.Json;
 
 namespace AgentWorld.Simulation.Tests;
 
-public sealed class PhaseTwoWorldRuntimeTests
+public sealed class OwnerWorldRuntimeTests
 {
     [Fact]
     public void GlobalEventsAreMonotonicAndIndependentFromTheHarnessEventIds()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
-        _ = runtime.SubmitInstruction(new PhaseTwoInstructionRequest(
+        var runtime = new OwnerWorldRuntime("camp-alpha");
+        _ = runtime.SubmitInstruction(new OwnerInstructionRequest(
             "instruction-key-1",
             "owner",
             "actor-scout",
-            PhaseTwoInstructionKind.Suggestive,
+            OwnerInstructionKind.Suggestive,
             "Gather food."));
         Assert.True(runtime.TryAdvanceOneAction());
         Assert.True(runtime.Pause());
@@ -37,12 +37,12 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void InstructionSubmissionIsServerMintedAndIdempotent()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
-        var request = new PhaseTwoInstructionRequest(
+        var runtime = new OwnerWorldRuntime("camp-alpha");
+        var request = new OwnerInstructionRequest(
             "same-request",
             "owner",
             "actor-scout",
-            PhaseTwoInstructionKind.MustDo,
+            OwnerInstructionKind.MustDo,
             "Return to camp.");
 
         var first = runtime.SubmitInstruction(request);
@@ -59,14 +59,14 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void InstructionCannotTargetAnInhabitantThatIsNotActiveInThisWorld()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var runtime = new OwnerWorldRuntime("camp-alpha");
 
         var exception = Assert.Throws<ArgumentException>(() => runtime.SubmitInstruction(
-            new PhaseTwoInstructionRequest(
+            new OwnerInstructionRequest(
                 "missing-target",
                 "owner-device:test",
                 "not-a-real-inhabitant",
-                PhaseTwoInstructionKind.Suggestive,
+                OwnerInstructionKind.Suggestive,
                 "Do a little dance.")));
 
         Assert.Contains("No active inhabitant", exception.Message, StringComparison.Ordinal);
@@ -76,7 +76,7 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void PauseBlocksFixtureTicksAndResumeCreatesANewRunEpoch()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var runtime = new OwnerWorldRuntime("camp-alpha");
         Assert.True(runtime.TryAdvanceOneAction());
         var beforePause = runtime.Capture();
 
@@ -98,12 +98,12 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void ValidPausedBatchIsAtomicAndChangesOnlyTheCurrentTopologyDigest()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var runtime = new OwnerWorldRuntime("camp-alpha");
         var before = runtime.Capture();
         var water = before.Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Water).Position;
         Assert.True(runtime.Pause());
 
-        var receipt = runtime.ApplyAuthoringBatch(new PhaseTwoAuthoringBatch(
+        var receipt = runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
             "turn-water-into-mountain",
             [new SetTerrainOperation(water, TerrainKind.Mountain)]));
         var after = runtime.Capture();
@@ -120,12 +120,12 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void InvalidMixedPausedBatchLeavesEveryLiveProjectionUntouched()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var runtime = new OwnerWorldRuntime("camp-alpha");
         Assert.True(runtime.Pause());
         var before = runtime.Capture();
         var water = before.Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Water).Position;
 
-        var receipt = runtime.ApplyAuthoringBatch(new PhaseTwoAuthoringBatch(
+        var receipt = runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
             "mixed-invalid",
             [
                 new SetTerrainOperation(water, TerrainKind.Mountain),
@@ -146,11 +146,11 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void UnapprovedAssetReferenceRejectsTheEntirePausedAuthoringBatch()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var runtime = new OwnerWorldRuntime("camp-alpha");
         Assert.True(runtime.Pause("owner-device:alice"));
         var before = runtime.Capture();
 
-        var receipt = runtime.ApplyAuthoringBatch(new PhaseTwoAuthoringBatch(
+        var receipt = runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
             "unapproved-asset-is-atomic",
             [
                 new SetWeatherOperation("rain"),
@@ -170,18 +170,18 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void ServerSuppliedAssetPolicyAllowsOnlyItsExactReference()
     {
-        var approved = new PhaseTwoApprovedAssetReference("portrait-alice", "sha256:approved");
-        var runtime = new PhaseTwoWorldRuntime(
+        var approved = new OwnerApprovedAssetReference("portrait-alice", "sha256:approved");
+        var runtime = new OwnerWorldRuntime(
             "camp-alpha",
             new AllowListedAssetReferencePolicy(approved));
         Assert.True(runtime.Pause("owner-device:alice"));
 
-        var applied = runtime.ApplyAuthoringBatch(new PhaseTwoAuthoringBatch(
+        var applied = runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
             "approved-asset",
             [new AddApprovedAssetReferenceOperation(approved.AssetId, approved.AssetDigest)],
             "owner-device:alice"));
         var beforeRejectedRetry = runtime.Capture();
-        var rejected = runtime.ApplyAuthoringBatch(new PhaseTwoAuthoringBatch(
+        var rejected = runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
             "wrong-asset-digest",
             [new AddApprovedAssetReferenceOperation("portrait-alice-copy", "sha256:different")],
             "owner-device:alice"));
@@ -199,11 +199,11 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void AuthoringIsRejectedWhileTheWorldIsRunning()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var runtime = new OwnerWorldRuntime("camp-alpha");
         var before = runtime.Capture();
         var water = before.Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Water).Position;
 
-        var receipt = runtime.ApplyAuthoringBatch(new PhaseTwoAuthoringBatch(
+        var receipt = runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
             "must-pause-first",
             [new SetTerrainOperation(water, TerrainKind.Mountain)]));
         var after = runtime.Capture();
@@ -218,10 +218,10 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void AppliedAuthoringBatchIsIdempotentAndRetainsTheServerStampedIssuer()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var runtime = new OwnerWorldRuntime("camp-alpha");
         var water = runtime.Capture().Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Water).Position;
         Assert.True(runtime.Pause("owner-device:first"));
-        var request = new PhaseTwoAuthoringBatch(
+        var request = new OwnerAuthoringBatch(
             "same-authoring-request",
             [new SetTerrainOperation(water, TerrainKind.Mountain)],
             "owner-device:first");
@@ -247,27 +247,27 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void SerializedStateRestoresTheReconnectCursorAndContinuesGlobalEventIds()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var runtime = new OwnerWorldRuntime("camp-alpha");
         var water = runtime.Capture().Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Water).Position;
         Assert.True(runtime.TryAdvanceOneAction());
         Assert.True(runtime.Pause("owner-device:alice"));
-        Assert.True(runtime.ApplyAuthoringBatch(new PhaseTwoAuthoringBatch(
+        Assert.True(runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
             "persisted-map-edit",
             [new SetTerrainOperation(water, TerrainKind.Mountain)],
             "owner-device:alice")).Applied);
-        _ = runtime.SubmitInstruction(new PhaseTwoInstructionRequest(
+        _ = runtime.SubmitInstruction(new OwnerInstructionRequest(
             "persisted-instruction",
             "owner-device:alice",
             "actor-scout",
-            PhaseTwoInstructionKind.Suggestive,
+            OwnerInstructionKind.Suggestive,
             "Stay close to camp."));
         Assert.True(runtime.Resume("owner-device:alice"));
 
         var beforeRestart = runtime.Capture();
         var serialized = JsonSerializer.Serialize(runtime.ExportState());
-        var persistedState = JsonSerializer.Deserialize<PhaseTwoWorldRuntimeState>(serialized) ??
+        var persistedState = JsonSerializer.Deserialize<OwnerWorldRuntimeState>(serialized) ??
             throw new InvalidOperationException("The serialized runtime state was empty.");
-        var restored = PhaseTwoWorldRuntime.Restore(persistedState, "camp-alpha");
+        var restored = OwnerWorldRuntime.Restore(persistedState, "camp-alpha");
         var reconnect = restored.Capture(beforeRestart.Snapshot.LatestGlobalEventId);
 
         Assert.Equal(beforeRestart.Snapshot.World.Identity.WorldTick, reconnect.Snapshot.World.Identity.WorldTick);
@@ -285,11 +285,11 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void RestorePreservesPauseAuthoringInstructionAndIdempotencyState()
     {
-        var approvedAsset = new PhaseTwoApprovedAssetReference("portrait-lena", "sha256:portrait-lena");
+        var approvedAsset = new OwnerApprovedAssetReference("portrait-lena", "sha256:portrait-lena");
         var approvedAssetPolicy = new AllowListedAssetReferencePolicy(approvedAsset);
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha", approvedAssetPolicy);
+        var runtime = new OwnerWorldRuntime("camp-alpha", approvedAssetPolicy);
         var water = runtime.Capture().Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Water).Position;
-        var batch = new PhaseTwoAuthoringBatch(
+        var batch = new OwnerAuthoringBatch(
             "preserve-authoring",
             [
                 new SetTerrainOperation(water, TerrainKind.Mountain),
@@ -298,17 +298,17 @@ public sealed class PhaseTwoWorldRuntimeTests
                 new AddApprovedAssetReferenceOperation(approvedAsset.AssetId, approvedAsset.AssetDigest),
             ],
             "owner-device:alice");
-        var instruction = new PhaseTwoInstructionRequest(
+        var instruction = new OwnerInstructionRequest(
             "preserve-instruction",
             "owner-device:alice",
             "actor-scout",
-            PhaseTwoInstructionKind.MustDo,
+            OwnerInstructionKind.MustDo,
             "Return to camp.");
 
         Assert.True(runtime.Pause("owner-device:alice"));
         var applied = runtime.ApplyAuthoringBatch(batch);
         var queued = runtime.SubmitInstruction(instruction);
-        var restored = PhaseTwoWorldRuntime.Restore(
+        var restored = OwnerWorldRuntime.Restore(
             runtime.ExportState(),
             "camp-alpha",
             approvedAssetPolicy);
@@ -318,9 +318,9 @@ public sealed class PhaseTwoWorldRuntimeTests
         Assert.Equal(
             TerrainKind.Mountain,
             capture.Snapshot.CurrentMap.Tiles.Single(tile => tile.Position == water).Terrain);
-        Assert.Equal(new PhaseTwoClimate("rain", "winter"), capture.Snapshot.Climate);
+        Assert.Equal(new OwnerClimate("rain", "winter"), capture.Snapshot.Climate);
         Assert.Equal(
-            new PhaseTwoFounderDraft("founder-lena", "Lena", new GridPoint(3, 2), applied.Revision),
+            new OwnerFounderDraft("founder-lena", "Lena", new GridPoint(3, 2), applied.Revision),
             Assert.Single(capture.Snapshot.FounderDrafts));
         Assert.Equal(
             approvedAsset,
@@ -335,18 +335,18 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void RestoreFailsClosedWhenNoPolicyApprovesPersistedAssetReferences()
     {
-        var approvedAsset = new PhaseTwoApprovedAssetReference("portrait-lena", "sha256:portrait-lena");
-        var runtime = new PhaseTwoWorldRuntime(
+        var approvedAsset = new OwnerApprovedAssetReference("portrait-lena", "sha256:portrait-lena");
+        var runtime = new OwnerWorldRuntime(
             "camp-alpha",
             new AllowListedAssetReferencePolicy(approvedAsset));
         Assert.True(runtime.Pause("owner-device:alice"));
-        Assert.True(runtime.ApplyAuthoringBatch(new PhaseTwoAuthoringBatch(
+        Assert.True(runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
             "persisted-approved-asset",
             [new AddApprovedAssetReferenceOperation(approvedAsset.AssetId, approvedAsset.AssetDigest)],
             "owner-device:alice")).Applied);
 
         var exception = Assert.Throws<InvalidDataException>(() =>
-            PhaseTwoWorldRuntime.Restore(runtime.ExportState(), "camp-alpha"));
+            OwnerWorldRuntime.Restore(runtime.ExportState(), "camp-alpha"));
 
         Assert.Contains("saved authoring operations", exception.Message, StringComparison.Ordinal);
     }
@@ -354,12 +354,12 @@ public sealed class PhaseTwoWorldRuntimeTests
     [Fact]
     public void RestoreRejectsTamperedRuntimeState()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
-        _ = runtime.SubmitInstruction(new PhaseTwoInstructionRequest(
+        var runtime = new OwnerWorldRuntime("camp-alpha");
+        _ = runtime.SubmitInstruction(new OwnerInstructionRequest(
             "tamper-target",
             "owner-device:alice",
             "actor-scout",
-            PhaseTwoInstructionKind.Suggestive,
+            OwnerInstructionKind.Suggestive,
             "Observe the horizon."));
         var exported = runtime.ExportState();
         var invalidCounter = exported with
@@ -371,16 +371,16 @@ public sealed class PhaseTwoWorldRuntimeTests
             CurrentMap = exported.CurrentMap with { ManifestDigest = "sha256:tampered" },
         };
 
-        Assert.Throws<InvalidDataException>(() => PhaseTwoWorldRuntime.Restore(invalidCounter, "camp-alpha"));
-        Assert.Throws<InvalidDataException>(() => PhaseTwoWorldRuntime.Restore(invalidMap, "camp-alpha"));
+        Assert.Throws<InvalidDataException>(() => OwnerWorldRuntime.Restore(invalidCounter, "camp-alpha"));
+        Assert.Throws<InvalidDataException>(() => OwnerWorldRuntime.Restore(invalidMap, "camp-alpha"));
     }
 
     [Fact]
     public void RemoveResourceOperationAppliesOnceAndCanBeRetried()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
+        var runtime = new OwnerWorldRuntime("camp-alpha");
         const string resourceId = "temporary-food";
-        var batch = new PhaseTwoAuthoringBatch(
+        var batch = new OwnerAuthoringBatch(
             "remove-resource-once",
             [
                 new PlaceResourceOperation(resourceId, "food", new GridPoint(3, 2), true),
@@ -398,17 +398,17 @@ public sealed class PhaseTwoWorldRuntimeTests
         Assert.Equal(applied, runtime.ApplyAuthoringBatch(batch));
     }
 
-    private sealed class AllowListedAssetReferencePolicy : IPhaseTwoApprovedAssetReferencePolicy
+    private sealed class AllowListedAssetReferencePolicy : IOwnerApprovedAssetReferencePolicy
     {
-        private readonly HashSet<PhaseTwoApprovedAssetReference> approvedReferences;
+        private readonly HashSet<OwnerApprovedAssetReference> approvedReferences;
 
-        public AllowListedAssetReferencePolicy(params PhaseTwoApprovedAssetReference[] approvedReferences)
+        public AllowListedAssetReferencePolicy(params OwnerApprovedAssetReference[] approvedReferences)
         {
             ArgumentNullException.ThrowIfNull(approvedReferences);
-            this.approvedReferences = new HashSet<PhaseTwoApprovedAssetReference>(approvedReferences);
+            this.approvedReferences = new HashSet<OwnerApprovedAssetReference>(approvedReferences);
         }
 
-        public bool IsApproved(PhaseTwoApprovedAssetReference reference)
+        public bool IsApproved(OwnerApprovedAssetReference reference)
         {
             ArgumentNullException.ThrowIfNull(reference);
             return approvedReferences.Contains(reference);

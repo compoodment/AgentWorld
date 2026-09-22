@@ -100,10 +100,10 @@ public sealed class ViewerObservationTests
     }
 
     [Fact]
-    public void PhaseTwoInhabitantKnowledgeIsBoundedToLocalPerceptionAndItsCommittedRoute()
+    public void OwnerInhabitantKnowledgeIsBoundedToLocalPerceptionAndItsCommittedRoute()
     {
-        var runtime = new PhaseTwoWorldRuntime("camp-alpha");
-        var store = new PhaseTwoWorldObservationStore(runtime);
+        var runtime = new OwnerWorldRuntime("camp-alpha");
+        var store = new OwnerWorldObservationStore(runtime);
 
         var snapshot = store.GetSnapshot();
         var inhabitant = Assert.Single(snapshot.Inhabitants);

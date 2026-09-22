@@ -8,7 +8,7 @@ namespace AgentWorld.Viewer.Observation;
 /// once during host startup; owner-device requests can name a reference but
 /// cannot change this catalog or upload asset bytes.
 /// </summary>
-public sealed class ApprovedAssetCatalog : IPhaseTwoApprovedAssetReferencePolicy
+public sealed class ApprovedAssetCatalog : IOwnerApprovedAssetReferencePolicy
 {
     /// <summary>
     /// The only catalog document version understood by this host. Unknown
@@ -16,14 +16,14 @@ public sealed class ApprovedAssetCatalog : IPhaseTwoApprovedAssetReferencePolicy
     /// </summary>
     public const int SchemaVersion = 1;
 
-    private readonly HashSet<PhaseTwoApprovedAssetReference> approvedReferences;
+    private readonly HashSet<OwnerApprovedAssetReference> approvedReferences;
 
     private ApprovedAssetCatalog(
         string path,
-        IEnumerable<PhaseTwoApprovedAssetReference> approvedReferences)
+        IEnumerable<OwnerApprovedAssetReference> approvedReferences)
     {
         Path = path;
-        this.approvedReferences = new HashSet<PhaseTwoApprovedAssetReference>(approvedReferences);
+        this.approvedReferences = new HashSet<OwnerApprovedAssetReference>(approvedReferences);
     }
 
     /// <summary>
@@ -65,7 +65,7 @@ public sealed class ApprovedAssetCatalog : IPhaseTwoApprovedAssetReferencePolicy
     }
 
     /// <inheritdoc />
-    public bool IsApproved(PhaseTwoApprovedAssetReference reference)
+    public bool IsApproved(OwnerApprovedAssetReference reference)
     {
         ArgumentNullException.ThrowIfNull(reference);
         return approvedReferences.Contains(reference);
@@ -75,13 +75,13 @@ public sealed class ApprovedAssetCatalog : IPhaseTwoApprovedAssetReferencePolicy
     /// Returns a detached deterministic view useful only for diagnostics and
     /// tests. It deliberately exposes references, not catalog mutation.
     /// </summary>
-    public IReadOnlyList<PhaseTwoApprovedAssetReference> GetApprovedReferences() => approvedReferences
+    public IReadOnlyList<OwnerApprovedAssetReference> GetApprovedReferences() => approvedReferences
         .OrderBy(reference => reference.AssetId, StringComparer.Ordinal)
         .ThenBy(reference => reference.AssetDigest, StringComparer.Ordinal)
         .Select(reference => reference with { })
         .ToArray();
 
-    private static List<PhaseTwoApprovedAssetReference> ParseDocument(JsonElement root)
+    private static List<OwnerApprovedAssetReference> ParseDocument(JsonElement root)
     {
         if (root.ValueKind != JsonValueKind.Object)
         {
@@ -106,7 +106,7 @@ public sealed class ApprovedAssetCatalog : IPhaseTwoApprovedAssetReferencePolicy
                 "The approved-asset catalog must contain only schemaVersion and references.");
         }
 
-        var result = new List<PhaseTwoApprovedAssetReference>();
+        var result = new List<OwnerApprovedAssetReference>();
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var element in references.EnumerateArray())
         {
@@ -139,7 +139,7 @@ public sealed class ApprovedAssetCatalog : IPhaseTwoApprovedAssetReferencePolicy
                 throw new InvalidDataException("Approved asset references cannot reuse an asset ID.");
             }
 
-            result.Add(new PhaseTwoApprovedAssetReference(assetId, assetDigest));
+            result.Add(new OwnerApprovedAssetReference(assetId, assetDigest));
         }
 
         return result;
