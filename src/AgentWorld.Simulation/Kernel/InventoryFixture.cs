@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 
 namespace AgentWorld.Simulation.Kernel;
 
@@ -540,48 +541,95 @@ public static class InventoryFixture
 
 public static class InventoryCheckpointCodec
 {
-    private const string Header = "agentworld.inventory-fixture/v1";
+    private const string LegacyHeader = "agentworld.inventory-fixture/v1";
+    private const string Header = "agentworld.inventory-fixture/v2";
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false,
+    };
+
+    private sealed record InventoryCheckpointDocument(
+        long WorldTick,
+        InventoryLot[] Lots,
+        InventoryReservation[] Reservations,
+        DirectBarterOffer[] Offers,
+        InventoryEvent[] Events);
 
     public static byte[] Encode(InventoryCheckpoint checkpoint)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
-        var builder = new StringBuilder(Header).Append('\n').Append("tick=").Append(checkpoint.WorldTick).Append('\n');
-        foreach (var lot in checkpoint.Lots)
-        {
-            builder.Append("lot=").Append(lot.Id).Append('|').Append(lot.ItemKind).Append('|').Append(lot.OwnerId).Append('|')
-                .Append(lot.Quantity).Append('|').Append(lot.ConditionBasisPoints).Append('|').Append(lot.FreshnessBasisPoints).Append('|')
-                .Append(lot.LastProcessedTick).Append('|').Append(lot.ProvenanceLotId ?? "-").Append('\n');
-        }
-
-        foreach (var reservation in checkpoint.Reservations)
-        {
-            builder.Append("reservation=").Append(reservation.Id).Append('|').Append(reservation.OwnerId).Append('|').Append(reservation.LotId).Append('|')
-                .Append(reservation.Quantity).Append('|').Append(reservation.Purpose).Append('|').Append(reservation.ExpiryTick).Append('|')
-                .Append(reservation.IsExclusive ? "exclusive" : "shared").Append('|').Append(reservation.State).Append('\n');
-        }
-
-        foreach (var offer in checkpoint.Offers)
-        {
-            builder.Append("offer=").Append(offer.Id).Append('|').Append(offer.Revision).Append('|').Append(offer.FirstPartyId).Append('|')
-                .Append(offer.SecondPartyId).Append('|').Append(offer.FirstLotId).Append('|').Append(offer.FirstQuantity).Append('|')
-                .Append(offer.SecondLotId).Append('|').Append(offer.SecondQuantity).Append('|').Append(offer.ExpiryTick).Append('|')
-                .Append(offer.State).Append('|').Append(string.Join(',', offer.AcceptedBy)).Append('\n');
-        }
-
-        foreach (var worldEvent in checkpoint.Events)
-        {
-            builder.Append("event=").Append(worldEvent.EventId).Append('|').Append(worldEvent.WorldTick).Append('|')
-                .Append(worldEvent.Kind).Append('|').Append(worldEvent.Detail).Append('\n');
-        }
-
-        return Encoding.UTF8.GetBytes(builder.ToString());
+        var document = new InventoryCheckpointDocument(
+            checkpoint.WorldTick,
+            checkpoint.Lots.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+            checkpoint.Reservations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+            checkpoint.Offers
+                .OrderBy(item => item.Id, StringComparer.Ordinal)
+                .Select(item => item with
+                {
+                    AcceptedBy = item.AcceptedBy.OrderBy(id => id, StringComparer.Ordinal).ToArray(),
+                })
+                .ToArray(),
+            checkpoint.Events.OrderBy(item => item.EventId).ToArray());
+        return Encoding.UTF8.GetBytes($"{Header}\n{JsonSerializer.Serialize(document, JsonOptions)}");
     }
 
     public static InventoryCheckpoint Decode(byte[] bytes)
     {
         ArgumentNullException.ThrowIfNull(bytes);
-        var lines = Encoding.UTF8.GetString(bytes).Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        if (lines.Length < 2 || lines[0] != Header)
+        var text = Encoding.UTF8.GetString(bytes);
+        var separator = text.IndexOf('\n');
+        if (separator < 0)
+        {
+            throw new InvalidDataException("The inventory checkpoint format is not supported.");
+        }
+
+        var header = text[..separator];
+        if (header == LegacyHeader)
+        {
+            return DecodeLegacyV1(text.Split('\n', StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        if (header != Header)
+        {
+            throw new InvalidDataException("The inventory checkpoint format is not supported.");
+        }
+
+        InventoryCheckpointDocument? document;
+        try
+        {
+            document = JsonSerializer.Deserialize<InventoryCheckpointDocument>(text[(separator + 1)..], JsonOptions);
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException("The inventory checkpoint JSON is invalid.", exception);
+        }
+
+        if (document is null || document.Lots is null || document.Reservations is null ||
+            document.Offers is null || document.Events is null)
+        {
+            throw new InvalidDataException("The inventory checkpoint JSON is incomplete.");
+        }
+
+        var checkpoint = new InventoryCheckpoint(
+            document.WorldTick,
+            document.Lots.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+            document.Reservations.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+            document.Offers
+                .OrderBy(item => item.Id, StringComparer.Ordinal)
+                .Select(item => item with
+                {
+                    AcceptedBy = item.AcceptedBy.OrderBy(id => id, StringComparer.Ordinal).ToArray(),
+                })
+                .ToArray(),
+            document.Events.OrderBy(item => item.EventId).ToArray());
+        _ = InventoryDigest.State(checkpoint);
+        return checkpoint;
+    }
+
+    private static InventoryCheckpoint DecodeLegacyV1(string[] lines)
+    {
+        if (lines.Length < 2)
         {
             throw new InvalidDataException("The inventory checkpoint format is not supported.");
         }
@@ -634,8 +682,8 @@ public static class InventoryDigest
 {
     public static string State(InventoryCheckpoint checkpoint)
     {
-        var canonical = Encoding.UTF8.GetString(InventoryCheckpointCodec.Encode(checkpoint));
-        return Digest(string.Join('\n', canonical.Split('\n').Where(line => !line.StartsWith("event=", StringComparison.Ordinal))));
+        var canonical = Encoding.UTF8.GetString(InventoryCheckpointCodec.Encode(checkpoint with { Events = [] }));
+        return Digest(canonical);
     }
 
     public static string Events(IEnumerable<InventoryEvent> events) => Digest(string.Join('\n', events.OrderBy(item => item.EventId).Select(item => $"{item.EventId}|{item.WorldTick}|{item.Kind}|{item.Detail}")));

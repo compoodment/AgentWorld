@@ -54,4 +54,7 @@ dd { margin: 0; text-align: right; }
 .event-log li { display: grid; grid-template-columns: 84px 1fr; gap: 10px; padding: 10px; background: #141615; border-left: 3px solid var(--actor); font-size: 0.78rem; line-height: 1.4; }
 .event-log time { color: var(--muted); }
 .error { color: #ff8e8e; }
+.discovery-actions { margin-top: 14px; }
+button { border: 1px solid var(--line); border-radius: 5px; padding: 8px 12px; background: #242725; color: var(--ink); font: inherit; cursor: pointer; }
+button:disabled { cursor: wait; opacity: 0.6; }
 @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } }

@@ -36,6 +36,8 @@ public partial class Main : Control
     private readonly Button pairButton = new();
     private readonly Button forgetRegistrationButton = new();
 
+    private readonly GridContainer titleBar = new();
+    private readonly GridContainer mainContent = new();
     private readonly GridContainer worldGrid = new();
     private readonly Control mapCanvas = new();
     private readonly Control objectLayer = new();
@@ -840,16 +842,16 @@ public partial class Main : Control
         root.AddThemeConstantOverride("separation", 12);
         margin.AddChild(root);
 
-        var titleRow = new HBoxContainer();
-        titleRow.AddThemeConstantOverride("separation", 10);
+        titleBar.AddThemeConstantOverride("h_separation", 10);
+        titleBar.AddThemeConstantOverride("v_separation", 6);
         var title = new Label { Text = "AGENTWORLD  ·  OUTPOST" };
         title.AddThemeFontSizeOverride("font_size", 24);
         title.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        titleRow.AddChild(title);
+        titleBar.AddChild(title);
         connectionSettingsButton.Text = "Server settings";
         connectionSettingsButton.Pressed += ToggleConnectionSettings;
-        titleRow.AddChild(connectionSettingsButton);
-        root.AddChild(titleRow);
+        titleBar.AddChild(connectionSettingsButton);
+        root.AddChild(titleBar);
         statusLabel.Text = "initializing Windows owner device…";
         root.AddChild(statusLabel);
 
@@ -858,14 +860,13 @@ public partial class Main : Control
         BuildPairingPanel();
         root.AddChild(pairingPanel);
 
-        var content = new HBoxContainer
-        {
-            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-        };
-        content.AddThemeConstantOverride("separation", 12);
-        root.AddChild(content);
+        mainContent.Columns = 2;
+        mainContent.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        mainContent.AddThemeConstantOverride("h_separation", 12);
+        mainContent.AddThemeConstantOverride("v_separation", 12);
+        root.AddChild(mainContent);
 
-        BuildWorldColumn(content);
+        BuildWorldColumn(mainContent);
         var sidebar = new VBoxContainer
         {
             CustomMinimumSize = new Vector2(286, 0),
@@ -874,7 +875,10 @@ public partial class Main : Control
         sidebar.AddThemeConstantOverride("separation", 10);
         BuildInspectorColumn(sidebar);
         BuildOwnerColumn(sidebar);
-        content.AddChild(sidebar);
+        mainContent.AddChild(sidebar);
+
+        Resized += ApplyResponsiveLayout;
+        ApplyResponsiveLayout();
     }
 
     private void BuildConnectionPanel()
@@ -1013,6 +1017,8 @@ public partial class Main : Control
         rosterPanel.AddChild(inhabitantList);
         rosterPanel.Hide();
         body.AddChild(rosterPanel);
+        ConfigureTextPanel(inhabitantDetails, 220);
+        body.AddChild(NewPanel("INHABITANT DETAILS", inhabitantDetails));
         content.AddChild(NewPanel("PEOPLE", body));
     }
 
@@ -1630,6 +1636,16 @@ public partial class Main : Control
         label.FitContent = false;
         label.CustomMinimumSize = new Vector2(0, minimumHeight);
         label.ScrollActive = true;
+    }
+
+    private void ApplyResponsiveLayout()
+    {
+        var width = Size.X;
+        mainContent.Columns = width < 1_120 ? 1 : 2;
+        titleBar.Columns = width < 720 ? 1 : 2;
+        mapCanvas.CustomMinimumSize = width < 900
+            ? new Vector2(0, 320)
+            : new Vector2(760, 420);
     }
 
     private static PanelContainer NewPanel(string title, Control content)

@@ -157,10 +157,6 @@ public sealed class SocietyCognitionScheduler
             .ThenBy(item => item.ScheduleId, StringComparer.Ordinal)
             .Take(maxDispatchPerCycle)
             .ToArray();
-        foreach (var entry in selected)
-        {
-            queue.Remove(entry);
-        }
 
         var results = new List<SocietyCognitionDispatchResult>(selected.Length);
         foreach (var entry in selected)
@@ -178,6 +174,16 @@ public sealed class SocietyCognitionScheduler
                 admission = new CognitionAdmissionResult(false, false, exception.Message, null);
             }
 
+            if (string.Equals(admission.Outcome, "provider_cancelled", StringComparison.Ordinal))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            // A queue entry is durable until its dispatch attempt has
+            // completed. If cancellation interrupts the provider call, the
+            // current entry and every unprocessed selected entry remain in
+            // the queue for a later retry.
+            queue.Remove(entry);
             results.Add(new SocietyCognitionDispatchResult(entry.InhabitantId, admission));
             AppendEvent(
                 entry.Observation.WorldTick,

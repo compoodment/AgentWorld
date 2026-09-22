@@ -1,3 +1,4 @@
+using System.Text;
 using AgentWorld.Simulation.Kernel;
 
 namespace AgentWorld.Simulation.Tests;
@@ -54,6 +55,58 @@ public sealed class InventoryFixtureTests
         Assert.Equal("bravo", settled.GetLot("alpha-wood").OwnerId);
         Assert.Equal("alpha", settled.GetLot("bravo-food").OwnerId);
         Assert.Contains(settled.Events, item => item is { Kind: "barter_settled", Detail: "offer-1:r3" });
+    }
+
+    [Fact]
+    public void CheckpointCodecRoundTripsDelimiterBearingAndUnicodeValues()
+    {
+        var checkpoint = new InventoryCheckpoint(
+            7,
+            [new InventoryLot("lot|1", "berries,🍓\nkind", "owner|1", 2, 10_000, 9_000, 7, "source|lot")],
+            [new InventoryReservation("reserve|1", "owner|1", "lot|1", 1, "meal\nwith|separators", 12, true, InventoryReservationState.Reserved)],
+            [new DirectBarterOffer("offer|1", 2, "owner|1", "other,owner", "lot|1", 1, "other-lot", 1, 20, DirectBarterState.Open, ["owner|1", "other\nowner"])],
+            [new InventoryEvent(1, 7, "event|kind", "detail,with\nseparators")]);
+
+        var restored = InventoryCheckpointCodec.Decode(InventoryCheckpointCodec.Encode(checkpoint));
+
+        Assert.Equal(checkpoint.WorldTick, restored.WorldTick);
+        Assert.Equal(checkpoint.Lots, restored.Lots);
+        Assert.Equal(checkpoint.Reservations, restored.Reservations);
+        var expectedOffer = checkpoint.Offers.Single();
+        var actualOffer = restored.Offers.Single();
+        Assert.Equal(expectedOffer.Id, actualOffer.Id);
+        Assert.Equal(expectedOffer.Revision, actualOffer.Revision);
+        Assert.Equal(expectedOffer.FirstPartyId, actualOffer.FirstPartyId);
+        Assert.Equal(expectedOffer.SecondPartyId, actualOffer.SecondPartyId);
+        Assert.Equal(expectedOffer.FirstLotId, actualOffer.FirstLotId);
+        Assert.Equal(expectedOffer.FirstQuantity, actualOffer.FirstQuantity);
+        Assert.Equal(expectedOffer.SecondLotId, actualOffer.SecondLotId);
+        Assert.Equal(expectedOffer.SecondQuantity, actualOffer.SecondQuantity);
+        Assert.Equal(expectedOffer.ExpiryTick, actualOffer.ExpiryTick);
+        Assert.Equal(expectedOffer.State, actualOffer.State);
+        Assert.Equal(
+            expectedOffer.AcceptedBy.OrderBy(id => id, StringComparer.Ordinal),
+            actualOffer.AcceptedBy);
+        Assert.Equal(checkpoint.Events, restored.Events);
+        Assert.Equal(InventoryDigest.State(checkpoint), InventoryDigest.State(restored));
+    }
+
+    [Fact]
+    public void CheckpointCodecStillReadsLegacyV1Saves()
+    {
+        var legacy = string.Join(
+            '\n',
+            "agentworld.inventory-fixture/v1",
+            "tick=3",
+            "lot=food-lot|food|alice|2|10000|9000|3|-",
+            "event=1|3|created|food-lot",
+            string.Empty);
+
+        var restored = InventoryCheckpointCodec.Decode(Encoding.UTF8.GetBytes(legacy));
+
+        Assert.Equal(3, restored.WorldTick);
+        Assert.Equal("food-lot", restored.Lots.Single().Id);
+        Assert.Equal("food-lot", restored.Events.Single().Detail);
     }
 
     private static InventoryCheckpoint Genesis() => InventoryFixture.CreateGenesis(

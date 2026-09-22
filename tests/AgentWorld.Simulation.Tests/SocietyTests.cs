@@ -181,6 +181,29 @@ public sealed class SocietyTests
     }
 
     [Fact]
+    public async Task CancellationLeavesSelectedAndUnprocessedCognitionEntriesQueued()
+    {
+        var config = TestConfig();
+        var founders = new[]
+        {
+            SocietyFixture.CreateFounder("alice", "Alice", config: config),
+            SocietyFixture.CreateFounder("bob", "Bob", config: config),
+        };
+        using var cancellation = new CancellationTokenSource();
+        var scheduler = new SocietyCognitionScheduler(
+            founders,
+            _ => new CancellingDecisionProvider(cancellation),
+            maxDispatchPerCycle: 2);
+        Assert.True(scheduler.Enqueue(Entry("a", "alice", 1, 0)));
+        Assert.True(scheduler.Enqueue(Entry("b", "bob", 0, 0)));
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await scheduler.DispatchAsync(cancellation.Token));
+
+        var state = scheduler.ExportState();
+        Assert.Equal(["a", "b"], state.Queue.Select(item => item.ScheduleId).OrderBy(item => item, StringComparer.Ordinal));
+    }
+
+    [Fact]
     public void SocietyCheckpointRoundTripsWithStableDigests()
     {
         var config = TestConfig();
@@ -461,7 +484,24 @@ public sealed class SocietyTests
                 0,
                 0,
                 $"digest:{scheduleId}",
-                5_000,
-                5_000,
-                [new CognitionCandidate("safe_idle", "Continue safely.", 0)]));
+            5_000,
+            5_000,
+            [new CognitionCandidate("safe_idle", "Continue safely.", 0)]));
+
+    private sealed class CancellingDecisionProvider(CancellationTokenSource cancellation) : IDecisionProvider
+    {
+        private readonly DeterministicDecisionProvider fallback = new();
+
+        public DecisionProviderKind Kind => fallback.Kind;
+
+        public long ProviderEpoch => fallback.ProviderEpoch;
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            cancellation.Cancel();
+            return fallback.DecideAsync(request, cancellationToken);
+        }
+    }
 }

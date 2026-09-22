@@ -90,6 +90,11 @@ public static class ControlFixture
     public static ControlCheckpoint AdvanceDelivery(ControlCheckpoint checkpoint, long targetTick)
     {
         Validate(checkpoint);
+        if (checkpoint.IsPaused)
+        {
+            throw new InvalidOperationException("A paused control checkpoint cannot advance delivery.");
+        }
+
         ArgumentOutOfRangeException.ThrowIfLessThan(targetTick, checkpoint.WorldTick);
         var due = checkpoint.Messages.Where(message => message.State == DurableMessageState.Pending && message.DeliveryTick <= targetTick)
             .OrderBy(message => message.DeliveryTick).ThenBy(message => message.Sequence).ThenBy(message => message.Id, StringComparer.Ordinal).ToArray();

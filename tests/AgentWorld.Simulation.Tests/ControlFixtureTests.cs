@@ -56,4 +56,19 @@ public sealed class ControlFixtureTests
         Assert.Equal(ControlDigest.Events(current.Events), ControlDigest.Events(restored.Events));
         Assert.True(ControlCheckpointCodec.Encode(current).SequenceEqual(ControlCheckpointCodec.Encode(restored)));
     }
+
+    [Fact]
+    public void PausedCheckpointsCannotAdvanceDeliveryOrMutateMessages()
+    {
+        var queued = ControlFixture.QueueMessage(
+            ControlFixture.Pause(ControlFixture.Genesis),
+            new DurableMessage("message-1", "owner", "agent", 0, 5, 1, "direct", 10, DurableMessageState.Pending));
+        var before = ControlDigest.State(queued);
+
+        Assert.Throws<InvalidOperationException>(() => ControlFixture.AdvanceDelivery(queued, 5));
+        Assert.Equal(before, ControlDigest.State(queued));
+        Assert.Equal(DurableMessageState.Pending, queued.Messages.Single().State);
+        Assert.Equal(0, queued.WorldTick);
+        Assert.DoesNotContain(queued.Events, item => item.Kind is "message_delivered" or "message_expired");
+    }
 }
