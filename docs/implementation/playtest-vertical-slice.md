@@ -80,7 +80,10 @@ lifecycle, estates, and event projection in one save boundary.
 ### 2. Hosted model playtest boundary
 
 The OpenAI-compatible adapter now supports OpenAI and Ollama Cloud endpoints.
-Credentials remain environment-only; model and endpoint are host configuration;
+The paired owner selects separate routine and planning provider roles and
+supplies or forgets API keys in the game Settings screen. Jev may handle
+routine survival while OpenAI or Ollama Cloud handles planning and work in the
+same world. Credentials remain server-side in a separate restricted store, and
 the server still validates every returned candidate.
 
 ### 3. Content and richer-world completion

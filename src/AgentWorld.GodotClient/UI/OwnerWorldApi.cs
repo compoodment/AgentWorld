@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using AgentWorld.GodotClient.Pairing;
 
@@ -218,6 +219,26 @@ public sealed record OwnerDeviceManagementAction(string DeviceId);
 /// read from becoming an accidental bearer endpoint.
 /// </summary>
 public sealed record OwnerDeviceListAction;
+
+public sealed record OwnerProviderStatusAction;
+
+public sealed record OwnerProviderConfigurationAction(
+    string Role,
+    string Provider,
+    string? Model,
+    string? ApiKey,
+    bool ForgetCredential);
+
+public sealed record OwnerProviderOptionStatus(
+    string Provider,
+    string Model,
+    bool HasCredential);
+
+public sealed record OwnerProviderConfigurationStatus(
+    string RoutineProvider,
+    string PlanningProvider,
+    long Revision,
+    IReadOnlyList<OwnerProviderOptionStatus> Providers);
 
 public sealed record OwnerInstructionAction(
     string IdempotencyKey,
@@ -444,6 +465,24 @@ public static class OwnerWorldActionPayload
         $"device-id={EncodeRequired(action.DeviceId, nameof(action.DeviceId))}");
 
     public static string DeviceList() => Control("list_devices");
+
+    public static string ProviderStatus() => Control("provider_status");
+
+    public static string ProviderConfiguration(OwnerProviderConfigurationAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var apiKeyDigest = action.ApiKey is null
+            ? "-"
+            : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
+        return string.Join(
+            '\n',
+            "agentworld.owner-provider-configuration.v1",
+            $"role={EncodeRequired(action.Role, nameof(action.Role))}",
+            $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+            $"model={EncodeOptional(action.Model)}",
+            $"api-key-sha256={apiKeyDigest}",
+            $"forget-credential={action.ForgetCredential.ToString().ToLowerInvariant()}");
+    }
 
     public static string Instruction(OwnerInstructionAction action) => string.Join(
         '\n',
@@ -912,4 +951,42 @@ public sealed class OwnerWorldApi
             deviceKey,
             cancellationToken);
     }
+
+    public Task<OwnerProviderConfigurationStatus> GetProviderStatusAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken)
+    {
+        var action = new OwnerProviderStatusAction();
+        return pairing.SendSignedActionAsync<OwnerProviderStatusAction, OwnerProviderConfigurationStatus>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerProviderStatus,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.ProviderStatus(),
+            action,
+            deviceKey,
+            cancellationToken);
+    }
+
+    public Task<OwnerProviderConfigurationStatus> ConfigureProviderAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerProviderConfigurationAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerProviderConfigurationAction, OwnerProviderConfigurationStatus>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerProviderConfigure,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.ProviderConfiguration(action),
+            action,
+            deviceKey,
+            cancellationToken);
 }

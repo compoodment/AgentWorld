@@ -36,9 +36,14 @@ Build the smallest end-to-end loop for one inhabitant:
    response behaviour with a deterministic mock provider.
 
 The Jev adapter is deliberately optional and separate from the deterministic
-default. Credentials remain installation-local and are read from
-`TYPESAFE_API_KEY` at request time; they never enter world state, saves,
-telemetry, or owner observations.
+default. Its credential is configured by a paired owner and retained in the
+installation-local provider store; it never enters world state, saves,
+telemetry, or owner observations and is never returned to the client.
+
+The private-world integration exposes two simultaneous roles: routine survival
+uses deterministic selection or Jev, while planning and work uses deterministic
+selection, OpenAI, or Ollama Cloud. Both still return one legal candidate to
+the same authoritative admission and execution boundary.
 
 ## Explicit non-goals
 

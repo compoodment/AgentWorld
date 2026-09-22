@@ -3,6 +3,7 @@ using OwnerHttpBinding = AgentWorld.Viewer.Control.OwnerHttpBinding;
 using ServerDeviceManagementAction = AgentWorld.Viewer.Control.OwnerDeviceManagementAction;
 using ServerInstructionAction = AgentWorld.Viewer.Control.OwnerInstructionAction;
 using ServerPairingApprovalAction = AgentWorld.Viewer.Control.OwnerPairingApprovalAction;
+using ServerProviderConfigurationAction = AgentWorld.Viewer.Control.OwnerProviderConfigurationAction;
 
 namespace AgentWorld.Simulation.Tests;
 
@@ -121,6 +122,31 @@ public sealed class GodotOwnerWorldApiTests
         var serverPayload = OwnerHttpBinding.DeviceListPayload();
 
         Assert.Equal(serverPayload, clientPayload);
+    }
+
+    [Fact]
+    public void ProviderConfigurationPayloadMatchesViewerOwnerProtocolWithoutEmbeddingTheSecret()
+    {
+        const string secret = "player-provider-secret";
+        var clientAction = new OwnerProviderConfigurationAction(
+            "planning",
+            "ollama-cloud",
+            "gpt-oss:120b-cloud",
+            secret,
+            false);
+        var serverAction = new ServerProviderConfigurationAction(
+            clientAction.Role,
+            clientAction.Provider,
+            clientAction.Model,
+            clientAction.ApiKey,
+            clientAction.ForgetCredential);
+
+        var clientPayload = OwnerWorldActionPayload.ProviderConfiguration(clientAction);
+        var serverPayload = OwnerHttpBinding.ProviderConfigurationPayload(serverAction);
+
+        Assert.Equal(serverPayload, clientPayload);
+        Assert.DoesNotContain(secret, clientPayload, StringComparison.Ordinal);
+        Assert.Equal(OwnerHttpBinding.ProviderStatusPayload(), OwnerWorldActionPayload.ProviderStatus());
     }
 
     [Fact]

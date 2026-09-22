@@ -48,6 +48,30 @@ public sealed record OwnerDeviceManagementAction(string DeviceId);
 /// </summary>
 public sealed record OwnerDeviceListAction;
 
+/// <summary>
+/// Empty signed action used to read only non-secret provider status. API keys
+/// are never represented in the response contract.
+/// </summary>
+public sealed record OwnerProviderStatusAction;
+
+public sealed record OwnerProviderConfigurationAction(
+    string Role,
+    string Provider,
+    string? Model,
+    string? ApiKey,
+    bool ForgetCredential);
+
+public sealed record OwnerProviderOptionStatus(
+    string Provider,
+    string Model,
+    bool HasCredential);
+
+public sealed record OwnerProviderConfigurationStatus(
+    string RoutineProvider,
+    string PlanningProvider,
+    long Revision,
+    IReadOnlyList<OwnerProviderOptionStatus> Providers);
+
 public sealed record OwnerInstructionAction(
     string IdempotencyKey,
     string TargetInhabitantId,
@@ -123,6 +147,24 @@ public static class OwnerHttpBinding
         $"device-id={EncodeRequired(action.DeviceId, nameof(action.DeviceId))}");
 
     public static string DeviceListPayload() => EmptyPayload("list_devices");
+
+    public static string ProviderStatusPayload() => EmptyPayload("provider_status");
+
+    public static string ProviderConfigurationPayload(OwnerProviderConfigurationAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var apiKeyDigest = action.ApiKey is null
+            ? "-"
+            : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
+        return string.Join(
+            '\n',
+            "agentworld.owner-provider-configuration.v1",
+            $"role={EncodeRequired(action.Role, nameof(action.Role))}",
+            $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
+            $"model={EncodeOptional(action.Model)}",
+            $"api-key-sha256={apiKeyDigest}",
+            $"forget-credential={action.ForgetCredential.ToString().ToLowerInvariant()}");
+    }
 
     public static string InstructionPayload(OwnerInstructionAction action) => string.Join(
         '\n',

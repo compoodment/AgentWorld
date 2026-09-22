@@ -29,6 +29,8 @@ public static class OwnerPairingEndpoints
     public const string OwnerPairingApproval = "/api/v1/owner/pairings/approve";
     public const string OwnerDeviceRevoke = "/api/v1/owner/devices/revoke";
     public const string OwnerDeviceList = "/api/v1/owner/devices/list";
+    public const string OwnerProviderStatus = "/api/v1/owner/providers/status";
+    public const string OwnerProviderConfigure = "/api/v1/owner/providers/configure";
 }
 
 /// <summary>

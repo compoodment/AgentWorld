@@ -23,8 +23,10 @@ var advanceRuntime = isPrivateWorld
 var configuredDecisionProvider = builder.Configuration["AgentWorld:Runtime:DecisionProvider"] ?? "deterministic";
 var configuredJevModel = builder.Configuration["AgentWorld:Runtime:JevModel"] ?? "jev-1.13.0";
 var configuredModel = builder.Configuration["AgentWorld:Runtime:Model"];
-var configuredModelEndpoint = builder.Configuration["AgentWorld:Runtime:ModelEndpoint"];
-var configuredModelApiKeyEnvironmentVariable = builder.Configuration["AgentWorld:Runtime:ModelApiKeyEnvironmentVariable"];
+var configuredOpenAiModel = builder.Configuration["AgentWorld:Runtime:OpenAiModel"] ??
+    (configuredDecisionProvider.StartsWith("openai", StringComparison.OrdinalIgnoreCase) ? configuredModel : null);
+var configuredOllamaCloudModel = builder.Configuration["AgentWorld:Runtime:OllamaCloudModel"] ??
+    (configuredDecisionProvider.StartsWith("ollama", StringComparison.OrdinalIgnoreCase) ? configuredModel : null);
 var publicPort = builder.Configuration.GetValue("AgentWorld:Http:Port", 5188);
 var localApprovalPort = builder.Configuration.GetValue<int?>("AgentWorld:Pairing:LocalApprovalPort") ?? 0;
 if (publicPort is <= 0 or > 65535 || localApprovalPort is < 0 or > 65535 || localApprovalPort == publicPort)
@@ -55,6 +57,8 @@ var privateRuntimeStatePath = isPrivateWorld
     ? runtimeStatePath
     : builder.Configuration["AgentWorld:Runtime:PrivateStatePath"] ??
         Path.Combine(builder.Environment.ContentRootPath, "saves", "private-world.json");
+var providerConfigurationPath = builder.Configuration["AgentWorld:Runtime:ProviderStatePath"] ??
+    Path.Combine(builder.Environment.ContentRootPath, "saves", "provider-configuration.json");
 var approvedAssetCatalogPath = builder.Configuration["AgentWorld:Assets:CatalogPath"] ??
     Path.Combine(builder.Environment.ContentRootPath, "approved-assets.json");
 var configuredAuthorityId = builder.Configuration["AgentWorld:Pairing:ServerAuthorityId"] ??
@@ -68,54 +72,19 @@ builder.Services.AddSingleton<IOwnerApprovedAssetReferencePolicy>(approvedAssetC
 builder.Services.AddSingleton(approvedAssetCatalog);
 builder.Services.AddHttpClient("typesafe");
 builder.Services.AddHttpClient("model");
+builder.Services.AddSingleton(new ProviderConfigurationStore(
+    providerConfigurationPath,
+    new ProviderConfigurationSeed(
+        configuredDecisionProvider,
+        configuredJevModel,
+        Environment.GetEnvironmentVariable("TYPESAFE_API_KEY"),
+        configuredOpenAiModel,
+        Environment.GetEnvironmentVariable("OPENAI_API_KEY"),
+        configuredOllamaCloudModel,
+        Environment.GetEnvironmentVariable("OLLAMA_API_KEY"))));
+builder.Services.AddSingleton<ConfigurableDecisionProvider>();
 builder.Services.AddSingleton<IDecisionProvider>(services =>
-{
-    if (string.Equals(configuredDecisionProvider, "deterministic", StringComparison.OrdinalIgnoreCase))
-    {
-        return new DeterministicDecisionProvider();
-    }
-
-    if (string.Equals(configuredDecisionProvider, "jev", StringComparison.OrdinalIgnoreCase))
-    {
-        return new JevDecisionProvider(
-            services.GetRequiredService<IHttpClientFactory>().CreateClient("typesafe"),
-            () => Environment.GetEnvironmentVariable("TYPESAFE_API_KEY"),
-            model: configuredJevModel);
-    }
-
-    var isOllama = string.Equals(configuredDecisionProvider, "ollama", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(configuredDecisionProvider, "ollama-cloud", StringComparison.OrdinalIgnoreCase);
-    var isOpenAi = string.Equals(configuredDecisionProvider, "openai", StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(configuredDecisionProvider, "openai-compatible", StringComparison.OrdinalIgnoreCase);
-    if (!isOllama && !isOpenAi)
-    {
-        throw new InvalidOperationException(
-            $"Unsupported AgentWorld:Runtime:DecisionProvider '{configuredDecisionProvider}'. " +
-            "Expected deterministic, jev, openai, or ollama-cloud.");
-    }
-
-    var endpointText = configuredModelEndpoint ??
-        (isOllama ? "https://ollama.com/v1/chat/completions" : "https://api.openai.com/v1/chat/completions");
-    if (!Uri.TryCreate(endpointText, UriKind.Absolute, out var endpoint))
-    {
-        throw new InvalidOperationException("AgentWorld:Runtime:ModelEndpoint must be an absolute URI.");
-    }
-
-    var model = configuredModel?.Trim();
-    if (string.IsNullOrWhiteSpace(model))
-    {
-        throw new InvalidOperationException(
-            "AgentWorld:Runtime:Model is required when a hosted model provider is selected.");
-    }
-
-    var apiKeyEnvironmentVariable = configuredModelApiKeyEnvironmentVariable ??
-        (isOllama ? "OLLAMA_API_KEY" : "OPENAI_API_KEY");
-    return new OpenAiCompatibleDecisionProvider(
-        services.GetRequiredService<IHttpClientFactory>().CreateClient("model"),
-        () => Environment.GetEnvironmentVariable(apiKeyEnvironmentVariable),
-        endpoint,
-        model);
-});
+    services.GetRequiredService<ConfigurableDecisionProvider>());
 builder.Services.AddSingleton<OwnerWorldStateFile>(services => new OwnerWorldStateFile(
     isPrivateWorld ? legacyRuntimeStatePath : runtimeStatePath,
     approvedAssetCatalog,
@@ -1099,6 +1068,84 @@ app.MapPost("/api/v1/owner/devices/list", (
     }
 
     return Results.Ok(authority.GetDevices());
+});
+
+// Provider status is owner-only even though it contains no key material. It
+// reveals which hosted account integration is active and therefore uses the
+// same one-use signed request boundary as every other private-world control.
+app.MapPost("/api/v1/owner/providers/status", (
+    OwnerSignedHttpRequest<OwnerProviderStatusAction> request,
+    OwnerRequestAuthorizer authorizer,
+    ProviderConfigurationStore providers) =>
+{
+    if (request?.Action is null)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = ["A provider-status action is required."],
+        });
+    }
+
+    var authorization = authorizer.Authorize(
+        request,
+        "POST",
+        "/api/v1/owner/providers/status",
+        OwnerHttpBinding.ProviderStatusPayload());
+    if (!authorization.IsSuccess)
+    {
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    }
+
+    return Results.Ok(providers.CaptureStatus());
+});
+
+app.MapPost("/api/v1/owner/providers/configure", (
+    OwnerSignedHttpRequest<OwnerProviderConfigurationAction> request,
+    OwnerRequestAuthorizer authorizer,
+    ProviderConfigurationStore providers) =>
+{
+    if (request?.Action is null)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = ["A provider-configuration action is required."],
+        });
+    }
+
+    string payload;
+    try
+    {
+        payload = OwnerHttpBinding.ProviderConfigurationPayload(request.Action);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
+
+    var authorization = authorizer.Authorize(
+        request,
+        "POST",
+        "/api/v1/owner/providers/configure",
+        payload);
+    if (!authorization.IsSuccess)
+    {
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    }
+
+    try
+    {
+        return Results.Ok(providers.Configure(request.Action));
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
 });
 
 // Legacy diagnostic routes deliberately remain present only to make their

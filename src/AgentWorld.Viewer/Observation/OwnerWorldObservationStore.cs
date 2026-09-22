@@ -23,6 +23,7 @@ public sealed class OwnerWorldObservationStore
         "owner-device-pairing.v1",
         "owner-observation.read.v1",
         "owner-control.request.v1",
+        "owner-provider-configuration.v1",
         "paused-authoring.request.v1",
         "content-governance.read.v1",
         "content-governance.write.v1",

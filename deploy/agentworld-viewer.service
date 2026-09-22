@@ -16,6 +16,7 @@ Environment=AgentWorld__Http__Port=5188
 Environment=AgentWorld__Pairing__LocalApprovalPort=5189
 Environment=AgentWorld__Pairing__StatePath=/var/lib/agentworld-viewer/private-owner-authority.json
 Environment=AgentWorld__Runtime__StatePath=/var/lib/agentworld-viewer/private-world.json
+Environment=AgentWorld__Runtime__ProviderStatePath=/var/lib/agentworld-viewer/provider-configuration.json
 Environment=AgentWorld__Runtime__LegacyStatePath=/var/lib/agentworld-viewer/phase-two-runtime.json
 Environment=AgentWorld__Assets__CatalogPath=/etc/agentworld-viewer/approved-assets.json
 Environment=DOTNET_NOLOGO=1

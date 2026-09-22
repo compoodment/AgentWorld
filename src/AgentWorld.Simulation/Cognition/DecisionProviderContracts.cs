@@ -190,6 +190,8 @@ public interface IDecisionProvider
 
     long ProviderEpoch { get; }
 
+    DecisionProviderKind KindFor(InhabitantObservation observation) => Kind;
+
     ValueTask<CognitionDecisionResponse> DecideAsync(
         CognitionDecisionRequest request,
         CancellationToken cancellationToken = default);
@@ -428,9 +430,9 @@ public sealed class JevDecisionProvider : IDecisionProvider
 
 /// <summary>
 /// Adapter for providers that expose an OpenAI-compatible chat-completions
-/// endpoint. OpenAI and Ollama Cloud use this same boundary; the endpoint,
-/// model, and environment-variable-backed credential are host configuration,
-/// never world state.
+/// endpoint. OpenAI and Ollama Cloud use this same boundary. Endpoint, model,
+/// and credential are supplied by the server-side provider registry and never
+/// become world state.
 ///
 /// The model is asked for one small JSON object containing a legal candidate
 /// choice. The cognition runtime still validates the selected ID and executes
@@ -490,7 +492,6 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
         var payload = new
         {
             model,
-            temperature = 0,
             response_format = new { type = "json_object" },
             messages = new object[]
             {

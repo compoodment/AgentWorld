@@ -15,6 +15,9 @@ namespace AgentWorld.Simulation.Tests;
 
 public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClassFixture<ViewerWebApplicationFactory>
 {
+    private static readonly System.Text.Json.JsonSerializerOptions WebJsonOptions =
+        new(System.Text.Json.JsonSerializerDefaults.Web);
+
     private const string ApprovedAssetDigest =
         "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
@@ -109,6 +112,7 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
         Assert.NotNull(reconnect);
         Assert.Contains("owner-observation.read.v1", reconnect.Handshake.ServerCapabilities);
         Assert.Contains("owner-control.request.v1", reconnect.Handshake.ServerCapabilities);
+        Assert.Contains("owner-provider-configuration.v1", reconnect.Handshake.ServerCapabilities);
         Assert.Single(reconnect.Baseline.Snapshot.Inhabitants);
         Assert.NotNull(reconnect.Baseline.Snapshot.Authoring);
 
@@ -572,6 +576,111 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
     }
 
     [Fact]
+    public async Task PairedOwnerCanConfigureHostedCognitionWithoutEchoingOrSavingTheKeyInTheWorld()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            $"agentworld-viewer-provider-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        const string secret = "openai-player-secret-that-must-not-echo";
+        try
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            OwnerDevice pairedDevice;
+            using (var host = new ViewerWebApplicationFactory(directory, null, privateWorld: true))
+            using (var client = host.CreateClient())
+            {
+                pairedDevice = await StartAndActivateAsync(host, client, key);
+                var configureAction = new OwnerProviderConfigurationAction(
+                    "planning",
+                    "openai",
+                    "test-openai-model",
+                    secret,
+                    ForgetCredential: false);
+                using var configure = await SendSignedAsync(
+                    host,
+                    client,
+                    key,
+                    pairedDevice.DeviceId,
+                    "/api/v1/owner/providers/configure",
+                    configureAction,
+                    OwnerHttpBinding.ProviderConfigurationPayload(configureAction));
+                var responseText = await configure.Content.ReadAsStringAsync();
+                var status = System.Text.Json.JsonSerializer.Deserialize<OwnerProviderConfigurationStatus>(
+                    responseText,
+                    WebJsonOptions);
+
+                Assert.Equal(HttpStatusCode.OK, configure.StatusCode);
+                Assert.NotNull(status);
+                Assert.Equal("deterministic", status.RoutineProvider);
+                Assert.Equal("openai", status.PlanningProvider);
+                Assert.True(status.Providers.Single(item => item.Provider == "openai").HasCredential);
+                Assert.DoesNotContain(secret, responseText, StringComparison.Ordinal);
+
+                var providerPath = host.Services.GetRequiredService<ProviderConfigurationStore>().Path;
+                Assert.Contains(secret, File.ReadAllText(providerPath), StringComparison.Ordinal);
+                foreach (var file in Directory.EnumerateFiles(directory).Where(path => path != providerPath))
+                {
+                    Assert.DoesNotContain(secret, File.ReadAllText(file), StringComparison.Ordinal);
+                }
+
+                if (!OperatingSystem.IsWindows())
+                {
+                    var mode = File.GetUnixFileMode(providerPath);
+                    Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, mode);
+                }
+            }
+
+            using (var restartedHost = new ViewerWebApplicationFactory(directory, null, privateWorld: true))
+            using (var restartedClient = restartedHost.CreateClient())
+            {
+                var statusAction = new OwnerProviderStatusAction();
+                using var statusResponse = await SendSignedAsync(
+                    restartedHost,
+                    restartedClient,
+                    key,
+                    pairedDevice.DeviceId,
+                    "/api/v1/owner/providers/status",
+                    statusAction,
+                    OwnerHttpBinding.ProviderStatusPayload());
+                var restored = await statusResponse.Content.ReadFromJsonAsync<OwnerProviderConfigurationStatus>();
+                Assert.Equal(HttpStatusCode.OK, statusResponse.StatusCode);
+                Assert.Equal("openai", restored!.PlanningProvider);
+
+                var forgetAction = new OwnerProviderConfigurationAction(
+                    "planning",
+                    "openai",
+                    "test-openai-model",
+                    null,
+                    ForgetCredential: true);
+                using var forgottenResponse = await SendSignedAsync(
+                    restartedHost,
+                    restartedClient,
+                    key,
+                    pairedDevice.DeviceId,
+                    "/api/v1/owner/providers/configure",
+                    forgetAction,
+                    OwnerHttpBinding.ProviderConfigurationPayload(forgetAction));
+                var forgotten = await forgottenResponse.Content.ReadFromJsonAsync<OwnerProviderConfigurationStatus>();
+                Assert.Equal(HttpStatusCode.OK, forgottenResponse.StatusCode);
+                Assert.Equal("deterministic", forgotten!.PlanningProvider);
+                Assert.False(forgotten.Providers.Single(item => item.Provider == "openai").HasCredential);
+                Assert.DoesNotContain(
+                    secret,
+                    File.ReadAllText(restartedHost.Services.GetRequiredService<ProviderConfigurationStore>().Path),
+                    StringComparison.Ordinal);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task PairedOwnerReconnectAndPausedWorldSurviveAHostRestart()
     {
         var directory = System.IO.Path.Combine(
@@ -818,6 +927,9 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
         builder.UseSetting("AgentWorld:Runtime:AdvanceScript", "false");
         builder.UseSetting("AgentWorld:Pairing:StatePath", System.IO.Path.Combine(stateDirectory, "authority.json"));
         builder.UseSetting("AgentWorld:Runtime:StatePath", System.IO.Path.Combine(stateDirectory, "runtime.json"));
+        builder.UseSetting(
+            "AgentWorld:Runtime:ProviderStatePath",
+            System.IO.Path.Combine(stateDirectory, "provider-configuration.json"));
         builder.UseSetting("AgentWorld:Pairing:ServerAuthorityId", "authority-http-tests");
         if (!string.IsNullOrWhiteSpace(approvedAssetCatalogPath))
         {

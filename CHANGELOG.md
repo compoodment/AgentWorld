@@ -32,6 +32,10 @@ release yet.
   responses, retries, fallbacks, usage accounting, provider-outage pausing,
   and restart-safe pending decisions. Supported adapters include the local
   deterministic provider, Jev, OpenAI-compatible providers, and Ollama Cloud.
+- Added player-managed hybrid cognition settings. A paired owner can assign
+  Deterministic or Jev to routine survival decisions, assign Deterministic,
+  OpenAI, or Ollama Cloud to planning and work, and save, replace, or forget
+  each provider's API key directly in the game.
 - Added independently scheduled inhabitants with persistent identities, roles,
   needs, skills, intentions, inventories, and per-inhabitant cognition
   configuration.
@@ -72,10 +76,11 @@ release yet.
 - Animated inhabitant movement between observed tiles and added compact
   activity markers and intention summaries, making travel and current work
   visible without exposing private reasoning.
-- Added an optional root-owned provider environment file to the hosted service,
-  allowing Jev to be activated without embedding its API key in the systemd
-  unit, world save, or process arguments; deterministic cognition remains the
-  default when the file is absent.
+- Changed hosted-provider configuration to a durable private-world setting.
+  Provider-role and model changes take effect at the next cognition boundary
+  while stale responses from an older configuration epoch are rejected.
+- Changed urgent survival candidate generation to withhold strategic building
+  work until hunger and exhaustion are out of the critical range.
 - Replaced the inspector-style Godot shell with a world-first, responsive 16:9
   play surface. The world now fills the screen beneath a compact clock and
   weather HUD instead of sharing space with permanent developer panels.
@@ -121,7 +126,10 @@ release yet.
 
 - Stored paired-owner signing keys as non-exportable Windows CNG keys and
   required explicit pairing approval before owner capabilities are granted.
-- Kept provider credentials environment-only and excluded secrets and private
-  reasoning from saves, replay digests, and owner observations.
+- Stored provider credentials in a separate service-account-only file with
+  atomic replacement and `0600` Unix permissions. Keys are accepted only over
+  signed paired-owner requests, are represented by a digest in canonical
+  request bindings, and are never returned to the client or written to world
+  saves, replay digests, observations, telemetry, or the Windows client.
 - Kept content packages data-only and fail-closed: executable mods, invalid
   dependencies, unapproved assets, and over-quota packages cannot activate.

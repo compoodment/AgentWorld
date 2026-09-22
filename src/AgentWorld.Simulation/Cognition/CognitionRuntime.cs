@@ -415,14 +415,14 @@ public sealed class CognitionRuntime
             return "inhabitant_id";
         }
 
-        if (response.Provider != provider.Kind)
-        {
-            return "provider_kind";
-        }
-
         if (response.ProviderEpoch != request.ProviderEpoch || response.ProviderEpoch != provider.ProviderEpoch)
         {
             return "provider_epoch";
+        }
+
+        if (response.Provider != provider.KindFor(request.Observation))
+        {
+            return "provider_kind";
         }
 
         if (response.RunEpoch != request.Observation.RunEpoch || response.RunEpoch != runEpoch)

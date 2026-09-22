@@ -1937,8 +1937,12 @@ public sealed class PrivateWorldRuntime : IDisposable
             candidates.Add(new CognitionCandidate("sleep", "Sleep near the bedroll to recover energy.", sleepPriority, "bedroll"));
         }
 
-        var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
-        AddBuildCandidates(candidates, inhabitant, state);
+        if (state.HungerBasisPoints >= 2_500 && state.EnergyBasisPoints >= 1_500)
+        {
+            var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
+            AddBuildCandidates(candidates, inhabitant, state);
+        }
+
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
         return candidates;
     }

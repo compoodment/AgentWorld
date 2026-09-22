@@ -33,6 +33,16 @@ public partial class Main : Control
     private readonly LineEdit worldUrlInput = new();
     private readonly Button connectButton = new();
     private readonly Button pairAgainButton = new();
+    private readonly PanelContainer cognitionSettingsPanel = new();
+    private readonly OptionButton cognitionRoleChoice = new();
+    private readonly OptionButton cognitionProviderChoice = new();
+    private readonly LineEdit cognitionModelInput = new();
+    private readonly LineEdit cognitionApiKeyInput = new();
+    private readonly Label cognitionConfigurationStatus = new();
+    private readonly Label cognitionCredentialHint = new();
+    private readonly Button saveCognitionProviderButton = new();
+    private readonly Button forgetCognitionCredentialButton = new();
+    private readonly Button refreshCognitionProviderButton = new();
     private readonly PanelContainer pairingPanel = new();
     private readonly Label pairingInstructionLabel = new();
     private readonly Label pairingCodeLabel = new();
@@ -108,6 +118,7 @@ public partial class Main : Control
     private OwnerPairingStart? pendingPairing;
     private Uri? pendingPairingOrigin;
     private OwnerDevice[] pairedDevices = [];
+    private OwnerProviderConfigurationStatus? providerConfiguration;
     private OwnerPendingSubmission? pendingSubmission;
     private string? selectedInhabitantId;
     private bool isRefreshing;
@@ -372,6 +383,7 @@ public partial class Main : Control
         pendingPairing = null;
         pendingPairingOrigin = null;
         pairedDevices = [];
+        providerConfiguration = null;
         pairedDeviceList.Clear();
         pendingSubmission = null;
         _ = pendingSubmissionStore.TryForget();
@@ -622,6 +634,182 @@ public partial class Main : Control
             pairedDeviceList.SetItemMetadata(pairedDeviceList.ItemCount - 1, device.DeviceId);
         }
     }
+
+    private async Task RefreshProviderConfigurationAsync()
+    {
+        cognitionApiKeyInput.Text = string.Empty;
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer))
+        {
+            cognitionConfigurationStatus.Text = "Pair this device before configuring inhabitant cognition.";
+            RenderProviderConfiguration();
+            return;
+        }
+
+        await RunOwnerActionAsync(async () =>
+        {
+            providerConfiguration = await ownerApi.GetProviderStatusAsync(
+                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
+            SelectProviderChoice(ActiveProviderForSelectedRole());
+            RenderProviderConfiguration();
+            return "loaded inhabitant cognition settings";
+        });
+    }
+
+    private async Task SaveProviderConfigurationAsync()
+    {
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer))
+        {
+            SetStatus("pair this device before configuring cognition", good: false);
+            return;
+        }
+
+        var role = SelectedRoleId();
+        var provider = SelectedProviderId();
+        var action = new OwnerProviderConfigurationAction(
+            role,
+            provider,
+            provider == "deterministic" ? null : EmptyToNull(cognitionModelInput.Text),
+            provider == "deterministic" ? null : EmptyToNull(cognitionApiKeyInput.Text),
+            ForgetCredential: false);
+        try
+        {
+            await RunOwnerActionAsync(async () =>
+            {
+                providerConfiguration = await ownerApi.ConfigureProviderAsync(
+                    ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+                return $"{ProviderDisplayName(provider)} will handle {RoleDisplayName(role).ToLowerInvariant()} at the next cognition boundary";
+            });
+        }
+        finally
+        {
+            cognitionApiKeyInput.Text = string.Empty;
+            RenderProviderConfiguration();
+        }
+    }
+
+    private async Task ForgetProviderCredentialAsync()
+    {
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer))
+        {
+            SetStatus("pair this device before changing cognition credentials", good: false);
+            return;
+        }
+
+        var role = SelectedRoleId();
+        var provider = SelectedProviderId();
+        if (provider == "deterministic")
+        {
+            SetStatus("deterministic cognition has no API key", good: false);
+            return;
+        }
+
+        var action = new OwnerProviderConfigurationAction(
+            role,
+            provider,
+            EmptyToNull(cognitionModelInput.Text),
+            null,
+            ForgetCredential: true);
+        await RunOwnerActionAsync(async () =>
+        {
+            providerConfiguration = await ownerApi.ConfigureProviderAsync(
+                ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+            return $"forgot the saved {ProviderDisplayName(provider)} key";
+        });
+        cognitionApiKeyInput.Text = string.Empty;
+        RenderProviderConfiguration();
+    }
+
+    private string SelectedRoleId() => cognitionRoleChoice.Selected == 1 ? "planning" : "routine";
+
+    private string ActiveProviderForSelectedRole() => providerConfiguration is null
+        ? "deterministic"
+        : SelectedRoleId() == "planning"
+            ? providerConfiguration.PlanningProvider
+            : providerConfiguration.RoutineProvider;
+
+    private void PopulateProviderChoices(string selectedProvider)
+    {
+        cognitionProviderChoice.Clear();
+        cognitionProviderChoice.AddItem("Deterministic");
+        if (SelectedRoleId() == "routine")
+        {
+            cognitionProviderChoice.AddItem("Jev");
+        }
+        else
+        {
+            cognitionProviderChoice.AddItem("OpenAI");
+            cognitionProviderChoice.AddItem("Ollama Cloud");
+        }
+
+        SelectProviderChoice(selectedProvider);
+    }
+
+    private void SelectProviderChoice(string provider)
+    {
+        var selected = SelectedRoleId() switch
+        {
+            "routine" when provider == "jev" => 1,
+            "planning" when provider == "openai" => 1,
+            "planning" when provider == "ollama-cloud" => 2,
+            _ => 0,
+        };
+        cognitionProviderChoice.Select(selected);
+    }
+
+    private string SelectedProviderId() => (SelectedRoleId(), cognitionProviderChoice.Selected) switch
+    {
+        ("routine", 1) => "jev",
+        ("planning", 1) => "openai",
+        ("planning", 2) => "ollama-cloud",
+        _ => "deterministic",
+    };
+
+    private void RenderProviderConfiguration()
+    {
+        var provider = SelectedProviderId();
+        var option = providerConfiguration?.Providers.FirstOrDefault(item =>
+            string.Equals(item.Provider, provider, StringComparison.Ordinal));
+        var hosted = provider != "deterministic";
+        cognitionModelInput.Visible = hosted;
+        cognitionApiKeyInput.Visible = hosted;
+        cognitionCredentialHint.Visible = hosted;
+        forgetCognitionCredentialButton.Visible = hosted;
+        if (hosted && option is not null && !cognitionModelInput.HasFocus())
+        {
+            cognitionModelInput.Text = option.Model;
+        }
+
+        cognitionApiKeyInput.PlaceholderText = option?.HasCredential == true
+            ? "Saved on private world host · leave blank to keep it"
+            : "Paste API key (sent once; never saved on this device)";
+        cognitionCredentialHint.Text = option?.HasCredential == true
+            ? "A key is saved on the private world host. It is never returned to this client."
+            : "No key is saved for this provider.";
+        cognitionConfigurationStatus.Text = providerConfiguration is null
+            ? "Provider status has not been loaded yet."
+            : $"Routine: {ProviderDisplayName(providerConfiguration.RoutineProvider)} · Planning: {ProviderDisplayName(providerConfiguration.PlanningProvider)} · revision {providerConfiguration.Revision}";
+        RefreshControlAvailability();
+    }
+
+    private static string RoleDisplayName(string role) => role == "planning"
+        ? "Planning and work decisions"
+        : "Routine survival decisions";
+
+    private static string ProviderDisplayName(string provider) => provider switch
+    {
+        "jev" => "Jev",
+        "openai" => "OpenAI",
+        "ollama-cloud" => "Ollama Cloud",
+        _ => "Deterministic",
+    };
+
+    private static string DefaultProviderModel(string provider) => provider switch
+    {
+        "jev" => "jev-1.13.0",
+        "openai" => "gpt-5-mini",
+        "ollama-cloud" => "gpt-oss:120b-cloud",
+        _ => string.Empty,
+    };
 
     private bool TryBeginPendingInstruction(
         OwnerInstructionAction action,
@@ -941,11 +1129,100 @@ public partial class Main : Control
         AddPanelContents(connectionPanel, "World connection", body);
     }
 
+    private void BuildCognitionSettingsPanel()
+    {
+        var body = new VBoxContainer();
+        body.AddThemeConstantOverride("separation", 6);
+
+        var explanation = new Label
+        {
+            Text = "Configure two cognition roles. Jev handles small routine survival choices; OpenAI or Ollama Cloud handles planning and work. Movement, collisions, costs, and action validation always remain authoritative game rules.",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
+        explanation.Modulate = new Color("AFC4BA");
+        body.AddChild(explanation);
+
+        cognitionRoleChoice.AddItem("Routine survival decisions");
+        cognitionRoleChoice.AddItem("Planning and work decisions");
+        cognitionRoleChoice.ItemSelected += _ =>
+        {
+            cognitionApiKeyInput.Text = string.Empty;
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            var selected = SelectedProviderId();
+            var option = providerConfiguration?.Providers.FirstOrDefault(item => item.Provider == selected);
+            cognitionModelInput.Text = option?.Model ?? DefaultProviderModel(selected);
+            RenderProviderConfiguration();
+        };
+        body.AddChild(cognitionRoleChoice);
+
+        PopulateProviderChoices("deterministic");
+        cognitionProviderChoice.ItemSelected += _ =>
+        {
+            cognitionApiKeyInput.Text = string.Empty;
+            var selected = SelectedProviderId();
+            var option = providerConfiguration?.Providers.FirstOrDefault(item => item.Provider == selected);
+            cognitionModelInput.Text = option?.Model ?? DefaultProviderModel(selected);
+            RenderProviderConfiguration();
+        };
+        body.AddChild(cognitionProviderChoice);
+
+        cognitionModelInput.PlaceholderText = "Model ID";
+        body.AddChild(cognitionModelInput);
+
+        cognitionApiKeyInput.Secret = true;
+        cognitionApiKeyInput.PlaceholderText = "Paste API key";
+        body.AddChild(cognitionApiKeyInput);
+
+        cognitionCredentialHint.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        cognitionCredentialHint.Modulate = new Color("8FA5A7");
+        body.AddChild(cognitionCredentialHint);
+
+        var securityNote = new Label
+        {
+            Text = "The key is sent over this paired HTTPS connection, stored only on the private world host, never returned, and never written to the Windows client or world save.",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
+        securityNote.Modulate = new Color("8FA5A7");
+        body.AddChild(securityNote);
+
+        cognitionConfigurationStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        body.AddChild(cognitionConfigurationStatus);
+
+        var buttons = new HBoxContainer();
+        buttons.AddThemeConstantOverride("separation", 6);
+        saveCognitionProviderButton.Text = "Save and use";
+        StyleButton(saveCognitionProviderButton, primary: true);
+        saveCognitionProviderButton.Pressed += () => _ = SaveProviderConfigurationAsync();
+        buttons.AddChild(saveCognitionProviderButton);
+        forgetCognitionCredentialButton.Text = "Forget saved key";
+        StyleButton(forgetCognitionCredentialButton);
+        forgetCognitionCredentialButton.Pressed += () => _ = ForgetProviderCredentialAsync();
+        buttons.AddChild(forgetCognitionCredentialButton);
+        refreshCognitionProviderButton.Text = "Refresh";
+        StyleButton(refreshCognitionProviderButton);
+        refreshCognitionProviderButton.Pressed += () => _ = RefreshProviderConfigurationAsync();
+        buttons.AddChild(refreshCognitionProviderButton);
+        body.AddChild(buttons);
+
+        AddPanelContents(cognitionSettingsPanel, "Inhabitant cognition", body);
+        RenderProviderConfiguration();
+    }
+
     private void ToggleConnectionSettings()
     {
         settingsPanel.Visible = !settingsPanel.Visible;
+        if (!settingsPanel.Visible)
+        {
+            cognitionApiKeyInput.Text = string.Empty;
+        }
+
         developerScroll.Hide();
         developerToggleButton.Text = "Developer tools";
+        if (settingsPanel.Visible && registration is not null)
+        {
+            _ = RefreshProviderConfigurationAsync();
+        }
+
         ApplyResponsiveLayout();
     }
 
@@ -1151,11 +1428,22 @@ public partial class Main : Control
         resolutionChoice.ItemSelected += SetWindowResolution;
         settingsBody.AddChild(resolutionChoice);
 
+        BuildCognitionSettingsPanel();
+        settingsBody.AddChild(cognitionSettingsPanel);
+
         BuildConnectionPanel();
         settingsBody.AddChild(connectionPanel);
         BuildPairingPanel();
         settingsBody.AddChild(pairingPanel);
-        AddPanelContents(settingsPanel, "Settings", settingsBody);
+        var settingsScroll = new ScrollContainer
+        {
+            CustomMinimumSize = new Vector2(0, 380),
+            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
+            HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+        };
+        settingsBody.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        settingsScroll.AddChild(settingsBody);
+        AddPanelContents(settingsPanel, "Settings", settingsScroll);
         settingsPanel.Hide();
         body.AddChild(settingsPanel);
 
@@ -1361,6 +1649,7 @@ public partial class Main : Control
 
     private void CloseGameMenu()
     {
+        cognitionApiKeyInput.Text = string.Empty;
         gameMenuPanel.Hide();
         menuShade.Hide();
         settingsPanel.Hide();
@@ -1899,6 +2188,17 @@ public partial class Main : Control
         refreshDevicesButton.Disabled = actionDisabled;
         revokeDeviceId.Editable = !actionDisabled;
         revokeDeviceButton.Disabled = actionDisabled;
+        cognitionRoleChoice.Disabled = actionDisabled;
+        cognitionProviderChoice.Disabled = actionDisabled;
+        cognitionModelInput.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
+        cognitionApiKeyInput.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
+        saveCognitionProviderButton.Disabled = actionDisabled;
+        refreshCognitionProviderButton.Disabled = actionDisabled;
+        var selectedProvider = SelectedProviderId();
+        var selectedProviderStatus = providerConfiguration?.Providers.FirstOrDefault(item =>
+            string.Equals(item.Provider, selectedProvider, StringComparison.Ordinal));
+        forgetCognitionCredentialButton.Disabled = actionDisabled || selectedProvider == "deterministic" ||
+            selectedProviderStatus?.HasCredential != true;
         // A public key can have only one pending server pairing. Keep the
         // visible comparison value stable until it expires or activates.
         pairButton.Disabled = isPairingOperation || deviceKey is null || pendingPairing is not null || registration is not null;

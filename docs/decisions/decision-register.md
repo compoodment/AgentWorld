@@ -466,9 +466,14 @@ The Phase 3 implementation adds the following executable decisions:
   fallback; three consecutive hosted-provider failures pause the world and
   create an owner-visible outage event. Resume creates a new run epoch.
 - Jev uses the HTTPS System One endpoint with a pinned model ID by default.
-  `TYPESAFE_API_KEY` is installation-local and read at request time. It is not
-  serialized, emitted in telemetry, or sent to the owner client. Provider model
+  Its key is player-managed through a signed owner request and retained only in
+  the installation-local provider store. It is not serialized into world
+  state, emitted in telemetry, or returned to the owner client. Provider model
   and token usage are safe telemetry fields.
+- The player configures routine and planning provider roles independently.
+  Routine survival choices can use deterministic selection or Jev; planning
+  and work can use deterministic selection, OpenAI, or Ollama Cloud. Critical
+  hunger or exhaustion withholds strategic work candidates entirely.
 - The first world keeps one active inhabitant and one cognition request in
   flight. Multi-inhabitant scheduling, durable memory, and social cognition are
   Phase 4 experiments rather than hidden Phase 3 scope.
