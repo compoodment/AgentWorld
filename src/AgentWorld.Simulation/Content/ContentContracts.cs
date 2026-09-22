@@ -108,7 +108,8 @@ public sealed record ContentPackageManifest(
     string PackageDigest,
     IReadOnlyList<ContentDependency> Dependencies,
     IReadOnlyList<ContentDefinition> Definitions,
-    IReadOnlyList<string> DeclaredCapabilities)
+    IReadOnlyList<string> DeclaredCapabilities,
+    IReadOnlyList<WorldAssetReservationRequest>? AssetReservations = null)
 {
     public void Validate()
     {
@@ -150,6 +151,20 @@ public sealed record ContentPackageManifest(
             {
                 throw new ArgumentException("Content capabilities cannot contain whitespace.", nameof(DeclaredCapabilities));
             }
+        }
+
+        foreach (var asset in AssetReservations ?? [])
+        {
+            ArgumentNullException.ThrowIfNull(asset);
+            asset.Validate(PackageDigest);
+        }
+
+        var assetIds = (AssetReservations ?? [])
+            .Select(asset => asset.AssetId)
+            .ToArray();
+        if (assetIds.Distinct(StringComparer.Ordinal).Count() != assetIds.Length)
+        {
+            throw new ArgumentException("A package may reserve each asset ID only once.", nameof(AssetReservations));
         }
     }
 }

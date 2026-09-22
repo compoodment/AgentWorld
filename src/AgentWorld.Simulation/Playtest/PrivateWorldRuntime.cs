@@ -39,7 +39,9 @@ public sealed record PrivateWorldRuntimeState(
     IReadOnlyList<string>? CompletedInstructionIds = null,
     ContentRegistryState? Content = null,
     WorldSystemsState? WorldSystems = null,
-    DeclarativeWorldContentState? WorldContent = null);
+    DeclarativeWorldContentState? WorldContent = null,
+    WorldContentSimulationState? WorldSimulation = null,
+    WorldAssetReservationLedgerState? AssetReservations = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,
@@ -57,7 +59,7 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 2;
+    public const int StateSchemaVersion = 3;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
@@ -71,6 +73,8 @@ public sealed class PrivateWorldRuntime : IDisposable
     private ContentPackageRegistry contentRegistry;
     private WorldSystemsState worldSystems;
     private DeclarativeWorldContentState worldContent;
+    private WorldContentSimulationState worldSimulation;
+    private WorldAssetReservationLedger assetReservations;
     private readonly Dictionary<string, PlaytestInhabitantState> inhabitants = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ResourceState> resources = new(StringComparer.Ordinal);
     private readonly Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
@@ -106,6 +110,8 @@ public sealed class PrivateWorldRuntime : IDisposable
         this.minimumCognitionConfidence = minimumCognitionConfidence;
         contentRegistry = new ContentPackageRegistry();
         worldContent = new DeclarativeWorldContentState([], []);
+        worldSimulation = WorldContentSimulationState.Empty;
+        assetReservations = new WorldAssetReservationLedger();
         map = SeededMapGenerator.Generate(this.worldSeed);
         worldSystems = CreateWorldSystems(this.worldSeed, map);
         society = CreateSociety(
@@ -130,6 +136,10 @@ public sealed class PrivateWorldRuntime : IDisposable
     public ContentRegistryState Content => contentRegistry.ExportState();
 
     public WorldSystemsState WorldSystems => worldSystems;
+
+    public WorldContentSimulationState WorldSimulation => worldSimulation;
+
+    public WorldAssetReservationLedgerState AssetReservations => assetReservations.ExportState();
 
     public IReadOnlyList<PlaytestInhabitantState> Inhabitants => inhabitants.Values
         .OrderBy(item => item.InhabitantId, StringComparer.Ordinal)
@@ -175,6 +185,8 @@ public sealed class PrivateWorldRuntime : IDisposable
             minimumCognitionConfidence);
         runtime.contentRegistry = ContentPackageRegistry.Restore(state.Content);
         runtime.worldContent = state.WorldContent ?? RebuildWorldContent(runtime.contentRegistry.ExportState());
+        runtime.worldSimulation = state.WorldSimulation ?? WorldContentSimulationState.Empty;
+        runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.worldSystems = state.WorldSystems is null
             ? AdvanceWorldSystemsTo(
                 CreateWorldSystems(state.WorldSeed, state.Map),
@@ -242,6 +254,32 @@ public sealed class PrivateWorldRuntime : IDisposable
 
             var startingEvent = events.Count;
             var targetTick = checked(WorldTick + 1);
+            var readyPackages = contentRegistry.ExportState().Packages
+                .Where(package => package.Lifecycle == ContentPackageLifecycle.Staged &&
+                    package.StagedTick is { } stagedTick && targetTick > stagedTick)
+                .OrderBy(package => package.Manifest.PackageId, StringComparer.Ordinal)
+                .ToArray();
+            var reservationPreview = WorldAssetReservationLedger.Restore(
+                assetReservations.ExportState(),
+                assetReservations.Policy);
+            foreach (var package in readyPackages)
+            {
+                var reservation = reservationPreview.TryReservePackage(
+                    package.Manifest.PackageId,
+                    package.Manifest.AssetReservations ?? [],
+                    targetTick);
+                if (!reservation.IsSuccess)
+                {
+                    return new PrivateWorldStepResult(
+                        false,
+                        $"asset_reservation_rejected:{reservation.FailureCode ?? "invalid"}",
+                        WorldTick,
+                        [],
+                        []);
+                }
+            }
+
+            assetReservations = reservationPreview;
             society.AdvanceTo(targetTick);
             var previousClimate = worldSystems.Climate;
             worldSystems = WorldSystemsRules.AdvanceOneTick(worldSystems);
@@ -254,11 +292,6 @@ public sealed class PrivateWorldRuntime : IDisposable
                     $"{worldSystems.Climate.Season.ToString().ToLowerInvariant()}:{worldSystems.Climate.Weather.ToString().ToLowerInvariant()}");
             }
 
-            var readyPackages = contentRegistry.ExportState().Packages
-                .Where(package => package.Lifecycle == ContentPackageLifecycle.Staged &&
-                    package.StagedTick is { } stagedTick && targetTick > stagedTick)
-                .OrderBy(package => package.Manifest.PackageId, StringComparer.Ordinal)
-                .ToArray();
             var activatedWorldContent = worldContent;
             foreach (var package in readyPackages)
             {
@@ -278,6 +311,7 @@ public sealed class PrivateWorldRuntime : IDisposable
                 }
             }
             worldContent = activatedWorldContent;
+            ProcessProduction(targetTick);
 
             DrainNeeds();
             RemoveDeadPhysicalState();
@@ -447,6 +481,168 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
     }
 
+    public BuildingPlacementResult PlaceBuilding(
+        string instanceId,
+        string definitionId,
+        GridPoint position)
+    {
+        gate.Wait();
+        try
+        {
+            var normalizedInstanceId = NormalizeRequiredText(instanceId, nameof(instanceId));
+            var normalizedDefinitionId = NormalizeRequiredText(definitionId, nameof(definitionId));
+            ContentPackageRules.ValidateLocalId(normalizedInstanceId);
+            var definition = worldContent.Buildings.SingleOrDefault(item => item.CanonicalId == normalizedDefinitionId);
+            if (definition is null)
+            {
+                return BuildingPlacementResult.Rejected(
+                    normalizedInstanceId,
+                    normalizedDefinitionId,
+                    position,
+                    $"Building definition '{normalizedDefinitionId}' is not active.");
+            }
+
+            if (worldSimulation.Buildings.Any(item => item.InstanceId == normalizedInstanceId))
+            {
+                return BuildingPlacementResult.Rejected(
+                    normalizedInstanceId,
+                    normalizedDefinitionId,
+                    position,
+                    $"Building instance '{normalizedInstanceId}' already exists.");
+            }
+
+            if (!CanPlaceBuilding(definition, position, out var placementFailure))
+            {
+                return BuildingPlacementResult.Rejected(
+                    normalizedInstanceId,
+                    normalizedDefinitionId,
+                    position,
+                    placementFailure);
+            }
+
+            ApplyInventoryTransition(inventory => ConsumeQuantities(
+                inventory,
+                definition.BuildCosts,
+                $"building:{normalizedInstanceId}"));
+            var placed = new PlacedBuilding(
+                normalizedInstanceId,
+                definition.CanonicalId,
+                position,
+                WorldTick);
+            worldSimulation = new WorldContentSimulationState(
+                worldSimulation.Buildings
+                    .Append(placed)
+                    .OrderBy(item => item.InstanceId, StringComparer.Ordinal)
+                    .ToArray(),
+                worldSimulation.ProductionJobs,
+                worldSimulation.NextProductionJobSequence);
+            AppendEvent("building_placed", $"{placed.InstanceId}:{placed.DefinitionId}:{position.X},{position.Y}");
+            return BuildingPlacementResult.Success(placed);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            return BuildingPlacementResult.Rejected(
+                instanceId?.Trim() ?? string.Empty,
+                definitionId?.Trim() ?? string.Empty,
+                position,
+                exception.Message);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public ProductionStartResult StartProduction(
+        string recipeId,
+        string buildingInstanceId,
+        string workerId)
+    {
+        gate.Wait();
+        try
+        {
+            var normalizedRecipeId = NormalizeRequiredText(recipeId, nameof(recipeId));
+            var normalizedBuildingId = NormalizeRequiredText(buildingInstanceId, nameof(buildingInstanceId));
+            var normalizedWorkerId = NormalizeRequiredText(workerId, nameof(workerId));
+            var recipe = worldContent.Recipes.SingleOrDefault(item => item.CanonicalId == normalizedRecipeId);
+            if (recipe is null)
+            {
+                return ProductionStartResult.Rejected(normalizedRecipeId, "The recipe is not active.");
+            }
+
+            var placed = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == normalizedBuildingId);
+            if (placed is null)
+            {
+                return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation building is not placed.");
+            }
+
+            if (recipe.WorkstationBuildingId is not null && recipe.WorkstationBuildingId != placed.DefinitionId)
+            {
+                return ProductionStartResult.Rejected(normalizedRecipeId, "The placed building is not a valid workstation for this recipe.");
+            }
+
+            var buildingDefinition = worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
+            var activeJobs = worldSimulation.ProductionJobs.Count(item =>
+                item.BuildingInstanceId == placed.InstanceId && item.State == WorldProductionJobState.Running);
+            if (activeJobs >= buildingDefinition.Capacity)
+            {
+                return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation has no free production capacity.");
+            }
+
+            var worker = society.Checkpoint.Inhabitants.SingleOrDefault(item => item.Id == normalizedWorkerId);
+            if (worker is null || worker.Status != SocietyInhabitantStatus.Active)
+            {
+                return ProductionStartResult.Rejected(normalizedRecipeId, "The production worker is not active.");
+            }
+
+            if (!inhabitants.TryGetValue(normalizedWorkerId, out var physical) || physical.Position != placed.Position)
+            {
+                return ProductionStartResult.Rejected(normalizedRecipeId, "The worker must be standing at the workstation.");
+            }
+
+            var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
+            var completionTick = checked(WorldTick + recipe.DurationTicks);
+            IReadOnlyList<string> reservationIds = [];
+            ApplyInventoryTransition(inventory =>
+            {
+                var reserved = ReserveQuantities(
+                    inventory,
+                    recipe.Inputs,
+                    $"{jobId}:input",
+                    completionTick,
+                    out reservationIds);
+                return reserved;
+            });
+
+            var job = new WorldProductionJob(
+                jobId,
+                recipe.CanonicalId,
+                placed.InstanceId,
+                normalizedWorkerId,
+                WorldTick,
+                completionTick,
+                WorldProductionJobState.Running,
+                reservationIds.ToArray());
+            worldSimulation = new WorldContentSimulationState(
+                worldSimulation.Buildings,
+                worldSimulation.ProductionJobs
+                    .Append(job)
+                    .OrderBy(item => item.JobId, StringComparer.Ordinal)
+                    .ToArray(),
+                checked(worldSimulation.NextProductionJobSequence + 1));
+            AppendEvent("recipe_started", $"{job.JobId}:{job.RecipeId}:{job.BuildingInstanceId}");
+            return ProductionStartResult.Success(job);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            return ProductionStartResult.Rejected(recipeId?.Trim() ?? string.Empty, exception.Message);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     public ContentPackageRecord RollbackContent(string packageId, string reason)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
@@ -455,6 +651,9 @@ public sealed class PrivateWorldRuntime : IDisposable
         {
             var record = contentRegistry.Rollback(packageId, WorldTick, reason);
             worldContent = ContentDefinitionApplicator.RemovePackage(worldContent, record.Manifest.PackageDigest);
+            ReleaseProductionReservationsForPackage(record.Manifest.PackageDigest);
+            worldSimulation = WorldContentSimulationRules.RemovePackage(worldSimulation, record.Manifest.PackageDigest);
+            assetReservations.ReleasePackage(packageId, WorldTick);
             AppendEvent("content_rolled_back", $"{packageId}:{reason.Trim()}");
             return record;
         }
@@ -510,6 +709,19 @@ public sealed class PrivateWorldRuntime : IDisposable
         if (!string.Equals(worldContent.StateDigest, expectedWorldContent.StateDigest, StringComparison.Ordinal))
         {
             throw new InvalidDataException("The private-world typed content does not match active package records.");
+        }
+        assetReservations.Validate();
+        ValidateAssetReservationsAgainstActivePackages();
+        WorldContentSimulationRules.Validate(worldSimulation, worldContent, map, WorldTick);
+        var inventoryReservationIds = society.Checkpoint.Inventory.Reservations
+            .Select(item => item.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var job in worldSimulation.ProductionJobs.Where(item => item.State == WorldProductionJobState.Running))
+        {
+            if (job.InputReservationIds.Any(id => !inventoryReservationIds.Contains(id)))
+            {
+                throw new InvalidDataException($"Production job '{job.JobId}' has a missing inventory reservation.");
+            }
         }
         WorldSystemsRules.Validate(worldSystems);
         if (worldSystems.WorldTick != WorldTick ||
@@ -581,7 +793,9 @@ public sealed class PrivateWorldRuntime : IDisposable
         completedInstructionIds.OrderBy(item => item, StringComparer.Ordinal).ToArray(),
         contentRegistry.ExportState(),
         worldSystems,
-        worldContent);
+        worldContent,
+        worldSimulation,
+        assetReservations.ExportState());
 
     public DeclarativeWorldContentState WorldContent => worldContent;
 
@@ -606,6 +820,282 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
 
         return result;
+    }
+
+    private void ValidateAssetReservationsAgainstActivePackages()
+    {
+        var expected = new WorldAssetReservationLedger(assetReservations.Policy);
+        foreach (var package in contentRegistry.ExportState().Packages
+                     .Where(item => item.Lifecycle == ContentPackageLifecycle.Active)
+                     .OrderBy(item => item.ActivationTick ?? long.MaxValue)
+                     .ThenBy(item => item.Manifest.PackageId, StringComparer.Ordinal))
+        {
+            var result = expected.TryReservePackage(
+                package.Manifest.PackageId,
+                package.Manifest.AssetReservations ?? [],
+                package.ActivationTick ?? WorldTick);
+            if (!result.IsSuccess)
+            {
+                throw new InvalidDataException(
+                    $"Active package '{package.Manifest.PackageId}' cannot be reconstructed in the world asset reservation ledger: {result.Diagnostic}");
+            }
+        }
+
+        var expectedReservations = expected.ExportState().Reservations;
+        var actualReservations = assetReservations.ExportState().Reservations;
+        if (!expectedReservations.SequenceEqual(actualReservations))
+        {
+            throw new InvalidDataException("The world asset reservation ledger does not match active package reservations.");
+        }
+    }
+
+    private bool CanPlaceBuilding(
+        BuildingDefinition definition,
+        GridPoint position,
+        out string failure)
+    {
+        var footprint = WorldContentSimulationRules.Footprint(definition, position).ToArray();
+        if (footprint.Any(point => !map.IsPassable(point)))
+        {
+            failure = "Every building footprint tile must be inside the map on passable ground.";
+            return false;
+        }
+
+        var occupied = map.CampObjects
+            .Select(item => item.Position)
+            .Concat(map.Resources.Select(item => item.Position))
+            .ToHashSet();
+        var buildingDefinitions = worldContent.Buildings.ToDictionary(item => item.CanonicalId, StringComparer.Ordinal);
+        foreach (var placed in worldSimulation.Buildings)
+        {
+            if (!buildingDefinitions.TryGetValue(placed.DefinitionId, out var existingDefinition))
+            {
+                failure = $"Placed building '{placed.InstanceId}' references an unavailable definition.";
+                return false;
+            }
+
+            foreach (var existingPoint in WorldContentSimulationRules.Footprint(existingDefinition, placed.Position))
+            {
+                occupied.Add(existingPoint);
+            }
+        }
+
+        if (footprint.Any(occupied.Contains))
+        {
+            failure = "The building footprint overlaps an existing object, resource, or building.";
+            return false;
+        }
+
+        failure = string.Empty;
+        return true;
+    }
+
+    private void ApplyInventoryTransition(Func<InventoryCheckpoint, InventoryCheckpoint> transition)
+    {
+        ArgumentNullException.ThrowIfNull(transition);
+        society.Apply(checkpoint => new SocietyOperationResult(
+            checkpoint with { Inventory = transition(checkpoint.Inventory) },
+            null,
+            []));
+    }
+
+    private static InventoryCheckpoint ConsumeQuantities(
+        InventoryCheckpoint inventory,
+        IReadOnlyList<ContentQuantity> quantities,
+        string purpose)
+    {
+        var current = inventory;
+        for (var quantityIndex = 0; quantityIndex < quantities.Count; quantityIndex++)
+        {
+            var requested = quantities[quantityIndex];
+            var remaining = requested.Amount;
+            var lots = current.Lots
+                .Where(lot => lot.OwnerId == HouseholdId && lot.ItemKind == requested.ResourceId)
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal)
+                .ToArray();
+            foreach (var lot in lots)
+            {
+                if (remaining == 0)
+                {
+                    break;
+                }
+
+                var reserved = current.Reservations
+                    .Where(reservation => reservation.LotId == lot.Id &&
+                        reservation.State is InventoryReservationState.Reserved or
+                            InventoryReservationState.PartiallyConsumed or
+                            InventoryReservationState.Committed)
+                    .Sum(reservation => reservation.Quantity);
+                var available = lot.Quantity - reserved;
+                if (available <= 0)
+                {
+                    continue;
+                }
+
+                var amount = Math.Min(remaining, available);
+                var reservationId = $"{purpose}:quantity:{quantityIndex}:lot:{lot.Id}";
+                current = InventoryFixture.Reserve(
+                    current,
+                    reservationId,
+                    HouseholdId,
+                    lot.Id,
+                    amount,
+                    purpose,
+                    current.WorldTick);
+                current = InventoryFixture.ConsumeReservation(current, reservationId);
+                remaining -= amount;
+            }
+
+            if (remaining > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Insufficient '{requested.ResourceId}' for {purpose}; missing {remaining.ToString(System.Globalization.CultureInfo.InvariantCulture)}.");
+            }
+        }
+
+        return current;
+    }
+
+    private static InventoryCheckpoint ReserveQuantities(
+        InventoryCheckpoint inventory,
+        IReadOnlyList<ContentQuantity> quantities,
+        string purpose,
+        long expiryTick,
+        out IReadOnlyList<string> reservationIds)
+    {
+        var current = inventory;
+        var created = new List<string>();
+        for (var quantityIndex = 0; quantityIndex < quantities.Count; quantityIndex++)
+        {
+            var requested = quantities[quantityIndex];
+            var remaining = requested.Amount;
+            var lots = current.Lots
+                .Where(lot => lot.OwnerId == HouseholdId && lot.ItemKind == requested.ResourceId)
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal)
+                .ToArray();
+            foreach (var lot in lots)
+            {
+                if (remaining == 0)
+                {
+                    break;
+                }
+
+                var reserved = current.Reservations
+                    .Where(reservation => reservation.LotId == lot.Id &&
+                        reservation.State is InventoryReservationState.Reserved or
+                            InventoryReservationState.PartiallyConsumed or
+                            InventoryReservationState.Committed)
+                    .Sum(reservation => reservation.Quantity);
+                var available = lot.Quantity - reserved;
+                if (available <= 0)
+                {
+                    continue;
+                }
+
+                var amount = Math.Min(remaining, available);
+                var reservationId = $"{purpose}:quantity:{quantityIndex}:lot:{lot.Id}";
+                current = InventoryFixture.Reserve(
+                    current,
+                    reservationId,
+                    HouseholdId,
+                    lot.Id,
+                    amount,
+                    purpose,
+                    expiryTick);
+                created.Add(reservationId);
+                remaining -= amount;
+            }
+
+            if (remaining > 0)
+            {
+                throw new InvalidOperationException(
+                    $"Insufficient '{requested.ResourceId}' for production; missing {remaining.ToString(System.Globalization.CultureInfo.InvariantCulture)}.");
+            }
+        }
+
+        reservationIds = created.ToArray();
+        return current;
+    }
+
+    private void ProcessProduction(long targetTick)
+    {
+        var due = worldSimulation.ProductionJobs
+            .Where(job => job.State == WorldProductionJobState.Running && job.CompletionTick <= targetTick)
+            .OrderBy(job => job.CompletionTick)
+            .ThenBy(job => job.JobId, StringComparer.Ordinal)
+            .ToArray();
+        foreach (var job in due)
+        {
+            var recipe = worldContent.Recipes.SingleOrDefault(item => item.CanonicalId == job.RecipeId);
+            if (recipe is null)
+            {
+                throw new InvalidDataException($"Production job '{job.JobId}' references a recipe that is no longer active.");
+            }
+
+            ApplyInventoryTransition(inventory =>
+            {
+                var current = inventory;
+                foreach (var reservationId in job.InputReservationIds.Order(StringComparer.Ordinal))
+                {
+                    current = InventoryFixture.ConsumeReservation(current, reservationId);
+                }
+
+                for (var outputIndex = 0; outputIndex < recipe.Outputs.Count; outputIndex++)
+                {
+                    var output = recipe.Outputs[outputIndex];
+                    current = InventoryFixture.AddLot(
+                        current,
+                        $"{job.JobId}:output:{outputIndex.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}",
+                        output.ResourceId,
+                        HouseholdId,
+                        output.Amount,
+                        targetTick);
+                }
+
+                return current;
+            });
+
+            worldSimulation = new WorldContentSimulationState(
+                worldSimulation.Buildings,
+                worldSimulation.ProductionJobs
+                    .Select(candidate => candidate.JobId == job.JobId
+                        ? candidate with { State = WorldProductionJobState.Completed }
+                        : candidate)
+                    .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
+                    .ToArray(),
+                worldSimulation.NextProductionJobSequence);
+            AppendEvent("recipe_completed", $"{job.JobId}:{recipe.CanonicalId}");
+        }
+    }
+
+    private void ReleaseProductionReservationsForPackage(string packageDigest)
+    {
+        var affected = worldSimulation.ProductionJobs
+            .Where(job => job.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal) ||
+                worldSimulation.Buildings.Any(building =>
+                    building.InstanceId == job.BuildingInstanceId &&
+                    building.DefinitionId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)))
+            .SelectMany(job => job.InputReservationIds)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (affected.Length == 0)
+        {
+            return;
+        }
+
+        ApplyInventoryTransition(inventory =>
+        {
+            var current = inventory;
+            foreach (var reservationId in affected.Order(StringComparer.Ordinal))
+            {
+                if (current.Reservations.Any(reservation => reservation.Id == reservationId))
+                {
+                    current = InventoryFixture.ReleaseReservation(current, reservationId, "content_rollback");
+                }
+            }
+
+            return current;
+        });
     }
 
     private static WorldSystemsState CreateWorldSystems(string worldSeed, SeededMap map)
@@ -1120,7 +1610,7 @@ public sealed class PrivateWorldRuntime : IDisposable
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (state.SchemaVersion is not (1 or StateSchemaVersion) || string.IsNullOrWhiteSpace(state.WorldSeed))
+        if (state.SchemaVersion is not (1 or 2 or StateSchemaVersion) || string.IsNullOrWhiteSpace(state.WorldSeed))
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");
         }
@@ -1152,6 +1642,26 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
 
         state.WorldContent?.Validate();
+        if (state.SchemaVersion >= StateSchemaVersion &&
+            (state.WorldContent is null || state.WorldSimulation is null || state.AssetReservations is null))
+        {
+            throw new InvalidDataException(
+                "The current private-world schema requires content simulation and world asset reservation state.");
+        }
+
+        if (state.WorldContent is not null && state.WorldSimulation is not null)
+        {
+            WorldContentSimulationRules.Validate(
+                state.WorldSimulation,
+                state.WorldContent,
+                state.Map,
+                state.Society.Society.WorldTick);
+        }
+
+        if (state.AssetReservations is not null)
+        {
+            WorldAssetReservationLedger.Restore(state.AssetReservations);
+        }
         var activeIds = state.Society.Society.Inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Active)
             .Select(item => item.Id)

@@ -23,17 +23,38 @@ public sealed record OwnerContentDefinitionAction(
     string PayloadDigest,
     string? PayloadJson = null);
 
+public sealed record OwnerContentAssetReservationAction(
+    string AssetId,
+    string NormalizedDigest,
+    string DecodeProfile,
+    long DurableStorageBytes,
+    long DecodedCacheBytes,
+    long GpuBytes,
+    int RenderUnits);
+
 public sealed record OwnerContentPackageAction(
     string PackageId,
     string Version,
     string PackageDigest,
     IReadOnlyList<OwnerContentDependencyAction> Dependencies,
     IReadOnlyList<OwnerContentDefinitionAction> Definitions,
-    IReadOnlyList<string> DeclaredCapabilities);
+    IReadOnlyList<string> DeclaredCapabilities,
+    IReadOnlyList<OwnerContentAssetReservationAction>? Assets = null);
 
 public sealed record OwnerContentPackageIdAction(string PackageId);
 
 public sealed record OwnerContentRollbackAction(string PackageId, string Reason);
+
+public sealed record OwnerBuildingPlacementAction(
+    string InstanceId,
+    string DefinitionId,
+    int X,
+    int Y);
+
+public sealed record OwnerProductionStartAction(
+    string RecipeId,
+    string BuildingInstanceId,
+    string WorkerId);
 
 public sealed record OwnerContentPackageReceipt(
     string Operation,
@@ -72,6 +93,7 @@ public static class OwnerContentBinding
         ArgumentNullException.ThrowIfNull(action.Dependencies);
         ArgumentNullException.ThrowIfNull(action.Definitions);
         ArgumentNullException.ThrowIfNull(action.DeclaredCapabilities);
+        var assets = action.Assets ?? [];
 
         var lines = new List<string>
         {
@@ -81,6 +103,7 @@ public static class OwnerContentBinding
             $"package-digest={EncodeRequired(action.PackageDigest, nameof(action.PackageDigest))}",
             $"dependency-count={action.Dependencies.Count.ToString(CultureInfo.InvariantCulture)}",
             $"definition-count={action.Definitions.Count.ToString(CultureInfo.InvariantCulture)}",
+            $"asset-count={assets.Count.ToString(CultureInfo.InvariantCulture)}",
             $"capability-count={action.DeclaredCapabilities.Count.ToString(CultureInfo.InvariantCulture)}",
         };
 
@@ -110,6 +133,21 @@ public static class OwnerContentBinding
             lines.Add($"{prefix}.payload-json={EncodeOptional(definition.PayloadJson)}");
         }
 
+        for (var index = 0; index < assets.Count; index++)
+        {
+            var asset = assets[index] ?? throw new ArgumentException(
+                "Content asset reservations cannot contain null.",
+                nameof(action));
+            var prefix = $"asset-{index.ToString(CultureInfo.InvariantCulture)}";
+            lines.Add($"{prefix}.asset-id={EncodeRequired(asset.AssetId, nameof(asset.AssetId))}");
+            lines.Add($"{prefix}.normalized-digest={EncodeRequired(asset.NormalizedDigest, nameof(asset.NormalizedDigest))}");
+            lines.Add($"{prefix}.decode-profile={EncodeRequired(asset.DecodeProfile, nameof(asset.DecodeProfile))}");
+            lines.Add($"{prefix}.durable-storage={asset.DurableStorageBytes.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"{prefix}.decoded-cache={asset.DecodedCacheBytes.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"{prefix}.gpu-bytes={asset.GpuBytes.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"{prefix}.render-units={asset.RenderUnits.ToString(CultureInfo.InvariantCulture)}");
+        }
+
         for (var index = 0; index < action.DeclaredCapabilities.Count; index++)
         {
             lines.Add($"capability-{index.ToString(CultureInfo.InvariantCulture)}={EncodeRequired(
@@ -131,6 +169,21 @@ public static class OwnerContentBinding
         "agentworld.owner-content-rollback.v1",
         $"package-id={EncodeRequired(action.PackageId, nameof(action.PackageId))}",
         $"reason={EncodeRequired(action.Reason, nameof(action.Reason))}");
+
+    public static string BuildingPlacementPayload(OwnerBuildingPlacementAction action) => string.Join(
+        '\n',
+        "agentworld.owner-building-placement.v1",
+        $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
+        $"definition-id={EncodeRequired(action.DefinitionId, nameof(action.DefinitionId))}",
+        $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
+        $"y={action.Y.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string ProductionStartPayload(OwnerProductionStartAction action) => string.Join(
+        '\n',
+        "agentworld.owner-production-start.v1",
+        $"recipe-id={EncodeRequired(action.RecipeId, nameof(action.RecipeId))}",
+        $"building-instance-id={EncodeRequired(action.BuildingInstanceId, nameof(action.BuildingInstanceId))}",
+        $"worker-id={EncodeRequired(action.WorkerId, nameof(action.WorkerId))}");
 
     public static bool TryMapManifest(
         OwnerContentPackageAction? action,
@@ -172,13 +225,28 @@ public static class OwnerContentBinding
                         definition.PayloadJson);
                 })
                 .ToArray();
+            var assets = (action.Assets ?? [])
+                .Select(asset =>
+                {
+                    ArgumentNullException.ThrowIfNull(asset);
+                    return new WorldAssetReservationRequest(
+                        asset.AssetId,
+                        asset.NormalizedDigest,
+                        asset.DecodeProfile,
+                        asset.DurableStorageBytes,
+                        asset.DecodedCacheBytes,
+                        asset.GpuBytes,
+                        asset.RenderUnits);
+                })
+                .ToArray();
             manifest = new ContentPackageManifest(
                 action.PackageId,
                 ContentVersion.Parse(action.Version),
                 action.PackageDigest,
                 dependencies,
                 definitions,
-                action.DeclaredCapabilities.ToArray());
+                action.DeclaredCapabilities.ToArray(),
+                assets);
             manifest.Validate();
             return true;
         }

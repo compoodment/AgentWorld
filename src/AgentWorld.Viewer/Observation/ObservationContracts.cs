@@ -105,7 +105,29 @@ public sealed record ViewerWorldSystemsSummary(
     int CultureCount,
     int ChunkCount,
     int BuildingDefinitionCount = 0,
-    int RecipeDefinitionCount = 0);
+    int RecipeDefinitionCount = 0,
+    int PlacedBuildingCount = 0,
+    int ProductionJobCount = 0,
+    int DistinctAssetReservationCount = 0,
+    long DurableAssetReservationBytes = 0,
+    long DecodedAssetCacheBytes = 0,
+    long GpuAssetBytes = 0,
+    int AssetRenderUnits = 0);
+
+public sealed record ViewerPlacedBuilding(
+    string InstanceId,
+    string DefinitionId,
+    ViewerPosition Position,
+    long PlacedTick);
+
+public sealed record ViewerProductionJob(
+    string JobId,
+    string RecipeId,
+    string BuildingInstanceId,
+    string WorkerId,
+    long StartedTick,
+    long CompletionTick,
+    string State);
 
 public sealed record ViewerAuthoringState(
     bool IsPaused,
@@ -151,6 +173,10 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerContentGovernanceEvent> ContentEvents { get; init; } = [];
 
     public ViewerWorldSystemsSummary? WorldSystems { get; init; }
+
+    public IReadOnlyList<ViewerPlacedBuilding> PlacedBuildings { get; init; } = [];
+
+    public IReadOnlyList<ViewerProductionJob> ProductionJobs { get; init; } = [];
 }
 
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events);

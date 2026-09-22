@@ -364,6 +364,25 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
             Assert.Equal("active", runtime.Content.Packages.Single().Lifecycle.ToString().ToLowerInvariant());
             Assert.Equal(building.CanonicalId, Assert.Single(runtime.WorldContent.Buildings).CanonicalId);
 
+            var worker = runtime.Inhabitants.Single(item => item.InhabitantId == "founder-rowan");
+            var placementAction = new OwnerBuildingPlacementAction(
+                "camp-kitchen-one",
+                building.CanonicalId,
+                worker.Position.X,
+                worker.Position.Y);
+            using var placed = await SendSignedAsync(
+                host,
+                client,
+                key,
+                device.DeviceId,
+                "/api/v1/owner/buildings/place",
+                placementAction,
+                OwnerContentBinding.BuildingPlacementPayload(placementAction));
+            var placementReceipt = await placed.Content.ReadFromJsonAsync<BuildingPlacementResult>();
+            Assert.Equal(HttpStatusCode.OK, placed.StatusCode);
+            Assert.True(placementReceipt!.Applied, placementReceipt.Failure);
+            Assert.Single(runtime.WorldSimulation.Buildings);
+
             var rollback = new OwnerContentRollbackAction(package.PackageId, "preview mismatch");
             using var rolledBack = await SendSignedAsync(
                 host,
@@ -377,6 +396,7 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
             Assert.Equal(HttpStatusCode.OK, rolledBack.StatusCode);
             Assert.Equal("quarantined", rollbackReceipt!.Lifecycle);
             Assert.Empty(runtime.WorldContent.Buildings);
+            Assert.Empty(runtime.WorldSimulation.Buildings);
         }
         finally
         {

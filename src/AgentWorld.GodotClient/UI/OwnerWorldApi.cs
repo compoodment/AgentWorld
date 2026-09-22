@@ -102,7 +102,29 @@ public sealed record OwnerWorldSystemsSummary(
     int CultureCount,
     int ChunkCount,
     int BuildingDefinitionCount = 0,
-    int RecipeDefinitionCount = 0);
+    int RecipeDefinitionCount = 0,
+    int PlacedBuildingCount = 0,
+    int ProductionJobCount = 0,
+    int DistinctAssetReservationCount = 0,
+    long DurableAssetReservationBytes = 0,
+    long DecodedAssetCacheBytes = 0,
+    long GpuAssetBytes = 0,
+    int AssetRenderUnits = 0);
+
+public sealed record OwnerWorldPlacedBuilding(
+    string InstanceId,
+    string DefinitionId,
+    OwnerWorldPosition Position,
+    long PlacedTick);
+
+public sealed record OwnerWorldProductionJob(
+    string JobId,
+    string RecipeId,
+    string BuildingInstanceId,
+    string WorkerId,
+    long StartedTick,
+    long CompletionTick,
+    string State);
 
 public sealed record OwnerWorldAuthoringState(
     bool IsPaused,
@@ -146,6 +168,10 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldContentGovernanceEvent> ContentEvents { get; init; } = [];
 
     public OwnerWorldSystemsSummary? WorldSystems { get; init; }
+
+    public IReadOnlyList<OwnerWorldPlacedBuilding> PlacedBuildings { get; init; } = [];
+
+    public IReadOnlyList<OwnerWorldProductionJob> ProductionJobs { get; init; } = [];
 }
 
 public sealed record OwnerWorldEvent(long EventId, long WorldTick, string Kind, string Detail);
@@ -207,17 +233,51 @@ public sealed record OwnerContentDefinitionAction(
     string PayloadDigest,
     string? PayloadJson = null);
 
+public sealed record OwnerContentAssetReservationAction(
+    string AssetId,
+    string NormalizedDigest,
+    string DecodeProfile,
+    long DurableStorageBytes,
+    long DecodedCacheBytes,
+    long GpuBytes,
+    int RenderUnits);
+
 public sealed record OwnerContentPackageAction(
     string PackageId,
     string Version,
     string PackageDigest,
     IReadOnlyList<OwnerContentDependencyAction> Dependencies,
     IReadOnlyList<OwnerContentDefinitionAction> Definitions,
-    IReadOnlyList<string> DeclaredCapabilities);
+    IReadOnlyList<string> DeclaredCapabilities,
+    IReadOnlyList<OwnerContentAssetReservationAction>? Assets = null);
 
 public sealed record OwnerContentPackageIdAction(string PackageId);
 
 public sealed record OwnerContentRollbackAction(string PackageId, string Reason);
+
+public sealed record OwnerBuildingPlacementAction(
+    string InstanceId,
+    string DefinitionId,
+    int X,
+    int Y);
+
+public sealed record OwnerProductionStartAction(
+    string RecipeId,
+    string BuildingInstanceId,
+    string WorkerId);
+
+public sealed record OwnerBuildingPlacementResult(
+    bool Applied,
+    string InstanceId,
+    string DefinitionId,
+    OwnerWorldPosition Position,
+    string? Failure);
+
+public sealed record OwnerProductionStartResult(
+    bool Applied,
+    string? JobId,
+    string RecipeId,
+    string? Failure);
 
 public sealed record OwnerControlReceipt(
     string Operation,
@@ -406,6 +466,7 @@ public static class OwnerWorldActionPayload
         ArgumentNullException.ThrowIfNull(action.Dependencies);
         ArgumentNullException.ThrowIfNull(action.Definitions);
         ArgumentNullException.ThrowIfNull(action.DeclaredCapabilities);
+        var assets = action.Assets ?? [];
         var lines = new List<string>
         {
             "agentworld.owner-content-propose.v1",
@@ -414,6 +475,7 @@ public static class OwnerWorldActionPayload
             $"package-digest={EncodeRequired(action.PackageDigest, nameof(action.PackageDigest))}",
             $"dependency-count={action.Dependencies.Count.ToString(CultureInfo.InvariantCulture)}",
             $"definition-count={action.Definitions.Count.ToString(CultureInfo.InvariantCulture)}",
+            $"asset-count={assets.Count.ToString(CultureInfo.InvariantCulture)}",
             $"capability-count={action.DeclaredCapabilities.Count.ToString(CultureInfo.InvariantCulture)}",
         };
 
@@ -443,6 +505,21 @@ public static class OwnerWorldActionPayload
             lines.Add($"{prefix}.payload-json={EncodeOptional(definition.PayloadJson)}");
         }
 
+        for (var index = 0; index < assets.Count; index++)
+        {
+            var asset = assets[index] ?? throw new ArgumentException(
+                "Content asset reservations cannot contain null.",
+                nameof(action));
+            var prefix = $"asset-{index.ToString(CultureInfo.InvariantCulture)}";
+            lines.Add($"{prefix}.asset-id={EncodeRequired(asset.AssetId, nameof(asset.AssetId))}");
+            lines.Add($"{prefix}.normalized-digest={EncodeRequired(asset.NormalizedDigest, nameof(asset.NormalizedDigest))}");
+            lines.Add($"{prefix}.decode-profile={EncodeRequired(asset.DecodeProfile, nameof(asset.DecodeProfile))}");
+            lines.Add($"{prefix}.durable-storage={asset.DurableStorageBytes.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"{prefix}.decoded-cache={asset.DecodedCacheBytes.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"{prefix}.gpu-bytes={asset.GpuBytes.ToString(CultureInfo.InvariantCulture)}");
+            lines.Add($"{prefix}.render-units={asset.RenderUnits.ToString(CultureInfo.InvariantCulture)}");
+        }
+
         for (var index = 0; index < action.DeclaredCapabilities.Count; index++)
         {
             lines.Add($"capability-{index.ToString(CultureInfo.InvariantCulture)}={EncodeRequired(
@@ -464,6 +541,21 @@ public static class OwnerWorldActionPayload
         "agentworld.owner-content-rollback.v1",
         $"package-id={EncodeRequired(action.PackageId, nameof(action.PackageId))}",
         $"reason={EncodeRequired(action.Reason, nameof(action.Reason))}");
+
+    public static string BuildingPlacement(OwnerBuildingPlacementAction action) => string.Join(
+        '\n',
+        "agentworld.owner-building-placement.v1",
+        $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
+        $"definition-id={EncodeRequired(action.DefinitionId, nameof(action.DefinitionId))}",
+        $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
+        $"y={action.Y.ToString(CultureInfo.InvariantCulture)}");
+
+    public static string ProductionStart(OwnerProductionStartAction action) => string.Join(
+        '\n',
+        "agentworld.owner-production-start.v1",
+        $"recipe-id={EncodeRequired(action.RecipeId, nameof(action.RecipeId))}",
+        $"building-instance-id={EncodeRequired(action.BuildingInstanceId, nameof(action.BuildingInstanceId))}",
+        $"worker-id={EncodeRequired(action.WorkerId, nameof(action.WorkerId))}");
 
     private static string EncodeRequired(string value, string parameterName)
     {
@@ -598,6 +690,42 @@ public sealed class OwnerWorldApi
             OwnerPairingEndpoints.OwnerAuthoring,
             OwnerPairingProtocol.CreateRequestId(),
             OwnerWorldActionPayload.Authoring(action),
+            action,
+            deviceKey,
+            cancellationToken);
+
+    public Task<OwnerBuildingPlacementResult> PlaceBuildingAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerBuildingPlacementAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerBuildingPlacementAction, OwnerBuildingPlacementResult>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerBuildingPlacement,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.BuildingPlacement(action),
+            action,
+            deviceKey,
+            cancellationToken);
+
+    public Task<OwnerProductionStartResult> StartProductionAsync(
+        Uri serverUri,
+        OwnerAuthorityIdentity authority,
+        string deviceId,
+        OwnerProductionStartAction action,
+        IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerProductionStartAction, OwnerProductionStartResult>(
+            serverUri,
+            authority,
+            deviceId,
+            OwnerPairingEndpoints.OwnerProductionStart,
+            OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.ProductionStart(action),
             action,
             deviceKey,
             cancellationToken);

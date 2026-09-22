@@ -814,6 +814,114 @@ app.MapPost("/api/v1/owner/content/rollback", (
     }
 });
 
+app.MapPost("/api/v1/owner/buildings/place", (
+    OwnerSignedHttpRequest<OwnerBuildingPlacementAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services) =>
+{
+    if (!isPrivateWorld)
+    {
+        return Results.Conflict(new OwnerControlFailure(
+            "private_world_required",
+            "Building placement is available only in the integrated private world."));
+    }
+
+    if (request?.Action is null)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = ["A building placement action is required."],
+        });
+    }
+
+    string payload;
+    try
+    {
+        payload = OwnerContentBinding.BuildingPlacementPayload(request.Action);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
+
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/buildings/place", payload);
+    if (!authorization.IsSuccess)
+    {
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    }
+
+    var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+    var stateFile = services.GetRequiredService<PrivateWorldStateFile>();
+    var result = runtime.PlaceBuilding(
+        request.Action.InstanceId,
+        request.Action.DefinitionId,
+        new AgentWorld.Simulation.Harness.GridPoint(request.Action.X, request.Action.Y));
+    if (!result.Applied)
+    {
+        return Results.Conflict(new OwnerControlFailure("building_rejected", result.Failure ?? "Building placement was rejected."));
+    }
+
+    stateFile.Save(runtime);
+    return Results.Ok(result);
+});
+
+app.MapPost("/api/v1/owner/production/start", (
+    OwnerSignedHttpRequest<OwnerProductionStartAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services) =>
+{
+    if (!isPrivateWorld)
+    {
+        return Results.Conflict(new OwnerControlFailure(
+            "private_world_required",
+            "Recipe production is available only in the integrated private world."));
+    }
+
+    if (request?.Action is null)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = ["A production-start action is required."],
+        });
+    }
+
+    string payload;
+    try
+    {
+        payload = OwnerContentBinding.ProductionStartPayload(request.Action);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["action"] = [exception.Message],
+        });
+    }
+
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/production/start", payload);
+    if (!authorization.IsSuccess)
+    {
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    }
+
+    var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+    var stateFile = services.GetRequiredService<PrivateWorldStateFile>();
+    var result = runtime.StartProduction(
+        request.Action.RecipeId,
+        request.Action.BuildingInstanceId,
+        request.Action.WorkerId);
+    if (!result.Applied)
+    {
+        return Results.Conflict(new OwnerControlFailure("production_rejected", result.Failure ?? "Recipe production was rejected."));
+    }
+
+    stateFile.Save(runtime);
+    return Results.Ok(result);
+});
+
 app.MapPost("/api/v1/owner/authoring", (
     OwnerSignedHttpRequest<OwnerAuthoringBatchAction> request,
     OwnerRequestAuthorizer authorizer,

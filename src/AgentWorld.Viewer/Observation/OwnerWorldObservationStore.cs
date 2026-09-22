@@ -288,8 +288,49 @@ public sealed class OwnerWorldObservationStore
                     systems.Culture.Cultures.Count,
                     systems.Chunks.Count,
                     state.WorldContent?.Buildings.Count ?? 0,
-                    state.WorldContent?.Recipes.Count ?? 0)
+                    state.WorldContent?.Recipes.Count ?? 0,
+                    state.WorldSimulation?.Buildings.Count ?? 0,
+                    state.WorldSimulation?.ProductionJobs.Count ?? 0,
+                    state.AssetReservations?.Reservations
+                        .Select(item => item.NormalizedDigest)
+                        .Distinct(StringComparer.Ordinal)
+                        .Count() ?? 0,
+                    state.AssetReservations is { } assetState
+                        ? assetState.Reservations
+                            .GroupBy(item => item.NormalizedDigest, StringComparer.Ordinal)
+                            .Sum(group => group.First().DurableStorageBytes)
+                        : 0,
+                    state.AssetReservations is { } cacheState
+                        ? cacheState.Reservations
+                            .GroupBy(item => $"{item.NormalizedDigest}|{item.DecodeProfile}", StringComparer.Ordinal)
+                            .Sum(group => group.First().DecodedCacheBytes)
+                        : 0,
+                    state.AssetReservations is { } gpuState
+                        ? gpuState.Reservations
+                            .GroupBy(item => $"{item.NormalizedDigest}|{item.DecodeProfile}", StringComparer.Ordinal)
+                            .Sum(group => group.First().GpuBytes)
+                        : 0,
+                    state.AssetReservations?.Reservations.Sum(item => item.RenderUnits) ?? 0)
                 : null,
+            PlacedBuildings = state.WorldSimulation?.Buildings
+                .OrderBy(item => item.InstanceId, StringComparer.Ordinal)
+                .Select(item => new ViewerPlacedBuilding(
+                    item.InstanceId,
+                    item.DefinitionId,
+                    ToPosition(item.Position),
+                    item.PlacedTick))
+                .ToArray() ?? [],
+            ProductionJobs = state.WorldSimulation?.ProductionJobs
+                .OrderBy(item => item.JobId, StringComparer.Ordinal)
+                .Select(item => new ViewerProductionJob(
+                    item.JobId,
+                    item.RecipeId,
+                    item.BuildingInstanceId,
+                    item.WorkerId,
+                    item.StartedTick,
+                    item.CompletionTick,
+                    item.State.ToString().ToLowerInvariant()))
+                .ToArray() ?? [],
         };
     }
 

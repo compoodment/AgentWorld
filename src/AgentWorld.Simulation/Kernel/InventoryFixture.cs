@@ -131,6 +131,57 @@ public static class InventoryFixture
         return Commit(checkpoint, lots: lots, eventKind: "lot_split", detail: $"{source.Id}:{splitLotId}:{splitQuantity}");
     }
 
+    /// <summary>
+    /// Adds a deterministic produced lot. Production callers must choose the
+    /// lot ID and owner before entering this pure transition; no resource is
+    /// fabricated by the inventory layer beyond the explicitly requested lot.
+    /// </summary>
+    public static InventoryCheckpoint AddLot(
+        InventoryCheckpoint checkpoint,
+        string lotId,
+        string itemKind,
+        string ownerId,
+        int quantity,
+        long? targetTick = null,
+        int conditionBasisPoints = 10_000,
+        int freshnessBasisPoints = 10_000)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(lotId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(itemKind);
+        ArgumentException.ThrowIfNullOrWhiteSpace(ownerId);
+        var nextTick = targetTick ?? checkpoint.WorldTick;
+        if (nextTick < checkpoint.WorldTick)
+        {
+            throw new ArgumentOutOfRangeException(nameof(targetTick));
+        }
+
+        if (quantity <= 0 || conditionBasisPoints is < 0 or > 10_000 || freshnessBasisPoints is < 0 or > 10_000 ||
+            checkpoint.Lots.Any(lot => lot.Id == lotId))
+        {
+            throw new InvalidOperationException("A produced lot must have a unique positive ID and valid condition.");
+        }
+
+        var lot = new InventoryLot(
+            lotId,
+            itemKind.Trim(),
+            ownerId.Trim(),
+            quantity,
+            conditionBasisPoints,
+            freshnessBasisPoints,
+            nextTick);
+        var lots = checkpoint.Lots
+            .Append(lot)
+            .OrderBy(candidate => candidate.Id, StringComparer.Ordinal)
+            .ToArray();
+        return Commit(
+            checkpoint,
+            targetTick,
+            lots,
+            eventKind: "lot_created",
+            detail: $"{lot.Id}:{lot.ItemKind}:{lot.Quantity}");
+    }
+
     public static InventoryCheckpoint ProcessSpoilage(
         InventoryCheckpoint checkpoint,
         long targetTick,
@@ -229,6 +280,32 @@ public static class InventoryFixture
             reservations: reservations,
             eventKind: "reservation_consumed",
             detail: reservationId);
+    }
+
+    public static InventoryCheckpoint ReleaseReservation(
+        InventoryCheckpoint checkpoint,
+        string reservationId,
+        string purpose = "reservation_released")
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reservationId);
+        var reservation = checkpoint.GetReservation(reservationId);
+        if (reservation.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed))
+        {
+            return checkpoint;
+        }
+
+        var reservations = checkpoint.Reservations
+            .Select(candidate => candidate.Id == reservationId
+                ? candidate with { State = InventoryReservationState.Released }
+                : candidate)
+            .OrderBy(candidate => candidate.Id, StringComparer.Ordinal)
+            .ToArray();
+        return Commit(
+            checkpoint,
+            reservations: reservations,
+            eventKind: "reservation_released",
+            detail: $"{reservationId}:{purpose}");
     }
 
     public static InventoryCheckpoint Transfer(

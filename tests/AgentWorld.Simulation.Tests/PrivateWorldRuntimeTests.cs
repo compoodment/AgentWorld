@@ -197,6 +197,58 @@ public sealed class PrivateWorldRuntimeTests
     }
 
     [Fact]
+    public async Task PrivateWorldPlacesAContentBuildingConsumesCostsAndProducesRecipeOutputs()
+    {
+        using var runtime = new PrivateWorldRuntime("playtest-alpha");
+        var (package, building, recipe) = MaterialPackage(durationTicks: 2);
+        Activate(runtime, package);
+        _ = await runtime.AdvanceOneTickAsync();
+
+        var worker = runtime.Inhabitants.Single(item => item.InhabitantId == "founder-rowan");
+        var rejected = runtime.PlaceBuilding("blocked-kitchen", building.CanonicalId, new GridPoint(0, 0));
+        Assert.False(rejected.Applied);
+        Assert.Equal(48, runtime.Society.Inventory.Lots.Single(item => item.Id == "wood:camp-alpha").Quantity);
+
+        var placement = runtime.PlaceBuilding("camp-kitchen-one", building.CanonicalId, worker.Position);
+        Assert.True(placement.Applied, placement.Failure);
+        Assert.Single(runtime.WorldSimulation.Buildings);
+        Assert.Equal(46, runtime.Society.Inventory.Lots.Single(item => item.Id == "wood:camp-alpha").Quantity);
+
+        var started = runtime.StartProduction(recipe.CanonicalId, placement.InstanceId, worker.InhabitantId);
+        Assert.True(started.Applied, started.Failure);
+        Assert.Equal(1, runtime.WorldSimulation.ProductionJobs.Count(item => item.State == WorldProductionJobState.Running));
+
+        _ = await runtime.AdvanceOneTickAsync();
+        Assert.DoesNotContain(runtime.Society.Inventory.Lots, item => item.ItemKind == "meal");
+        _ = await runtime.AdvanceOneTickAsync();
+
+        var completed = Assert.Single(runtime.WorldSimulation.ProductionJobs);
+        Assert.Equal(WorldProductionJobState.Completed, completed.State);
+        Assert.Equal(1, runtime.Society.Inventory.Lots.Single(item => item.ItemKind == "meal").Quantity);
+        Assert.Contains(runtime.ExportState().Events, item => item.Kind == "recipe_completed");
+
+        var restoredState = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+        using var restored = PrivateWorldRuntime.Restore(restoredState);
+        Assert.Equal(
+            runtime.WorldSimulation.Buildings,
+            restored.WorldSimulation.Buildings);
+        var expectedJob = Assert.Single(runtime.WorldSimulation.ProductionJobs);
+        var actualJob = Assert.Single(restored.WorldSimulation.ProductionJobs);
+        Assert.Equal(expectedJob.JobId, actualJob.JobId);
+        Assert.Equal(expectedJob.RecipeId, actualJob.RecipeId);
+        Assert.Equal(expectedJob.BuildingInstanceId, actualJob.BuildingInstanceId);
+        Assert.Equal(expectedJob.WorkerId, actualJob.WorkerId);
+        Assert.Equal(expectedJob.StartedTick, actualJob.StartedTick);
+        Assert.Equal(expectedJob.CompletionTick, actualJob.CompletionTick);
+        Assert.Equal(expectedJob.State, actualJob.State);
+        Assert.Equal(expectedJob.InputReservationIds, actualJob.InputReservationIds);
+        Assert.Equal(
+            runtime.WorldSimulation.NextProductionJobSequence,
+            restored.WorldSimulation.NextProductionJobSequence);
+        Assert.Equal(runtime.Society.Inventory.Lots, restored.Society.Inventory.Lots);
+    }
+
+    [Fact]
     public void PrivateWorldCodecReadsLegacyCheckpointWithoutContentRegistry()
     {
         using var runtime = new PrivateWorldRuntime("playtest-alpha");
@@ -224,4 +276,62 @@ public sealed class PrivateWorldRuntimeTests
             "Starter recipe",
             "sha256:" + new string(digestCharacter, 64))],
         []);
+
+    private static (ContentPackageManifest Package, BuildingDefinition Building, RecipeDefinition Recipe) MaterialPackage(
+        int durationTicks)
+    {
+        var packageDigest = "sha256:" + new string('e', 64);
+        var version = ContentVersion.Parse("1.0.0");
+        var building = new BuildingDefinition(
+            packageDigest,
+            "camp-kitchen",
+            version,
+            "Camp kitchen",
+            1,
+            1,
+            2,
+            [new ContentQuantity("wood", 2)],
+            ["camp"]);
+        var recipe = new RecipeDefinition(
+            packageDigest,
+            "berry-meal",
+            version,
+            "Berry meal",
+            [new ContentQuantity("wood", 1)],
+            [new ContentQuantity("meal", 1)],
+            durationTicks,
+            building.CanonicalId,
+            ["food"]);
+        return (new ContentPackageManifest(
+            "material-production",
+            version,
+            packageDigest,
+            [],
+            [
+                new ContentDefinition(
+                    BuildingDefinition.SchemaKind,
+                    building.LocalId,
+                    building.Version,
+                    building.DisplayName,
+                    building.PayloadDigest,
+                    """{"schema":"building/v1","width":1,"height":1,"capacity":2,"buildCosts":[{"resourceId":"wood","amount":2}],"tags":["camp"]}"""),
+                new ContentDefinition(
+                    RecipeDefinition.SchemaKind,
+                    recipe.LocalId,
+                    recipe.Version,
+                    recipe.DisplayName,
+                    recipe.PayloadDigest,
+                    $"{{\"schema\":\"recipe/v1\",\"inputs\":[{{\"resourceId\":\"wood\",\"amount\":1}}],\"outputs\":[{{\"resourceId\":\"meal\",\"amount\":1}}],\"durationTicks\":{durationTicks},\"workstationBuildingId\":\"{building.CanonicalId}\",\"tags\":[\"food\"]}}")
+            ],
+            []), building, recipe);
+    }
+
+    private static void Activate(PrivateWorldRuntime runtime, ContentPackageManifest package)
+    {
+        var resolution = PrivateWorldRuntime.PreviewContent([package], [package.PackageId]);
+        runtime.ProposeContent(package);
+        runtime.ValidateContent(package.PackageId, resolution);
+        runtime.ApproveContent(package.PackageId);
+        runtime.StageContent(package.PackageId);
+    }
 }
