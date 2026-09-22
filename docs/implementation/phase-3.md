@@ -1,11 +1,11 @@
 ---
-title: Phase 3 Implementation Plan
-type: implementation-plan
+title: Phase 3 Implementation Ledger
+type: implementation-ledger
 status: complete
 updated: 2026-09-22
 ---
 
-# Phase 3 Implementation Plan
+# Phase 3 Implementation Ledger
 
 Phase 3 attaches one real, bounded cognition loop to the existing authoritative
 world. The owner client remains an observer-director surface; it does not run

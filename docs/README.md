@@ -17,7 +17,7 @@ project happened to ask questions.
 6. [Phase 2 implementation ledger](implementation/phase-2.md) — completed
    owner-observation, interaction-boundary, and Windows-export evidence.
 7. [Roadmap](planning/roadmap.md) — gated implementation sequence.
-8. [Phase 3 implementation plan](implementation/phase-3.md) — completed
+8. [Phase 3 implementation ledger](implementation/phase-3.md) — completed
    one-inhabitant cognition loop and provider boundary.
 9. [Phase 4 implementation ledger](implementation/phase-4.md) — completed
    society, multi-inhabitant scheduling, family, exchange, mortality, and
@@ -62,6 +62,8 @@ project happened to ask questions.
 - [Phase 2 implementation ledger](implementation/phase-2.md) — completed
   evidence for paired owner observation, server-validated interaction, and the
   Windows 11 x64 export path.
+- [Phase 3 implementation ledger](implementation/phase-3.md) — completed
+  one-inhabitant cognition, provider, fallback, and owner-projection evidence.
 - [Phase 4 implementation ledger](implementation/phase-4.md) — completed
   society implementation scope, gate, and accepted mortality model.
 - [Persistence spike evidence](implementation/persistence-spike.md) — the
