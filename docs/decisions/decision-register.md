@@ -472,3 +472,39 @@ The Phase 3 implementation adds the following executable decisions:
 - The first world keeps one active inhabitant and one cognition request in
   flight. Multi-inhabitant scheduling, durable memory, and social cognition are
   Phase 4 experiments rather than hidden Phase 3 scope.
+
+## 2026-09-22 — Phase 4 society and mortality defaults
+
+Phase 4 converts the accepted society contract into a bounded authoritative
+fixture. The following decisions are now executable and remain the policy
+baseline for later settlement work:
+
+- Society state is checkpointed as immutable replacements. Relationships are
+  typed and consent-aware; household membership, caregivers, parentage, and
+  partnership are separate edges with deterministic lifecycle events.
+- Birth requires active adult parents, accepted partnership, explicit parent
+  consent, caregiver readiness, household membership, and consumable food. The
+  birth request is idempotent, creates exactly one child identity, and applies
+  the configured newborn provider policy.
+- Exchange uses the existing inventory ledger. Transfers preserve lot
+  provenance; reservations and direct barter are atomic, and death cancels a
+  deceased party's open exchange while moving owned lots into an escrowed
+  estate.
+- Death is terminal and historical. It ends active relationships, removes the
+  inhabitant from cognition scheduling, and settles surviving beneficiaries
+  after the configured escrow period. Resurrection is not part of the first
+  world.
+- There is no hard maximum age. Age is derived from birth tick and the
+  versioned calendar. Natural mortality is zero before elderhood and rises
+  gradually from the elder band; hazards, illness, and accidents may happen
+  earlier. Elderhood at 65 is a social/lifecycle marker, not an automatic
+  death trigger. The finite-age risk curve remains below 100%.
+- Multi-inhabitant cognition is bounded per actor and globally: one request in
+  flight per inhabitant, deterministic priority ordering, coalescing,
+  backpressure, and deterministic fallback remain mandatory. Hosted providers
+  remain optional and never mutate society directly.
+
+The implementation evidence is recorded in the
+[Phase 4 ledger](../implementation/phase-4.md). Exact mortality constants and
+queue budgets are versioned tuning values and may change from replay evidence
+without reopening these policy decisions.

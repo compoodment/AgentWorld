@@ -597,3 +597,28 @@ The owner needs a normal app-pairing flow without treating mere Tailnet
 membership as permission to see or change the complete private world. A paired
 device is revocable, auditable, and compatible with later role expansion while
 keeping the private first-world workflow small.
+
+## 2026-09-22 — Phase 4 mortality and society implementation
+
+### Decision
+
+Phase 4 uses a bounded authoritative society fixture rather than pretending
+that a handful of rendered actors constitutes a society. Typed consent-aware
+relationships, household/caregiver projections, atomic inventory exchange,
+birth, aging, death, estates, and a fair multi-inhabitant cognition scheduler
+are all represented in one versioned checkpoint boundary.
+
+Natural death has no hard maximum. The kernel derives age from birth tick and
+uses a rising, sub-100% mortality curve from elderhood. Elderhood is a social
+marker; it does not itself kill an inhabitant. Hazards, illness, and accidents
+remain valid earlier causes. Death is terminal, historical, and authoritative;
+providers can react to it but cannot choose it or erase it.
+
+### Reason
+
+The world needs generational turnover and meaningful inheritance without a
+timer that silently deletes elders at an arbitrary age. A probabilistic curve
+supports ordinary lifespans while leaving room for rare long-lived inhabitants,
+and keeping the curve below certainty preserves the stated no-hard-maximum
+policy. Escrow and replay make death observable and recoverable as world state
+without making it reversible.

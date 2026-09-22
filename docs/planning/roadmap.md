@@ -124,17 +124,15 @@ provider-outage pause, restart persistence, movement execution, usage events,
 and owner projection are covered by the Phase 3 tests. No credential is saved
 or sent to the owner client.
 
-The next phase is the first multi-inhabitant/society experiment. It must not
-silently expand the current one-inhabitant provider boundary into unbounded
-parallel cognition.
+Phase 4 completed that first multi-inhabitant/society experiment with bounded
+parallel cognition and explicit lifecycle reconciliation.
 
-## Phase 4 — Society, economy, and family growth (current)
+## Phase 4 — Society, economy, and family growth (complete)
 
-The relationship, consent, family, estate, and access semantics are defined in
-the [cognition and society contract](cognition-and-society-contract.md).
-The implementation scope and evidence gate are tracked in the
-[Phase 4 implementation plan](../implementation/phase-4.md). The documentation
-baseline is refreshed; implementation has not started.
+The relationship, consent, family, estate, mortality, and access semantics are
+defined in the [cognition and society contract](cognition-and-society-contract.md).
+The implementation and evidence gate are complete in the
+[Phase 4 implementation ledger](../implementation/phase-4.md).
 
 - relationships and social memory
 - emergent work and roles
@@ -144,12 +142,13 @@ baseline is refreshed; implementation has not started.
 - birth, childhood, inheritance, and death design
 - multiple inhabitants with independent cognition schedules
 
-**Gate:** a small group can form a legible settlement without unbounded
-cognition queueing or silent provider-cost growth; provider/account billing
-remains the external boundary and all runtime stop/fallback behavior remains
-observable and replayable.
+**Gate met:** a small group can form a deterministic, replayable settlement
+fixture with bounded multi-inhabitant cognition, consent-aware relationships,
+atomic exchange, family lifecycle, terminal death, and estate settlement.
+Provider/account billing remains the external boundary and runtime fallback and
+backpressure remain observable per inhabitant.
 
-## Phase 5 — Agent-created content and assets
+## Phase 5 — Agent-created content and assets (next)
 
 The activation, package, asset, quarantine, and constitutional semantics are
 defined in the [content-governance contract](content-governance-contract.md).

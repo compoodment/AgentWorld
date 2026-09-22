@@ -2,7 +2,7 @@
 title: Cognition, Authority, and Society Contract
 type: implementation-contract
 status: active
-updated: 2026-09-19
+updated: 2026-09-22
 addresses:
   - 6
   - 7
@@ -543,6 +543,15 @@ the new band is used by those later phases. Pausing freezes the boundary rather
 than skipping it, and resuming emits any one due transition in calendar/tick
 order. A save/replay or migration recalculates from the preserved birth tick
 and calendar version; it cannot advance age from wall-clock elapsed time.
+
+The first-world natural mortality policy is explicit: there is no hard maximum
+age. Natural-death risk is zero before elderhood and rises gradually from the
+elder band, with the finite-age curve remaining below certainty. The current
+tuning targets ordinary deaths around 80–100 world years and rare survivors
+around 110–120; hazards, illness, and accidents may occur earlier. The `elder`
+band is a social/lifecycle marker, not an automatic death trigger. The kernel
+owns the death roll and commit, and provider output can neither choose nor
+forge a death outcome.
 
 Protected capability gates are versioned kernel rules, not cultural labels.
 From birth a child has a full identity, private experience, and age-appropriate

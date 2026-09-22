@@ -196,6 +196,85 @@ public static class InventoryFixture
             detail: reservationId);
     }
 
+    public static InventoryCheckpoint ConsumeReservation(
+        InventoryCheckpoint checkpoint,
+        string reservationId)
+    {
+        ValidateCheckpoint(checkpoint);
+        var reservation = checkpoint.GetReservation(reservationId);
+        if (reservation.State is not (InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed) ||
+            checkpoint.WorldTick > reservation.ExpiryTick)
+        {
+            throw new InvalidOperationException("Only a live reservation can be consumed.");
+        }
+
+        var lot = checkpoint.GetLot(reservation.LotId);
+        EnsureOwnerAndExactQuantity(lot, reservation.OwnerId, reservation.Quantity);
+        var lots = lot.Quantity == reservation.Quantity
+            ? checkpoint.Lots.Where(candidate => candidate.Id != lot.Id).ToArray()
+            : checkpoint.Lots.Select(candidate => candidate.Id == lot.Id
+                    ? candidate with { Quantity = candidate.Quantity - reservation.Quantity }
+                    : candidate)
+                .OrderBy(candidate => candidate.Id, StringComparer.Ordinal)
+                .ToArray();
+        var reservations = checkpoint.Reservations.Select(candidate => candidate.Id == reservation.Id
+                ? candidate with { State = InventoryReservationState.Completed }
+                : candidate)
+            .OrderBy(candidate => candidate.Id, StringComparer.Ordinal)
+            .ToArray();
+        return Commit(
+            checkpoint,
+            lots: lots,
+            reservations: reservations,
+            eventKind: "reservation_consumed",
+            detail: reservationId);
+    }
+
+    public static InventoryCheckpoint Transfer(
+        InventoryCheckpoint checkpoint,
+        string transferId,
+        string senderId,
+        string recipientId,
+        string lotId,
+        int quantity,
+        string purpose)
+    {
+        ValidateCheckpoint(checkpoint);
+        ArgumentException.ThrowIfNullOrWhiteSpace(transferId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(senderId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(recipientId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
+        if (senderId == recipientId || quantity <= 0 ||
+            checkpoint.Lots.Any(lot => string.Equals(lot.Id, $"{lotId}#transfer:{transferId}", StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("A transfer requires distinct parties, a positive quantity, and a unique ID.");
+        }
+
+        var source = checkpoint.GetLot(lotId);
+        EnsureOwnerAndAvailableQuantity(checkpoint, source, senderId, quantity);
+        var lots = quantity == source.Quantity
+            ? checkpoint.Lots.Select(lot => lot.Id == source.Id ? lot with { OwnerId = recipientId } : lot)
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal)
+                .ToArray()
+            : checkpoint.Lots.Select(lot => lot.Id == source.Id
+                    ? lot with { Quantity = lot.Quantity - quantity }
+                    : lot)
+                .Append(source with
+                {
+                    Id = $"{source.Id}#transfer:{transferId}",
+                    OwnerId = recipientId,
+                    Quantity = quantity,
+                    ProvenanceLotId = source.Id,
+                })
+                .OrderBy(lot => lot.Id, StringComparer.Ordinal)
+                .ToArray();
+        return Commit(
+            checkpoint,
+            lots: lots,
+            eventKind: "inventory_transferred",
+            detail: $"{transferId}:{senderId}:{recipientId}:{lotId}:{quantity}:{purpose}");
+    }
+
     public static InventoryCheckpoint ReleaseExpiredReservations(InventoryCheckpoint checkpoint, long targetTick)
     {
         ValidateCheckpoint(checkpoint);

@@ -27,14 +27,12 @@ not remain open product questions.
   fallback, and emergency-stop behavior are implemented and covered by the
   [Phase 3 plan](../implementation/phase-3.md). Further budget tuning is
   prototype evidence, not a prerequisite for Phase 4 preparation.
-- Phase 4: the policy baseline is accepted and implementation is tracked in the
-  [Phase 4 plan](../implementation/phase-4.md). The remaining product decision
-  before the family-lifecycle slice is the first-world natural lifespan model:
-  hazard-only death initially, an age-based mortality curve without a hard
-  maximum, or an age-based curve with a declared maximum age. The existing
-  terminal-death, estate, consent, age-band, and replay rules are not open.
+- Phase 4: complete. The implementation and evidence are tracked in the
+  [Phase 4 ledger](../implementation/phase-4.md). Natural mortality uses the
+  accepted no-hard-maximum curve: elderhood is a social marker, risk rises
+  gradually, and the kernel owns terminal death and estate settlement.
 - Phase 5: executable-mod sandbox/runtime choice and measured resource budgets
   within the [content-governance contract](../planning/content-governance-contract.md).
 
-The lifespan choice blocks only the natural-aging/family-lifecycle slice; it
-does not block Phase 4 scheduler, relationship, household, or exchange work.
+The next unresolved work is Phase 5 content governance and agent-created
+content; Phase 4 policy is no longer blocking.

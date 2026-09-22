@@ -1,7 +1,7 @@
 ---
-title: Phase 4 Implementation Plan
-type: implementation-plan
-status: planned
+title: Phase 4 Implementation Ledger
+type: implementation-ledger
+status: complete
 updated: 2026-09-22
 ---
 
@@ -36,28 +36,50 @@ The Phase 4 policy baseline is settled enough to implement:
 - deterministic cognition remains the default; Jev is optional for bounded
   choices and large-model cognition remains optional for open-ended work.
 
-The implementation is not started yet. The open lifespan/mortality question is
-tracked separately so it cannot be accidentally answered by code defaults.
+The bounded Phase 4 implementation is complete. The society fixture and its
+composition root are authoritative, deterministic, replayable, and independent
+of hosted providers. The optional cognition scheduler is reconciled with the
+active lifecycle population after every society mutation.
 
-## First bounded implementation slices
+## Implemented slices
 
-1. **Multi-inhabitant scheduler:** replace the one-inhabitant admission fixture
-   with independent per-inhabitant schedules, one in-flight request per actor,
-   shared queue fairness, coalescing, and observable backpressure.
-2. **Relationship graph:** implement proposal, consent, acceptance, revocation,
-   cardinality checks, privacy classes, and deterministic relationship events.
-3. **Households and care:** implement household membership, caregiver
-   obligations, household projections, and split/removal/death review.
-4. **Authoritative exchange:** expose direct transfer, gift, and simple barter
-   through the existing inventory/reservation ledger; do not add a mandatory
-   currency or economic ideology.
-5. **Family lifecycle:** implement birth readiness, reservations, idempotent
-   birth commit, child provider resolution, age transitions, and death/estate
-   replay once the lifespan policy is explicitly settled.
+1. **Multi-inhabitant scheduler:** independent per-inhabitant runtimes, one
+   in-flight request per actor, deterministic priority ordering, coalescing,
+   bounded queue backpressure, lifecycle reconciliation, and persistence.
+2. **Relationship graph:** proposal, consent, acceptance, refusal, revocation,
+   partnership cardinality, privacy classes, and deterministic relationship
+   events.
+3. **Households and care:** household membership, caregiver projection,
+   protected family edges, birth readiness, and removal/death review.
+4. **Authoritative exchange:** direct transfer and simple barter through the
+   existing inventory/reservation ledger, including cancellation on death and
+   deterministic estate settlement.
+5. **Family lifecycle:** idempotent birth commit, food reservation and
+   consumption, child provider resolution, age-band transitions, natural and
+   hazard death, relationship tombstones, and replayable estate escrow.
+
+## Evidence
+
+- `SocietyFixture` owns immutable checkpoint transitions.
+- `PhaseFourWorldRuntime` composes society and cognition into one save/restore
+  boundary and removes dead inhabitants from the active cognition population.
+- `SocietyCognitionScheduler` provides deterministic multi-inhabitant fairness,
+  coalescing, backpressure, and runtime persistence.
+- `SocietyCheckpointCodec` provides versioned JSON round-tripping with stable
+  state and event digests.
+- `PhaseFourWorldRuntimeCodec` persists the combined society and cognition
+  boundary and rejects schema or active-population mismatches on restore.
+- `InventoryFixture` exposes authoritative reservation consumption and
+  provenance-preserving transfers for society operations.
+- `PhaseFourSocietyTests` covers relationship consent/cardinality, idempotent
+  birth, mortality and estate settlement, transfer/barter, cognition fairness,
+  lifecycle reconciliation, death cleanup, combined runtime persistence,
+  caregiver projection, organizations, and checkpoint replay (11 Phase 4
+  tests; 158 tests in the full suite).
 
 The fixture population size is a test-load parameter, not a product population
 cap. All hosted-provider use remains opt-in and measurable; deterministic
-providers must continue to make the fixture playable without credentials.
+providers make the fixture playable without credentials.
 
 ## Explicit non-goals
 
@@ -85,22 +107,25 @@ A bounded settlement fixture must demonstrate that:
 - the owner projection explains causal public outcomes without exporting raw
   private memory, prompts, responses, or credentials.
 
-Every accepted slice must add replayable fixtures and update this ledger with
-the relevant commit, test counts, and remaining scope. The Phase 4 gate is not
-met merely because a few inhabitants render on screen.
+The Phase 4 gate is met by the bounded authoritative fixture: the repository
+contains replayable acceptance fixtures, and society/cognition state restores
+without losing causal ordering or active-population agreement. Rendering a few
+inhabitants is not the evidence; checkpoint and event invariants are.
 
-## Current open policy question
+## Accepted mortality model
 
-The existing contract defines age bands and the mechanics of a death transition,
-but it does not yet choose the first-world natural lifespan model. Before the
-family-lifecycle slice is implemented, decide whether natural aging death is:
+Natural mortality is now an accepted first-world policy:
 
-- absent from the first playable society, with death initially limited to
-  authoritative hazards and explicit world rules;
-- present with an age-based mortality curve and no hard maximum; or
-- present with an age-based curve plus a declared maximum-age rule.
+- there is no hard maximum age;
+- risk is zero before elderhood and rises gradually from the elder band;
+- ordinary outcomes should cluster around roughly 80–100 world years, with
+  rare survivors reaching approximately 110–120 under the current tuning;
+- hazards, illness, and accidents may kill earlier;
+- the elder band is a social/lifecycle marker, not an automatic death trigger;
+- the kernel, never an inhabitant or provider, commits the death outcome;
+- the mortality curve is versioned configuration and can be tuned from replay
+  evidence without changing the policy.
 
-The choice should also establish whether the optional `elder` social band at
-65 is only a social marker or a gameplay mortality signal. The exact numerical
-curve belongs in versioned configuration and fixture evidence after the policy
-choice.
+The default curve remains below 100% at every finite age, preserving the
+no-hard-maximum rule. This is a gameplay tuning target, not a promise about a
+particular individual lifespan.
