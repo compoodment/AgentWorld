@@ -671,3 +671,26 @@ The interesting choice belongs to the inhabitants. The human should watch a
 farmer decide to grow carrots or a builder decide to raise a workshop, while
 the kernel remains responsible for rejecting impossible actions and preserving
 resource conservation.
+
+## 2026-09-22 — World-first game UI
+
+### Decision
+
+Ordinary play opens on the world itself. A fixed top HUD contains the readable
+world clock, season/weather, pause, inhabitants, events, and menu controls. The
+world view does not live inside a page-level scroll container and does not give
+permanent screen space to inspector sidebars.
+
+Inhabitants and notable events open as temporary overlays. Selecting an
+inhabitant opens a closeable card positioned beside that person; no empty
+selection panel is shown. Connection, device, raw cognition, content-authoring,
+and protocol diagnostics belong under Settings or Developer Tools. Internal
+world IDs, protocol versions, raw ticks, draft founders, provider requests, and
+other implementation vocabulary are not ordinary game HUD text.
+
+### Reason
+
+The Godot client is the game, not a protocol dashboard. Persistent diagnostic
+chrome made the small temporary map feel secondary and exposed concepts that
+have no player meaning. Keeping diagnostics available but hidden preserves the
+authority and support surfaces without making them the visual identity of play.

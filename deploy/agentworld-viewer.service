@@ -1,5 +1,5 @@
 [Unit]
-Description=AgentWorld Phase 2 private world host
+Description=AgentWorld private world host
 After=network-online.target
 Wants=network-online.target
 
@@ -9,11 +9,13 @@ User=clanker
 Group=clanker
 WorkingDirectory=/opt/agentworld-viewer
 Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=AgentWorld__Runtime__WorldMode=private
 Environment=AgentWorld__Runtime__AdvanceScript=true
 Environment=AgentWorld__Http__Port=5188
 Environment=AgentWorld__Pairing__LocalApprovalPort=5189
-Environment=AgentWorld__Pairing__StatePath=/var/lib/agentworld-viewer/owner-authority.json
-Environment=AgentWorld__Runtime__StatePath=/var/lib/agentworld-viewer/phase-two-runtime.json
+Environment=AgentWorld__Pairing__StatePath=/var/lib/agentworld-viewer/private-owner-authority.json
+Environment=AgentWorld__Runtime__StatePath=/var/lib/agentworld-viewer/private-world.json
+Environment=AgentWorld__Runtime__LegacyStatePath=/var/lib/agentworld-viewer/phase-two-runtime.json
 Environment=AgentWorld__Assets__CatalogPath=/etc/agentworld-viewer/approved-assets.json
 Environment=DOTNET_NOLOGO=1
 StateDirectory=agentworld-viewer

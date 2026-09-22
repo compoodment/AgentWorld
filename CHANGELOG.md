@@ -5,6 +5,14 @@ published a release yet.
 
 ## Unreleased
 
+- Replaced the inspector-style Godot shell with a world-first, responsive
+  16:9 play surface, fixed clock HUD, overlay rosters/events, an inhabitant-
+  anchored detail card, and a pause menu containing settings and developer
+  tools; raw protocol, tick, fixture, and draft language is no longer part of
+  ordinary play.
+- Pinned the host service to the private-world runtime with separate private
+  save and pairing files, preserving the older fixture state instead of
+  accidentally treating it as the playable world.
 - Added the .NET 10 headless simulation foundation and reproducible test entry
   point for the Phase 1 deterministic kernel.
 - Added a bounded canonical snapshot/event-log, migration, and replay

@@ -12,7 +12,8 @@ namespace AgentWorld.GodotClient;
 /// </summary>
 public partial class Main : Control
 {
-    private const int TileSize = 64;
+    private const int DefaultTileSize = 96;
+    private const int TileGap = 2;
     private const int RefreshSeconds = 1;
 
     private readonly System.Net.Http.HttpClient httpClient = new();
@@ -24,6 +25,7 @@ public partial class Main : Control
     private readonly Dictionary<long, OwnerWorldEvent> knownEvents = [];
 
     private readonly Label statusLabel = new();
+    private readonly PanelContainer statusToast = new();
     private readonly PanelContainer connectionPanel = new();
     private readonly Button connectionSettingsButton = new();
     private readonly LineEdit worldUrlInput = new();
@@ -36,25 +38,18 @@ public partial class Main : Control
     private readonly Button pairButton = new();
     private readonly Button forgetRegistrationButton = new();
 
-    private readonly GridContainer titleBar = new();
-    private readonly ScrollContainer mainScroll = new();
-    private readonly GridContainer mainContent = new();
+    private readonly HBoxContainer topBar = new();
+    private readonly Label clockLabel = new();
+    private readonly Label climateLabel = new();
+    private readonly Button inhabitantsButton = new();
+    private readonly Button eventsButton = new();
+    private readonly Button menuButton = new();
     private readonly GridContainer worldGrid = new();
-    private readonly ScrollContainer mapScroll = new();
     private readonly Control mapCanvas = new();
+    private readonly Control mapStage = new();
     private readonly Control objectLayer = new();
     private readonly Control entityLayer = new();
-    private readonly PanelContainer worldHud = new();
-    private readonly Label hudWorldLabel = new();
-    private readonly Label hudTickLabel = new();
-    private readonly Label hudStateLabel = new();
-    private readonly Label hudSelectionLabel = new();
-    private readonly Label mapLegendLabel = new();
     private readonly Label rosterSummaryLabel = new();
-    private readonly Label clockWorldValue = new();
-    private readonly Label clockTickValue = new();
-    private readonly Label clockStateValue = new();
-    private readonly Label clockClimateValue = new();
     private readonly Label cognitionProviderValue = new();
     private readonly Label cognitionCandidateValue = new();
     private readonly Label cognitionRequestValue = new();
@@ -68,11 +63,17 @@ public partial class Main : Control
     private readonly RichTextLabel inhabitantSocialDetails = new();
     private readonly RichTextLabel worldDetails = new();
     private readonly RichTextLabel eventLog = new();
-    private readonly Button rosterToggleButton = new();
     private readonly PanelContainer rosterPanel = new();
+    private readonly PanelContainer eventsPanel = new();
+    private readonly PanelContainer gameMenuPanel = new();
+    private readonly PanelContainer settingsPanel = new();
+    private readonly ColorRect menuShade = new();
+    private readonly Label menuHeadingLabel = new();
+    private readonly Button menuResumeButton = new();
+    private readonly CheckBox fullscreenToggle = new();
+    private readonly OptionButton resolutionChoice = new();
 
     private readonly Button pauseButton = new();
-    private readonly Button resumeButton = new();
     private readonly OptionButton instructionKind = new();
     private readonly LineEdit instructionText = new();
     private readonly Button submitInstructionButton = new();
@@ -110,6 +111,8 @@ public partial class Main : Control
     private bool isPairingOperation;
     private bool isOwnerAction;
     private bool registeredEndpointInvalid;
+    private bool menuPausedWorld;
+    private int currentTileSize = DefaultTileSize;
 
     public Main()
     {
@@ -148,6 +151,7 @@ public partial class Main : Control
             if (registration is null)
             {
                 pairingPanel.Show();
+                OpenMenuForSetup();
                 await StartPairingAsync();
                 return;
             }
@@ -159,6 +163,7 @@ public partial class Main : Control
             {
                 registeredEndpointInvalid = true;
                 pairingPanel.Show();
+                OpenMenuForSetup();
                 pairingInstructionLabel.Text = "This saved device registration has no valid pinned server endpoint. Forget the local registration, then pair this Windows key again at the intended HTTPS host.";
                 SetStatus("saved owner endpoint is invalid · re-pair required", good: false);
                 RefreshControlAvailability();
@@ -169,14 +174,15 @@ public partial class Main : Control
             LoadPendingSubmission();
 
             pairingPanel.Hide();
-            connectionPanel.Hide();
-            connectionSettingsButton.Text = "Server settings";
+            settingsPanel.Hide();
+            CloseGameMenu();
             SetStatus("paired device loaded · requesting signed owner observation", good: true);
             await RefreshAsync();
         }
         catch (Exception exception)
         {
             pairingPanel.Show();
+            OpenMenuForSetup();
             SetStatus($"owner key unavailable · {FriendlyFailure(exception)}", good: false);
             pairingInstructionLabel.Text = "This client needs the Windows current-user key store. It does not create a portable private-key file.";
             pairButton.Disabled = true;
@@ -285,6 +291,8 @@ public partial class Main : Control
                         pendingPairing = null;
                         pendingPairingOrigin = null;
                         pairingPanel.Hide();
+                        settingsPanel.Hide();
+                        CloseGameMenu();
                         SetStatus("recovered the active device registration · requesting signed owner observation", good: true);
                         await RefreshAsync();
                     }
@@ -342,6 +350,8 @@ public partial class Main : Control
             pendingPairing = null;
             pendingPairingOrigin = null;
             pairingPanel.Hide();
+            settingsPanel.Hide();
+            CloseGameMenu();
             SetStatus("device paired · requesting signed owner observation", good: true);
             await RefreshAsync();
         }
@@ -366,7 +376,7 @@ public partial class Main : Control
         knownEvents.Clear();
         pairingPanel.Show();
         connectionPanel.Show();
-        connectionSettingsButton.Text = "Hide server settings";
+        OpenMenuForSetup();
         pairingCodeLabel.Text = "—";
         pairingIdLabel.Text = "—";
         pairingExpiryLabel.Text = string.Empty;
@@ -400,9 +410,10 @@ public partial class Main : Control
             }
 
             Render(reconnect.Baseline.Snapshot, reconnect.Baseline.Events.Events);
-            SetStatus(
-                $"paired owner · protocol {reconnect.Handshake.Protocol.Major}.{reconnect.Handshake.Protocol.Minor} · tick {reconnect.Baseline.Snapshot.WorldTick} · signed observation",
-                good: true);
+            if (!isOwnerAction)
+            {
+                SetStatus(string.Empty, good: true);
+            }
         }
         catch (Exception exception)
         {
@@ -845,67 +856,68 @@ public partial class Main : Control
         backdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         AddChild(backdrop);
 
-        var margin = new MarginContainer();
-        margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        margin.AddThemeConstantOverride("margin_left", 18);
-        margin.AddThemeConstantOverride("margin_right", 18);
-        margin.AddThemeConstantOverride("margin_top", 18);
-        margin.AddThemeConstantOverride("margin_bottom", 18);
-        AddChild(margin);
-
         var root = new VBoxContainer();
-        root.AddThemeConstantOverride("separation", 10);
-        margin.AddChild(root);
+        root.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        root.AddThemeConstantOverride("separation", 0);
+        AddChild(root);
 
-        titleBar.AddThemeConstantOverride("h_separation", 10);
-        titleBar.AddThemeConstantOverride("v_separation", 6);
-        var title = new Label { Text = "AGENTWORLD  /  PRIVATE ALPHA" };
-        title.AddThemeFontSizeOverride("font_size", 24);
-        title.AddThemeColorOverride("font_color", new Color("F0F4EC"));
-        title.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        titleBar.AddChild(title);
-        connectionSettingsButton.Text = "Server settings";
-        StyleButton(connectionSettingsButton);
-        connectionSettingsButton.Pressed += ToggleConnectionSettings;
-        titleBar.AddChild(connectionSettingsButton);
-        root.AddChild(titleBar);
-        statusLabel.Text = "initializing owner device…";
-        statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        statusLabel.AddThemeFontSizeOverride("font_size", 13);
-        statusLabel.Modulate = new Color("A7B9B7");
-        root.AddChild(statusLabel);
-
-        BuildConnectionPanel();
-        root.AddChild(connectionPanel);
-        BuildPairingPanel();
-        root.AddChild(pairingPanel);
-
-        mainContent.Columns = 2;
-        mainContent.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        mainContent.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-        mainContent.AddThemeConstantOverride("h_separation", 12);
-        mainContent.AddThemeConstantOverride("v_separation", 12);
-
-        mainScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        mainScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-        mainScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-        mainScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-        mainScroll.AddChild(mainContent);
-        root.AddChild(mainScroll);
-
-        BuildWorldColumn(mainContent);
-        var sidebar = new VBoxContainer
-        {
-            CustomMinimumSize = new Vector2(286, 0),
-            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-        };
-        sidebar.AddThemeConstantOverride("separation", 10);
-        BuildInspectorColumn(sidebar);
-        BuildOwnerColumn(sidebar);
-        mainContent.AddChild(sidebar);
+        BuildTopBar(root);
+        BuildWorldColumn(root);
+        BuildInspectorColumn(mapCanvas);
+        BuildOwnerColumn(mapCanvas);
+        BuildStatusToast(mapCanvas);
 
         Resized += ApplyResponsiveLayout;
         ApplyResponsiveLayout();
+    }
+
+    private void BuildTopBar(Control content)
+    {
+        var chrome = new PanelContainer
+        {
+            CustomMinimumSize = new Vector2(0, 60),
+        };
+        chrome.AddThemeStyleboxOverride("panel", TopBarStyle());
+        var margin = new MarginContainer();
+        margin.AddThemeConstantOverride("margin_left", 14);
+        margin.AddThemeConstantOverride("margin_right", 14);
+        margin.AddThemeConstantOverride("margin_top", 9);
+        margin.AddThemeConstantOverride("margin_bottom", 9);
+
+        topBar.AddThemeConstantOverride("separation", 8);
+        clockLabel.Text = "Connecting…";
+        clockLabel.AddThemeFontSizeOverride("font_size", 20);
+        clockLabel.AddThemeColorOverride("font_color", new Color("F4F0E3"));
+        topBar.AddChild(clockLabel);
+
+        climateLabel.Text = string.Empty;
+        climateLabel.Modulate = new Color("AFC4BA");
+        climateLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        topBar.AddChild(climateLabel);
+
+        inhabitantsButton.Text = "Inhabitants";
+        StyleButton(inhabitantsButton);
+        inhabitantsButton.Pressed += ToggleInhabitants;
+        topBar.AddChild(inhabitantsButton);
+
+        eventsButton.Text = "Events";
+        StyleButton(eventsButton);
+        eventsButton.Pressed += ToggleEvents;
+        topBar.AddChild(eventsButton);
+
+        pauseButton.Text = "Pause";
+        StyleButton(pauseButton, primary: true);
+        pauseButton.Pressed += () => _ = TogglePauseAsync();
+        topBar.AddChild(pauseButton);
+
+        menuButton.Text = "Menu";
+        StyleButton(menuButton);
+        menuButton.Pressed += () => _ = ToggleGameMenuAsync();
+        topBar.AddChild(menuButton);
+
+        margin.AddChild(topBar);
+        chrome.AddChild(margin);
+        content.AddChild(chrome);
     }
 
     private void BuildConnectionPanel()
@@ -918,13 +930,15 @@ public partial class Main : Control
         connectButton.Text = "Connect";
         connectButton.Pressed += () => _ = ConnectUsingCurrentUrlAsync();
         body.AddChild(connectButton);
-        AddPanelContents(connectionPanel, "Server connection", body);
+        AddPanelContents(connectionPanel, "World connection", body);
     }
 
     private void ToggleConnectionSettings()
     {
-        connectionPanel.Visible = !connectionPanel.Visible;
-        connectionSettingsButton.Text = connectionPanel.Visible ? "Hide server settings" : "Server settings";
+        settingsPanel.Visible = !settingsPanel.Visible;
+        developerScroll.Hide();
+        developerToggleButton.Text = "Developer tools";
+        ApplyResponsiveLayout();
     }
 
     private async Task ConnectUsingCurrentUrlAsync()
@@ -988,130 +1002,145 @@ public partial class Main : Control
 
     private void BuildWorldColumn(Control content)
     {
-        mapCanvas.CustomMinimumSize = new Vector2(680, 430);
         mapCanvas.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         mapCanvas.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        mapCanvas.ClipContents = true;
 
-        worldGrid.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        worldGrid.AddThemeConstantOverride("h_separation", 2);
-        worldGrid.AddThemeConstantOverride("v_separation", 2);
+        var worldBackdrop = new ColorRect
+        {
+            Color = new Color("101A1E"),
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        worldBackdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        mapCanvas.AddChild(worldBackdrop);
+
+        mapStage.MouseFilter = Control.MouseFilterEnum.Ignore;
+        mapCanvas.AddChild(mapStage);
+
+        worldGrid.AddThemeConstantOverride("h_separation", TileGap);
+        worldGrid.AddThemeConstantOverride("v_separation", TileGap);
         worldGrid.MouseFilter = Control.MouseFilterEnum.Ignore;
-        mapCanvas.AddChild(worldGrid);
+        mapStage.AddChild(worldGrid);
 
         objectLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
-        mapCanvas.AddChild(objectLayer);
+        mapStage.AddChild(objectLayer);
 
         entityLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         entityLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
-        mapCanvas.AddChild(entityLayer);
+        mapStage.AddChild(entityLayer);
 
-        BuildWorldHud();
         BuildSelectedInhabitantCard();
-
-        mapScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        mapScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-        mapScroll.CustomMinimumSize = new Vector2(0, 430);
-        mapScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Auto;
-        mapScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
-        mapScroll.AddChild(mapCanvas);
-
-        var panel = NewPanel("WORLD MAP  ·  select a person to inspect them", mapScroll);
-        panel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        panel.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-        content.AddChild(panel);
+        mapCanvas.AddChild(selectedInhabitantCard);
+        content.AddChild(mapCanvas);
     }
 
     private void BuildInspectorColumn(Control content)
     {
-        var body = new VBoxContainer
-        {
-            CustomMinimumSize = new Vector2(340, 0),
-            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-        };
-        body.AddThemeConstantOverride("separation", 8);
-
         var rosterBody = new VBoxContainer();
         rosterBody.AddThemeConstantOverride("separation", 6);
-        rosterSummaryLabel.Text = "Waiting for the signed world projection…";
+        rosterSummaryLabel.Text = "Waiting for the world…";
         rosterSummaryLabel.Modulate = new Color("A7B9B7");
         rosterSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         rosterBody.AddChild(rosterSummaryLabel);
 
-        inhabitantList.CustomMinimumSize = new Vector2(0, 170);
+        inhabitantList.CustomMinimumSize = new Vector2(300, 260);
         inhabitantList.ItemSelected += index => SelectInhabitantFromList(index);
-        inhabitantList.TooltipText = "Select an inhabitant to inspect and compose an instruction.";
-        rosterPanel.AddThemeStyleboxOverride("panel", InnerPanelStyle());
-        rosterPanel.CustomMinimumSize = new Vector2(0, 170);
-        rosterPanel.AddChild(inhabitantList);
-        rosterBody.AddChild(rosterPanel);
-        body.AddChild(NewPanel("INHABITANTS", rosterBody));
+        inhabitantList.TooltipText = "Choose someone to find them in the world.";
+        rosterBody.AddChild(inhabitantList);
+        AddPanelContents(rosterPanel, "Inhabitants", rosterBody);
+        rosterPanel.CustomMinimumSize = new Vector2(330, 330);
+        rosterPanel.ZIndex = 80;
+        rosterPanel.Hide();
+        content.AddChild(rosterPanel);
 
-        body.AddChild(selectedInhabitantCard);
-
-        var clockBody = new VBoxContainer();
-        clockBody.AddThemeConstantOverride("separation", 5);
-        clockWorldValue.Text = "No world loaded";
-        clockWorldValue.AddThemeFontSizeOverride("font_size", 17);
-        clockWorldValue.AddThemeColorOverride("font_color", new Color("F0F4EC"));
-        clockBody.AddChild(clockWorldValue);
-        clockBody.AddChild(MetricRow("World tick", clockTickValue));
-        clockBody.AddChild(MetricRow("State", clockStateValue));
-        clockClimateValue.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        clockClimateValue.Modulate = new Color("A7B9B7");
-        clockBody.AddChild(clockClimateValue);
-        var controlRow = new HBoxContainer();
-        controlRow.AddThemeConstantOverride("separation", 6);
-        pauseButton.Text = "Pause";
-        StyleButton(pauseButton, primary: true);
-        pauseButton.Pressed += () => _ = SetPausedAsync(paused: true);
-        controlRow.AddChild(pauseButton);
-        resumeButton.Text = "Resume";
-        StyleButton(resumeButton);
-        resumeButton.Pressed += () => _ = SetPausedAsync(paused: false);
-        controlRow.AddChild(resumeButton);
-        clockBody.AddChild(controlRow);
-        body.AddChild(NewPanel("WORLD CLOCK", clockBody));
-
-        var cognitionBody = new VBoxContainer();
-        cognitionBody.AddThemeConstantOverride("separation", 4);
-        cognitionProviderValue.Text = "Not reported";
-        cognitionCandidateValue.Text = "No current intention";
-        cognitionRequestValue.Text = "No request in flight";
-        cognitionActivityValue.Text = "No cognition activity received yet.";
-        cognitionActivityValue.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        cognitionActivityValue.Modulate = new Color("A7B9B7");
-        cognitionBody.AddChild(MetricRow("Provider", cognitionProviderValue));
-        cognitionBody.AddChild(MetricRow("Current", cognitionCandidateValue));
-        cognitionBody.AddChild(MetricRow("Request", cognitionRequestValue));
-        cognitionBody.AddChild(cognitionActivityValue);
-        body.AddChild(NewPanel("COGNITION / PROVIDER", cognitionBody));
-
-        ConfigureTextPanel(eventLog, 176);
-        body.AddChild(NewPanel("RECENT EVENTS", eventLog));
-
-        content.AddChild(body);
+        ConfigureTextPanel(eventLog, 300);
+        AddPanelContents(eventsPanel, "Recent events", eventLog);
+        eventsPanel.CustomMinimumSize = new Vector2(390, 360);
+        eventsPanel.ZIndex = 80;
+        eventsPanel.Hide();
+        content.AddChild(eventsPanel);
     }
 
     private void BuildOwnerColumn(Control content)
     {
+        menuShade.Color = new Color(0, 0, 0, 0.46f);
+        menuShade.MouseFilter = Control.MouseFilterEnum.Stop;
+        menuShade.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        menuShade.ZIndex = 90;
+        menuShade.Hide();
+        content.AddChild(menuShade);
+
         var body = new VBoxContainer
         {
-            CustomMinimumSize = new Vector2(340, 0),
+            CustomMinimumSize = new Vector2(520, 0),
             SizeFlagsVertical = Control.SizeFlags.ExpandFill,
         };
         body.AddThemeConstantOverride("separation", 8);
 
-        developerToggleButton.Text = "Developer tools  +";
+        var menuHeading = new HBoxContainer();
+        menuHeadingLabel.Text = "Paused";
+        menuHeadingLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        menuHeadingLabel.AddThemeFontSizeOverride("font_size", 24);
+        menuHeadingLabel.AddThemeColorOverride("font_color", new Color("F4F0E3"));
+        menuHeading.AddChild(menuHeadingLabel);
+        var closeButton = new Button { Text = "×", TooltipText = "Return to the world" };
+        StyleButton(closeButton);
+        closeButton.Pressed += () => _ = CloseGameMenuAsync();
+        menuHeading.AddChild(closeButton);
+        body.AddChild(menuHeading);
+
+        var menuActions = new HBoxContainer();
+        menuActions.AddThemeConstantOverride("separation", 6);
+        menuResumeButton.Text = "Resume";
+        StyleButton(menuResumeButton, primary: true);
+        menuResumeButton.Pressed += () => _ = CloseGameMenuAsync();
+        menuActions.AddChild(menuResumeButton);
+
+        connectionSettingsButton.Text = "Settings";
+        StyleButton(connectionSettingsButton);
+        connectionSettingsButton.Pressed += ToggleConnectionSettings;
+        menuActions.AddChild(connectionSettingsButton);
+
+        developerToggleButton.Text = "Developer tools";
         StyleButton(developerToggleButton);
         developerToggleButton.Pressed += () =>
         {
             developerScroll.Visible = !developerScroll.Visible;
-            developerToggleButton.Text = developerScroll.Visible ? "Developer tools  −" : "Developer tools  +";
+            settingsPanel.Hide();
+            ApplyResponsiveLayout();
         };
-        body.AddChild(developerToggleButton);
+        menuActions.AddChild(developerToggleButton);
 
-        developerScroll.CustomMinimumSize = new Vector2(0, 420);
+        var quitButton = new Button { Text = "Quit" };
+        StyleButton(quitButton);
+        quitButton.Pressed += () => GetTree().Quit();
+        menuActions.AddChild(quitButton);
+        body.AddChild(menuActions);
+
+        var settingsBody = new VBoxContainer();
+        settingsBody.AddThemeConstantOverride("separation", 8);
+        fullscreenToggle.Text = "Fullscreen";
+        fullscreenToggle.ButtonPressed = DisplayServer.WindowGetMode() == DisplayServer.WindowMode.Fullscreen;
+        fullscreenToggle.Toggled += SetFullscreen;
+        settingsBody.AddChild(fullscreenToggle);
+
+        resolutionChoice.AddItem("1280 × 720");
+        resolutionChoice.AddItem("1600 × 900");
+        resolutionChoice.AddItem("1920 × 1080");
+        resolutionChoice.Selected = 0;
+        resolutionChoice.ItemSelected += SetWindowResolution;
+        settingsBody.AddChild(resolutionChoice);
+
+        BuildConnectionPanel();
+        settingsBody.AddChild(connectionPanel);
+        BuildPairingPanel();
+        settingsBody.AddChild(pairingPanel);
+        AddPanelContents(settingsPanel, "Settings", settingsBody);
+        settingsPanel.Hide();
+        body.AddChild(settingsPanel);
+
+        developerScroll.CustomMinimumSize = new Vector2(0, 440);
         developerScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         developerScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
         developerBody.AddThemeConstantOverride("separation", 8);
@@ -1189,85 +1218,169 @@ public partial class Main : Control
         developerBody.AddChild(NewPanel("World projection details", worldDetails));
         developerScroll.Hide();
         body.AddChild(developerScroll);
-        content.AddChild(body);
+        AddPanelContents(gameMenuPanel, body);
+        gameMenuPanel.ZIndex = 100;
+        gameMenuPanel.Hide();
+        content.AddChild(gameMenuPanel);
         UpdateAuthoringHint();
-    }
-
-    private void BuildWorldHud()
-    {
-        var body = new VBoxContainer();
-        body.AddThemeConstantOverride("separation", 4);
-
-        hudWorldLabel.Text = "WORLD OBSERVATION";
-        hudWorldLabel.AddThemeFontSizeOverride("font_size", 16);
-        hudWorldLabel.AddThemeColorOverride("font_color", new Color("F0F4EC"));
-        body.AddChild(hudWorldLabel);
-
-        var statusRow = new HBoxContainer();
-        statusRow.AddThemeConstantOverride("separation", 10);
-        hudTickLabel.Text = "tick —";
-        hudStateLabel.Text = "CONNECTING";
-        hudSelectionLabel.Text = "No one selected";
-        hudSelectionLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        statusRow.AddChild(hudTickLabel);
-        statusRow.AddChild(hudStateLabel);
-        statusRow.AddChild(hudSelectionLabel);
-        body.AddChild(statusRow);
-
-        mapLegendLabel.Text = "meadow · water · mountain   /   people are selectable";
-        mapLegendLabel.Modulate = new Color("A7B9B7");
-        mapLegendLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-        body.AddChild(mapLegendLabel);
-
-        AddPanelContents(worldHud, body);
-        worldHud.CustomMinimumSize = new Vector2(360, 0);
-        worldHud.Position = new Vector2(14, 14);
-        worldHud.ZIndex = 30;
-        worldHud.MouseFilter = Control.MouseFilterEnum.Ignore;
-        mapCanvas.AddChild(worldHud);
     }
 
     private void BuildSelectedInhabitantCard()
     {
         var body = new VBoxContainer();
         body.AddThemeConstantOverride("separation", 6);
-        selectedActorNameLabel.Text = "No inhabitant selected";
+
+        var heading = new HBoxContainer();
+        selectedActorNameLabel.Text = string.Empty;
         selectedActorNameLabel.AddThemeFontSizeOverride("font_size", 18);
         selectedActorNameLabel.AddThemeColorOverride("font_color", new Color("F0F4EC"));
-        body.AddChild(selectedActorNameLabel);
+        selectedActorNameLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        heading.AddChild(selectedActorNameLabel);
+        clearSelectionButton.Text = "×";
+        clearSelectionButton.TooltipText = "Close";
+        StyleButton(clearSelectionButton);
+        clearSelectionButton.Pressed += ClearInhabitantSelection;
+        heading.AddChild(clearSelectionButton);
+        body.AddChild(heading);
+
         selectedActorSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         selectedActorSummaryLabel.Modulate = new Color("A7B9B7");
         body.AddChild(selectedActorSummaryLabel);
 
-        ConfigureTextPanel(inhabitantDetails, 112);
+        ConfigureTextPanel(inhabitantDetails, 96);
         body.AddChild(inhabitantDetails);
 
-        ConfigureTextPanel(inhabitantSocialDetails, 82);
+        ConfigureTextPanel(inhabitantSocialDetails, 62);
         body.AddChild(inhabitantSocialDetails);
 
-        clearSelectionButton.Text = "Clear selection";
-        StyleButton(clearSelectionButton);
-        clearSelectionButton.Pressed += ClearInhabitantSelection;
-        body.AddChild(clearSelectionButton);
-
-        var instructionHeading = new Label { Text = "Compose an instruction" };
+        var instructionHeading = new Label { Text = "Speak to them" };
         instructionHeading.AddThemeFontSizeOverride("font_size", 13);
         instructionHeading.AddThemeColorOverride("font_color", new Color("D8C6A5"));
         body.AddChild(instructionHeading);
         instructionKind.AddItem("Suggestion", 0);
-        instructionKind.AddItem("Must-do", 1);
+        instructionKind.AddItem("Direct order", 1);
         instructionKind.CustomMinimumSize = new Vector2(0, 32);
         body.AddChild(instructionKind);
-        instructionText.PlaceholderText = "What should they do?";
+        instructionText.PlaceholderText = "Say something…";
         instructionText.CustomMinimumSize = new Vector2(0, 34);
         body.AddChild(instructionText);
-        submitInstructionButton.Text = "Instruct inhabitant";
+        submitInstructionButton.Text = "Send";
         StyleButton(submitInstructionButton, primary: true);
         submitInstructionButton.Pressed += () => _ = SubmitInstructionAsync();
         body.AddChild(submitInstructionButton);
 
-        AddPanelContents(selectedInhabitantCard, "SELECTED INHABITANT", body);
-        selectedInhabitantCard.CustomMinimumSize = new Vector2(340, 0);
+        AddPanelContents(selectedInhabitantCard, body);
+        selectedInhabitantCard.CustomMinimumSize = new Vector2(350, 0);
+        selectedInhabitantCard.ZIndex = 70;
+        selectedInhabitantCard.Hide();
+    }
+
+    private void BuildStatusToast(Control content)
+    {
+        statusLabel.Text = "Connecting…";
+        statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        statusLabel.HorizontalAlignment = HorizontalAlignment.Center;
+        statusLabel.CustomMinimumSize = new Vector2(320, 0);
+        AddPanelContents(statusToast, statusLabel);
+        statusToast.ZIndex = 120;
+        statusToast.Hide();
+        content.AddChild(statusToast);
+    }
+
+    private void ToggleInhabitants()
+    {
+        var show = !rosterPanel.Visible;
+        eventsPanel.Hide();
+        rosterPanel.Visible = show;
+    }
+
+    private void ToggleEvents()
+    {
+        var show = !eventsPanel.Visible;
+        rosterPanel.Hide();
+        eventsPanel.Visible = show;
+    }
+
+    private async Task TogglePauseAsync()
+    {
+        var paused = observationSession.Current?.Baseline.Snapshot.Authoring?.IsPaused == true;
+        await SetPausedAsync(!paused);
+    }
+
+    private async Task ToggleGameMenuAsync()
+    {
+        if (gameMenuPanel.Visible)
+        {
+            await CloseGameMenuAsync();
+            return;
+        }
+
+        rosterPanel.Hide();
+        eventsPanel.Hide();
+        menuHeadingLabel.Text = "Paused";
+        gameMenuPanel.Show();
+        menuShade.Show();
+        ApplyResponsiveLayout();
+
+        var paused = observationSession.Current?.Baseline.Snapshot.Authoring?.IsPaused == true;
+        menuPausedWorld = observationSession.Current is not null && !paused;
+        if (menuPausedWorld)
+        {
+            await SetPausedAsync(paused: true);
+        }
+    }
+
+    private async Task CloseGameMenuAsync()
+    {
+        var resumeWorld = menuPausedWorld;
+        CloseGameMenu();
+        if (resumeWorld)
+        {
+            await SetPausedAsync(paused: false);
+        }
+    }
+
+    private void CloseGameMenu()
+    {
+        gameMenuPanel.Hide();
+        menuShade.Hide();
+        settingsPanel.Hide();
+        developerScroll.Hide();
+        menuPausedWorld = false;
+    }
+
+    private void OpenMenuForSetup()
+    {
+        menuPausedWorld = false;
+        menuHeadingLabel.Text = "Set up your world";
+        gameMenuPanel.Show();
+        menuShade.Show();
+        settingsPanel.Show();
+        developerScroll.Hide();
+        ApplyResponsiveLayout();
+    }
+
+    private static void SetFullscreen(bool enabled)
+    {
+        DisplayServer.WindowSetMode(enabled
+            ? DisplayServer.WindowMode.Fullscreen
+            : DisplayServer.WindowMode.Windowed);
+    }
+
+    private void SetWindowResolution(long index)
+    {
+        if (fullscreenToggle.ButtonPressed)
+        {
+            return;
+        }
+
+        var size = index switch
+        {
+            1 => new Vector2I(1600, 900),
+            2 => new Vector2I(1920, 1080),
+            _ => new Vector2I(1280, 720),
+        };
+        DisplayServer.WindowSetSize(size);
     }
 
     private void AddAuthoringKinds()
@@ -1354,22 +1467,17 @@ public partial class Main : Control
         }
 
         var mapWidth = snapshot.Tiles.Max(tile => tile.X) + 1;
-        var mapHeight = snapshot.Tiles.Max(tile => tile.Y) + 1;
+        UpdateMapGeometry(snapshot);
         worldGrid.Columns = mapWidth;
-        mapCanvas.CustomMinimumSize = new Vector2(
-            Math.Max(mapCanvas.CustomMinimumSize.X, mapWidth * TileSize),
-            Math.Max(mapCanvas.CustomMinimumSize.Y, mapHeight * TileSize));
-        var drafts = snapshot.Inhabitants
-            .Where(inhabitant => inhabitant.IsDraft)
-            .ToDictionary(inhabitant => PositionKey(inhabitant.Position));
         foreach (var tile in snapshot.Tiles.OrderBy(tile => tile.Y).ThenBy(tile => tile.X))
         {
             var key = $"{tile.X},{tile.Y}";
             var cell = new Button
             {
                 Text = TerrainMarker(tile.Terrain),
-                CustomMinimumSize = new Vector2(TileSize, TileSize),
+                CustomMinimumSize = new Vector2(currentTileSize, currentTileSize),
                 TooltipText = $"{tile.Terrain} at {key}",
+                MouseFilter = Control.MouseFilterEnum.Ignore,
             };
             cell.AddThemeFontSizeOverride("font_size", 13);
             cell.AddThemeColorOverride("font_color", new Color("E6F0E8"));
@@ -1396,30 +1504,24 @@ public partial class Main : Control
                 Pretty(mapObject.Kind));
         }
 
-        foreach (var draft in drafts.Values)
-        {
-            AddMapObjectVisual(
-                draft.Position,
-                "?",
-                "DRAFT",
-                $"{draft.DisplayName} · authoring draft");
-        }
-
         foreach (var group in snapshot.Inhabitants
+            .Where(inhabitant => !inhabitant.IsDraft)
             .GroupBy(inhabitant => PositionKey(inhabitant.Position)))
         {
             var occupants = group.ToArray();
             for (var index = 0; index < occupants.Length; index++)
             {
                 var inhabitant = occupants[index];
-                var offsetX = (index % 2) * 30 + 7;
-                var offsetY = (index / 2) * 30 + 7;
+                var stride = currentTileSize + TileGap;
+                var actorSize = Math.Clamp(currentTileSize * 0.5f, 52, 78);
+                var offsetX = ((currentTileSize - actorSize) / 2) + ((index % 2) * 22);
+                var offsetY = ((currentTileSize - actorSize) / 2) + ((index / 2) * 22);
                 var actorButton = new Button
                 {
                     Text = $"●\n{ActorLabel(inhabitant.DisplayName)}",
                     TooltipText = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)}",
-                    Position = new Vector2(inhabitant.Position.X * TileSize + offsetX, inhabitant.Position.Y * TileSize + offsetY),
-                    CustomMinimumSize = new Vector2(64, 64),
+                    Position = new Vector2(inhabitant.Position.X * stride + offsetX, inhabitant.Position.Y * stride + offsetY),
+                    CustomMinimumSize = new Vector2(actorSize, actorSize),
                     ZIndex = 10,
                 };
                 actorButton.AddThemeColorOverride("font_color", Colors.White);
@@ -1433,6 +1535,7 @@ public partial class Main : Control
             }
         }
 
+        PositionSelectedInhabitantCard(snapshot);
     }
 
     private void AddMapObjectVisual(
@@ -1441,11 +1544,12 @@ public partial class Main : Control
         string label,
         string tooltip)
     {
+        var stride = currentTileSize + TileGap;
         var visual = new Label
         {
             Text = $"{glyph}\n{label}",
-            Position = new Vector2(position.X * TileSize + 4, position.Y * TileSize + 4),
-            Size = new Vector2(TileSize - 8, TileSize - 8),
+            Position = new Vector2(position.X * stride + 4, position.Y * stride + 4),
+            Size = new Vector2(currentTileSize - 8, currentTileSize - 8),
             TooltipText = tooltip,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
@@ -1462,22 +1566,14 @@ public partial class Main : Control
 
     private void RenderWorldHud(OwnerWorldSnapshot snapshot)
     {
-        hudWorldLabel.Text = Pretty(snapshot.WorldId).ToUpperInvariant();
-        hudTickLabel.Text = $"TICK {snapshot.WorldTick:N0}";
         var paused = snapshot.Authoring?.IsPaused == true;
-        hudStateLabel.Text = paused ? "PAUSED" : "RUNNING";
-        hudStateLabel.Modulate = new Color(paused ? "F3C77B" : "B9E8C5");
-        hudSelectionLabel.Text = selectedInhabitantId is null
-            ? "No one selected"
-            : $"Selected: {snapshot.Inhabitants.FirstOrDefault(item => string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal))?.DisplayName ?? "unknown"}";
-
-        clockWorldValue.Text = Pretty(snapshot.WorldId);
-        clockTickValue.Text = snapshot.WorldTick.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
-        clockStateValue.Text = paused ? "PAUSED · owner control" : "RUNNING";
-        clockStateValue.Modulate = new Color(paused ? "F3C77B" : "B9E8C5");
-        clockClimateValue.Text = snapshot.Authoring is { } authoring
-            ? $"Weather  {Pretty(authoring.Weather)}   ·   Season  {Pretty(authoring.Season)}"
-            : "Weather and season are not reported by this projection.";
+        clockLabel.Text = GameUiText.FormatWorldClock(snapshot.WorldTick);
+        climateLabel.Text = snapshot.Authoring is { } authoring
+            ? $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}"
+            : string.Empty;
+        pauseButton.Text = paused ? "Play" : "Pause";
+        pauseButton.TooltipText = paused ? "Resume the world" : "Pause the world";
+        menuResumeButton.Text = menuPausedWorld ? "Resume" : "Close menu";
     }
 
     private void RenderInhabitantList(OwnerWorldSnapshot snapshot)
@@ -1486,19 +1582,17 @@ public partial class Main : Control
         var selectionFound = false;
         inhabitantList.Clear();
         var inhabitants = snapshot.Inhabitants
-            .OrderBy(inhabitant => inhabitant.IsDraft ? 1 : 0)
-            .ThenBy(inhabitant => inhabitant.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Where(inhabitant => !inhabitant.IsDraft)
+            .OrderBy(inhabitant => inhabitant.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        var activeCount = inhabitants.Count(inhabitant => !inhabitant.IsDraft);
         rosterSummaryLabel.Text = inhabitants.Length == 0
-            ? "No inhabitants are present in this signed projection."
-            : $"{activeCount} active  ·  {inhabitants.Count(inhabitant => inhabitant.IsDraft)} draft  ·  click a name or map marker";
+            ? "No one lives here yet."
+            : inhabitants.Length == 1 ? "1 inhabitant" : $"{inhabitants.Length} inhabitants";
 
         for (var index = 0; index < inhabitants.Length; index++)
         {
             var inhabitant = inhabitants[index];
-            var state = inhabitant.IsDraft ? "draft" : Pretty(inhabitant.Lifecycle);
-            inhabitantList.AddItem($"{inhabitant.DisplayName}   ·   {state}");
+            inhabitantList.AddItem($"{inhabitant.DisplayName}   ·   {Pretty(inhabitant.Lifecycle)}");
             inhabitantList.SetItemMetadata(index, inhabitant.Id);
             if (string.Equals(inhabitant.Id, previousSelection, StringComparison.Ordinal))
             {
@@ -1521,7 +1615,6 @@ public partial class Main : Control
         inhabitantDetails.Clear();
         if (inhabitant is null)
         {
-            inhabitantDetails.AppendText("Select an inhabitant to inspect its server projection.");
             return;
         }
 
@@ -1534,13 +1627,10 @@ public partial class Main : Control
         var destination = inhabitant.Route.Destination is { } routeDestination
             ? $" toward {routeDestination.X}, {routeDestination.Y}"
             : string.Empty;
-        var knowledge = $"{inhabitant.SpatialKnowledge.PerceivedTiles.Count} perceived · {inhabitant.SpatialKnowledge.KnownTiles.Count} known";
         inhabitantDetails.AppendText(
-            $"{Pretty(inhabitant.Lifecycle)}  ·  {currentActivity}{destination}\n" +
-            $"Position  {inhabitant.Position.X}, {inhabitant.Position.Y}\n" +
-            $"Needs  hunger {NeedPercent(inhabitant.HungerBasisPoints)}%  ·  energy {NeedPercent(inhabitant.EnergyBasisPoints)}%\n" +
-            $"Carrying  {inventory}\n" +
-            $"Spatial knowledge  {knowledge}");
+            $"{currentActivity}{destination}\n" +
+            $"Hunger {NeedPercent(inhabitant.HungerBasisPoints)}%  ·  Energy {NeedPercent(inhabitant.EnergyBasisPoints)}%\n" +
+            $"Carrying {inventory}");
     }
 
     private void RenderSelectedInhabitantCard(OwnerWorldSnapshot snapshot)
@@ -1549,34 +1639,32 @@ public partial class Main : Control
             string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal));
         if (inhabitant is null)
         {
-            selectedActorNameLabel.Text = "No inhabitant selected";
-            selectedActorSummaryLabel.Text = "Choose a person from the map or roster to inspect them and compose an instruction.";
+            selectedActorNameLabel.Text = string.Empty;
+            selectedActorSummaryLabel.Text = string.Empty;
             inhabitantSocialDetails.Clear();
-            inhabitantSocialDetails.AppendText("Public intention and relationships appear here.");
-            selectedInhabitantCard.Show();
+            selectedInhabitantCard.Hide();
             return;
         }
 
         selectedActorNameLabel.Text = inhabitant.DisplayName;
-        selectedActorSummaryLabel.Text =
-            $"{Pretty(inhabitant.Lifecycle)}  ·  {Pretty(inhabitant.Route.Status)}  ·  {inhabitant.Position.X}, {inhabitant.Position.Y}\n" +
-            (inhabitant.IsDraft ? "Draft only · instructions are unavailable until the server reports an active inhabitant." : "Ready for an owner instruction.");
+        selectedActorSummaryLabel.Text = Pretty(inhabitant.Lifecycle);
         var intention = inhabitant.PublicIntention is { } publicIntention
-            ? $"Public intention  {Pretty(publicIntention.Summary)} · {Pretty(publicIntention.Provider)} · tick {publicIntention.WorldTick:N0}"
-            : "Public intention  not reported yet";
+            ? $"Wants to {GameUiText.HumanizeIdentifier(publicIntention.Summary).ToLowerInvariant()}."
+            : "Taking in their surroundings.";
         var relationships = inhabitant.Relationships.Count == 0
-            ? "Relationships  none currently reported"
-            : "Relationships  " + string.Join(
+            ? "No close relationships yet."
+            : string.Join(
                 "; ",
                 inhabitant.Relationships.Select(relationship =>
                 {
                     var other = snapshot.Inhabitants.FirstOrDefault(item => item.Id == relationship.OtherPartyId)?.DisplayName
                         ?? Pretty(relationship.OtherPartyId);
-                    return $"{other} ({Pretty(relationship.Type)}, {Pretty(relationship.State)})";
+                    return $"{Pretty(relationship.Type)} with {other} · {Pretty(relationship.State)}";
                 }));
         inhabitantSocialDetails.Clear();
         inhabitantSocialDetails.AppendText($"{intention}\n{relationships}");
         selectedInhabitantCard.Show();
+        PositionSelectedInhabitantCard(snapshot);
     }
 
     private void RenderCognition(OwnerWorldSnapshot snapshot)
@@ -1649,9 +1737,23 @@ public partial class Main : Control
     private void RenderEventLog()
     {
         eventLog.Clear();
-        foreach (var worldEvent in knownEvents.Values.OrderBy(item => item.EventId).TakeLast(80))
+        var snapshot = observationSession.Current?.Baseline.Snapshot;
+        var events = knownEvents.Values
+            .Where(worldEvent => GameUiText.IsPlayerFacingEvent(worldEvent.Kind))
+            .OrderByDescending(worldEvent => worldEvent.EventId)
+            .Take(30)
+            .ToArray();
+        if (events.Length == 0)
         {
-            eventLog.AppendText($"#{worldEvent.EventId} · tick {worldEvent.WorldTick}\n{worldEvent.Kind}: {worldEvent.Detail}\n\n");
+            eventLog.AppendText("Nothing notable has happened yet.");
+            return;
+        }
+
+        foreach (var worldEvent in events)
+        {
+            eventLog.AppendText(
+                $"{GameUiText.FormatWorldClock(worldEvent.WorldTick)}\n" +
+                $"{DescribeWorldEvent(worldEvent, snapshot)}\n\n");
         }
     }
 
@@ -1670,6 +1772,7 @@ public partial class Main : Control
         }
 
         selectedInhabitantId = inhabitantId;
+        rosterPanel.Hide();
         if (observationSession.Current is { } current)
         {
             RenderInhabitantDetails(current.Baseline.Snapshot);
@@ -1726,8 +1829,7 @@ public partial class Main : Control
         var actionDisabled = !paired || isOwnerAction || pendingSubmission is not null;
         worldUrlInput.Editable = registration is null && pendingPairing is null && !isPairingOperation && !isOwnerAction && !isRefreshing;
         connectButton.Disabled = registeredEndpointInvalid || pendingPairing is not null || isPairingOperation || isOwnerAction || isRefreshing;
-        pauseButton.Disabled = actionDisabled || paused;
-        resumeButton.Disabled = actionDisabled || !paused;
+        pauseButton.Disabled = actionDisabled || snapshot is null;
         submitInstructionButton.Disabled = actionDisabled || selected is null || selected.IsDraft;
         submitAuthoringButton.Disabled = actionDisabled || !paused;
         authoringKind.Disabled = actionDisabled || !paused;
@@ -1775,19 +1877,99 @@ public partial class Main : Control
 
     private void ApplyResponsiveLayout()
     {
-        var width = Size.X;
-        mainContent.Columns = width < 1_120 ? 1 : 2;
-        titleBar.Columns = width < 720 ? 1 : 2;
-        var mapMinimumWidth = width < 900 ? 480f : 680f;
-        var mapMinimumHeight = width < 900 ? 360f : 430f;
-        if (observationSession.Current?.Baseline.Snapshot is { Tiles.Count: > 0 } snapshot)
+        var viewport = mapCanvas.Size;
+        if (viewport.X <= 0 || viewport.Y <= 0)
         {
-            mapMinimumWidth = Math.Max(mapMinimumWidth, (snapshot.Tiles.Max(tile => tile.X) + 1) * TileSize);
-            mapMinimumHeight = Math.Max(mapMinimumHeight, (snapshot.Tiles.Max(tile => tile.Y) + 1) * TileSize);
+            return;
         }
 
-        mapCanvas.CustomMinimumSize = new Vector2(mapMinimumWidth, mapMinimumHeight);
-        mapScroll.CustomMinimumSize = new Vector2(0, mapMinimumHeight);
+        climateLabel.Visible = Size.X >= 820;
+
+        if (observationSession.Current?.Baseline.Snapshot is { Tiles.Count: > 0 } snapshot)
+        {
+            var previousTileSize = currentTileSize;
+            UpdateMapGeometry(snapshot);
+            if (previousTileSize != currentTileSize)
+            {
+                RenderMap(snapshot);
+            }
+            else
+            {
+                PositionSelectedInhabitantCard(snapshot);
+            }
+        }
+
+        rosterPanel.Position = new Vector2(14, 14);
+        eventsPanel.Position = new Vector2(
+            Math.Max(14, viewport.X - Math.Max(eventsPanel.Size.X, eventsPanel.CustomMinimumSize.X) - 14),
+            14);
+
+        var menuWidth = Math.Min(560, Math.Max(320, viewport.X - 28));
+        gameMenuPanel.CustomMinimumSize = new Vector2(menuWidth, 0);
+        var menuSize = gameMenuPanel.GetCombinedMinimumSize();
+        gameMenuPanel.Position = new Vector2(
+            Math.Max(14, (viewport.X - menuWidth) / 2),
+            Math.Max(14, (viewport.Y - menuSize.Y) / 2));
+
+        var toastSize = statusToast.GetCombinedMinimumSize();
+        statusToast.Position = new Vector2(
+            Math.Max(14, (viewport.X - toastSize.X) / 2),
+            Math.Max(14, viewport.Y - toastSize.Y - 18));
+    }
+
+    private void UpdateMapGeometry(OwnerWorldSnapshot snapshot)
+    {
+        if (snapshot.Tiles.Count == 0 || mapCanvas.Size.X <= 0 || mapCanvas.Size.Y <= 0)
+        {
+            return;
+        }
+
+        var mapWidth = snapshot.Tiles.Max(tile => tile.X) + 1;
+        var mapHeight = snapshot.Tiles.Max(tile => tile.Y) + 1;
+        var availableWidth = Math.Max(1, mapCanvas.Size.X - 36 - ((mapWidth - 1) * TileGap));
+        var availableHeight = Math.Max(1, mapCanvas.Size.Y - 36 - ((mapHeight - 1) * TileGap));
+        var fittedTileSize = (int)Math.Floor(Math.Min(availableWidth / mapWidth, availableHeight / mapHeight));
+        currentTileSize = Math.Clamp(fittedTileSize, 12, 220);
+
+        var stageSize = new Vector2(
+            (mapWidth * currentTileSize) + ((mapWidth - 1) * TileGap),
+            (mapHeight * currentTileSize) + ((mapHeight - 1) * TileGap));
+        mapStage.Size = stageSize;
+        mapStage.Position = new Vector2(
+            Math.Max(0, (mapCanvas.Size.X - stageSize.X) / 2),
+            Math.Max(0, (mapCanvas.Size.Y - stageSize.Y) / 2));
+    }
+
+    private void PositionSelectedInhabitantCard(OwnerWorldSnapshot snapshot)
+    {
+        if (!selectedInhabitantCard.Visible || mapCanvas.Size.X <= 0 || mapCanvas.Size.Y <= 0)
+        {
+            return;
+        }
+
+        var inhabitant = snapshot.Inhabitants.FirstOrDefault(item =>
+            string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal));
+        if (inhabitant is null)
+        {
+            return;
+        }
+
+        var cardWidth = Math.Min(370, Math.Max(300, mapCanvas.Size.X - 24));
+        selectedInhabitantCard.CustomMinimumSize = new Vector2(cardWidth, 0);
+        var cardSize = selectedInhabitantCard.GetCombinedMinimumSize();
+        var stride = currentTileSize + TileGap;
+        var actorCenter = mapStage.Position + new Vector2(
+            (inhabitant.Position.X * stride) + (currentTileSize / 2f),
+            (inhabitant.Position.Y * stride) + (currentTileSize / 2f));
+        var x = Math.Clamp(actorCenter.X - (cardWidth / 2), 12, Math.Max(12, mapCanvas.Size.X - cardWidth - 12));
+        var y = actorCenter.Y - (currentTileSize / 2f) - cardSize.Y - 12;
+        if (y < 12)
+        {
+            y = actorCenter.Y + (currentTileSize / 2f) + 12;
+        }
+
+        y = Math.Clamp(y, 12, Math.Max(12, mapCanvas.Size.Y - cardSize.Y - 12));
+        selectedInhabitantCard.Position = new Vector2(x, y);
     }
 
     private static PanelContainer NewPanel(string title, Control content)
@@ -1920,6 +2102,17 @@ public partial class Main : Control
         CornerRadiusBottomRight = 10,
     };
 
+    private static StyleBoxFlat TopBarStyle() => new()
+    {
+        BgColor = new Color("162127"),
+        BorderWidthBottom = 1,
+        BorderColor = new Color("314A4A"),
+        ContentMarginLeft = 0,
+        ContentMarginRight = 0,
+        ContentMarginTop = 0,
+        ContentMarginBottom = 0,
+    };
+
     private Uri ResolveWorldUri()
     {
         if (!WorldServerOrigin.TryResolve(worldUrlInput.Text, out var configuredWorldUri))
@@ -1965,8 +2158,16 @@ public partial class Main : Control
 
     private void SetStatus(string text, bool good)
     {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            statusToast.Hide();
+            return;
+        }
+
         statusLabel.Text = text;
         statusLabel.Modulate = new Color(good ? "B9E8C5" : "F0B6A6");
+        statusToast.Show();
+        ApplyResponsiveLayout();
     }
 
     private void ShowHeldState(string reason)
@@ -1985,6 +2186,43 @@ public partial class Main : Control
             $"HTTP {(int)requestException.StatusCode.Value} {requestException.StatusCode.Value}",
         _ => exception.Message,
     };
+
+    private static string DescribeWorldEvent(OwnerWorldEvent worldEvent, OwnerWorldSnapshot? snapshot)
+    {
+        var parts = worldEvent.Detail.Split(':', StringSplitOptions.RemoveEmptyEntries);
+        string NameAt(int index)
+        {
+            if (index >= parts.Length)
+            {
+                return "Someone";
+            }
+
+            return snapshot?.Inhabitants.FirstOrDefault(inhabitant => inhabitant.Id == parts[index])?.DisplayName
+                ?? GameUiText.HumanizeIdentifier(parts[index]);
+        }
+
+        string ThingAt(int index) => index < parts.Length
+            ? GameUiText.HumanizeIdentifier(parts[index])
+            : "something new";
+
+        return worldEvent.Kind switch
+        {
+            "world_created" => "A new world has begun.",
+            "weather_changed" when parts.Length >= 2 => $"The weather changed to {ThingAt(1)}.",
+            "building_placed" => $"{ThingAt(1)} was built.",
+            "build_started" => $"Work began on {ThingAt(1)}.",
+            "build_completed" => $"{ThingAt(1)} is ready.",
+            "recipe_started" => $"Work began on {ThingAt(1)}.",
+            "recipe_completed" => $"{ThingAt(1)} was finished.",
+            "food_harvested" => $"{NameAt(0)} gathered food.",
+            "food_consumed" => $"{NameAt(0)} ate.",
+            "inhabitant_slept" => $"{NameAt(0)} slept.",
+            "inhabitant_removed" => $"{NameAt(0)} is no longer in the world.",
+            "paused" => "The world was paused.",
+            "resumed" => "The world resumed.",
+            _ => $"{GameUiText.HumanizeIdentifier(worldEvent.Kind)}.",
+        };
+    }
 
     private static string PositionKey(OwnerWorldPosition position) => $"{position.X},{position.Y}";
 
