@@ -8,6 +8,7 @@ Type=simple
 User=clanker
 Group=clanker
 WorkingDirectory=/opt/agentworld-viewer
+EnvironmentFile=-/etc/agentworld-viewer/provider.env
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=AgentWorld__Runtime__WorldMode=private
 Environment=AgentWorld__Runtime__AdvanceScript=true

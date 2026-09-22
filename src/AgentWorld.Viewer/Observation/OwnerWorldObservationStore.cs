@@ -535,9 +535,17 @@ public sealed class OwnerWorldObservationStore
             return new ViewerRoute("consume", null, null, [], state.Map.ManifestDigest);
         }
 
+        var bedroll = state.Map.GetObject("bedroll");
+        if (physical.EnergyBasisPoints < 1_500)
+        {
+            return IsWithinInteractionRange(physical.Position, bedroll.Position)
+                ? new ViewerRoute("sleep", bedroll.Id, ToPosition(bedroll.Position), [], state.Map.ManifestDigest)
+                : RouteTo(state.Map, physical.Position, bedroll.Position, "sleep", bedroll.Id);
+        }
+
         var berry = state.Map.GetResource("berry-patch");
         var berryState = state.Resources.FirstOrDefault(item => item.ResourceId == berry.Id)?.State;
-        if (berryState == ResourceState.Available && physical.Position == berry.Position)
+        if (berryState == ResourceState.Available && IsWithinInteractionRange(physical.Position, berry.Position))
         {
             return new ViewerRoute("harvest", berry.Id, ToPosition(berry.Position), [], state.Map.ManifestDigest);
         }
@@ -547,16 +555,18 @@ public sealed class OwnerWorldObservationStore
             return RouteTo(state.Map, physical.Position, berry.Position, "seek_food", berry.Id);
         }
 
-        var bedroll = state.Map.GetObject("bedroll");
         if (physical.EnergyBasisPoints < 3_500)
         {
-            return physical.Position == bedroll.Position
+            return IsWithinInteractionRange(physical.Position, bedroll.Position)
                 ? new ViewerRoute("sleep", bedroll.Id, ToPosition(bedroll.Position), [], state.Map.ManifestDigest)
                 : RouteTo(state.Map, physical.Position, bedroll.Position, "sleep", bedroll.Id);
         }
 
         return new ViewerRoute("idle", null, null, [], state.Map.ManifestDigest);
     }
+
+    private static bool IsWithinInteractionRange(GridPoint origin, GridPoint destination) =>
+        Math.Abs(origin.X - destination.X) + Math.Abs(origin.Y - destination.Y) <= 1;
 
     private static ViewerRoute DetermineFixtureRoute(HarnessWorld world)
     {

@@ -206,7 +206,10 @@ public sealed class PrivateWorldRuntimeTests
         Activate(runtime, package);
         _ = await runtime.AdvanceOneTickAsync();
 
-        var worker = runtime.Inhabitants.Single(item => item.InhabitantId == "founder-rowan");
+        var occupiedMapPositions = runtime.ExportState().Map.CampObjects.Select(item => item.Position)
+            .Concat(runtime.ExportState().Map.Resources.Select(item => item.Position))
+            .ToHashSet();
+        var worker = runtime.Inhabitants.First(item => !occupiedMapPositions.Contains(item.Position));
         var rejected = runtime.PlaceBuilding("blocked-kitchen", building.CanonicalId, new GridPoint(0, 0));
         Assert.False(rejected.Applied);
         Assert.Equal(48, runtime.Society.Inventory.Lots.Single(item => item.Id == "wood:camp-alpha").Quantity);
@@ -319,6 +322,88 @@ public sealed class PrivateWorldRuntimeTests
             PrivateWorldRuntimeCodec.Encode(runtime.ExportState()),
             PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
         Assert.Equal(runtime.Society.Inventory.Lots, restored.Society.Inventory.Lots);
+    }
+
+    [Fact]
+    public async Task PrivateWorldRecoversFromTheLiveOccupiedTileStarvationDeadlock()
+    {
+        using var genesis = new PrivateWorldRuntime("playtest-alpha");
+        var state = genesis.ExportState();
+        var stuckPositions = new Dictionary<string, GridPoint>(StringComparer.Ordinal)
+        {
+            ["founder-ilya"] = new GridPoint(4, 1),
+            ["founder-mira"] = new GridPoint(2, 1),
+            ["founder-rowan"] = new GridPoint(3, 1),
+            ["founder-scout"] = new GridPoint(4, 0),
+        };
+        state = state with
+        {
+            Inhabitants = state.Inhabitants
+                .Select(inhabitant => inhabitant with
+                {
+                    Position = stuckPositions[inhabitant.InhabitantId],
+                    HungerBasisPoints = 0,
+                    EnergyBasisPoints = 0,
+                    MoveWaitTicks = 4_500,
+                })
+                .ToArray(),
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Inventory = state.Society.Society.Inventory with
+                    {
+                        Lots = state.Society.Society.Inventory.Lots
+                            .Where(lot => lot.Id != "food:camp-alpha")
+                            .ToArray(),
+                    },
+                },
+            },
+        };
+        var provider = new CountingSelectingProvider(DecisionProviderKind.Deterministic);
+        using var runtime = PrivateWorldRuntime.Restore(state, _ => provider);
+
+        for (var tick = 0; tick < 120; tick++)
+        {
+            _ = await runtime.AdvanceOneTickAsync();
+        }
+
+        var recovered = runtime.ExportState();
+        Assert.Contains(recovered.Events, item => item.Kind == "inhabitant_slept");
+        Assert.Contains(recovered.Events, item => item.Kind == "food_harvested");
+        Assert.Contains(recovered.Events, item => item.Kind == "food_consumed");
+        Assert.Contains(recovered.Events, item => item.Kind == "inhabitant_moved" && item.WorldTick > 1);
+        Assert.All(recovered.Inhabitants, inhabitant =>
+        {
+            Assert.True(
+                inhabitant.HungerBasisPoints > 0,
+                $"{inhabitant.InhabitantId}: " + string.Join(", ", recovered.Events
+                    .Where(item => item.Detail.StartsWith(inhabitant.InhabitantId, StringComparison.Ordinal) &&
+                        item.Kind is "food_harvested" or "food_consumed" or "harvest_failed")
+                    .Select(item => $"{item.WorldTick}:{item.Kind}:{item.Detail}")));
+            Assert.True(inhabitant.EnergyBasisPoints > 0, inhabitant.InhabitantId);
+        });
+        Assert.Equal(4, recovered.Inhabitants.Select(item => item.Position).Distinct().Count());
+        Assert.True(provider.CallCount < 100, $"Expected fewer than 100 cognition calls, got {provider.CallCount}.");
+    }
+
+    [Fact]
+    public async Task PrivateWorldAcceptsJevIntentionsAndExecutesThemBetweenReevaluations()
+    {
+        var provider = new CountingSelectingProvider(DecisionProviderKind.Jev);
+        using var runtime = new PrivateWorldRuntime("playtest-alpha", _ => provider);
+
+        for (var tick = 0; tick < 10; tick++)
+        {
+            _ = await runtime.AdvanceOneTickAsync();
+        }
+
+        var cognition = runtime.ExportState().Society.Cognition;
+        Assert.All(cognition.Runtimes, item =>
+            Assert.Equal(DecisionProviderKind.Jev, item.CurrentIntention?.Provider));
+        Assert.True(provider.CallCount >= 4);
+        Assert.True(provider.CallCount < 40, $"Expected persistent intentions to avoid per-tick Jev calls, got {provider.CallCount}.");
+        Assert.Contains(runtime.ExportState().Events, item => item.Kind == "inhabitant_moved");
     }
 
     [Fact]
@@ -455,6 +540,45 @@ public sealed class PrivateWorldRuntimeTests
                     .OrderBy(candidate => candidate.DeterministicPriority)
                     .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
                     .First();
+            var probabilities = request.Observation.Candidates.ToDictionary(
+                candidate => candidate.Id,
+                candidate => candidate.Id == selected.Id ? 1d : 0d,
+                StringComparer.Ordinal);
+            return ValueTask.FromResult(new CognitionDecisionResponse(
+                request.RequestId,
+                request.Observation.InhabitantId,
+                Kind,
+                ProviderEpoch,
+                request.Observation.RunEpoch,
+                request.Observation.DecisionGeneration,
+                request.Observation.ObservationDigest,
+                selected.Id,
+                1d,
+                probabilities));
+        }
+    }
+
+    private sealed class CountingSelectingProvider(DecisionProviderKind kind) : IDecisionProvider
+    {
+        private int callCount;
+
+        public DecisionProviderKind Kind => kind;
+
+        public long ProviderEpoch => 1;
+
+        public int CallCount => Volatile.Read(ref callCount);
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            request.Validate();
+            cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Increment(ref callCount);
+            var selected = request.Observation.Candidates
+                .OrderBy(candidate => candidate.DeterministicPriority)
+                .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
+                .First();
             var probabilities = request.Observation.Candidates.ToDictionary(
                 candidate => candidate.Id,
                 candidate => candidate.Id == selected.Id ? 1d : 0d,

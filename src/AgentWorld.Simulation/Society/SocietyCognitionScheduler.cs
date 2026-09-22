@@ -158,8 +158,7 @@ public sealed class SocietyCognitionScheduler
             .Take(maxDispatchPerCycle)
             .ToArray();
 
-        var results = new List<SocietyCognitionDispatchResult>(selected.Length);
-        foreach (var entry in selected)
+        async Task<SocietyCognitionDispatchResult> DispatchOneAsync(SocietyCognitionScheduleEntry entry)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var runtime = runtimes[entry.InhabitantId];
@@ -179,16 +178,26 @@ public sealed class SocietyCognitionScheduler
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            // A queue entry is durable until its dispatch attempt has
-            // completed. If cancellation interrupts the provider call, the
-            // current entry and every unprocessed selected entry remain in
-            // the queue for a later retry.
+            return new SocietyCognitionDispatchResult(entry.InhabitantId, admission);
+        }
+
+        // Each inhabitant owns an independent cognition runtime, so the
+        // bounded selection may call hosted providers concurrently. Results
+        // are still committed in the deterministic scheduler order below.
+        // If cancellation interrupts the batch, every selected queue entry
+        // remains durable for a later retry.
+        var dispatched = await Task.WhenAll(selected.Select(DispatchOneAsync)).ConfigureAwait(false);
+        var results = new List<SocietyCognitionDispatchResult>(selected.Length);
+        for (var index = 0; index < selected.Length; index++)
+        {
+            var entry = selected[index];
+            var result = dispatched[index];
             queue.Remove(entry);
-            results.Add(new SocietyCognitionDispatchResult(entry.InhabitantId, admission));
+            results.Add(result);
             AppendEvent(
                 entry.Observation.WorldTick,
-                admission.Accepted ? "cognition_dispatched" : "cognition_dispatch_rejected",
-                $"{entry.InhabitantId}:{admission.Outcome}");
+                result.Admission.Accepted ? "cognition_dispatched" : "cognition_dispatch_rejected",
+                $"{entry.InhabitantId}:{result.Admission.Outcome}");
         }
 
         return results;

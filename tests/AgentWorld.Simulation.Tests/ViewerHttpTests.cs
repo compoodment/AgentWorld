@@ -365,7 +365,10 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
             Assert.Equal("active", runtime.Content.Packages.Single().Lifecycle.ToString().ToLowerInvariant());
             Assert.Equal(building.CanonicalId, Assert.Single(runtime.WorldContent.Buildings).CanonicalId);
 
-            var worker = runtime.Inhabitants.Single(item => item.InhabitantId == "founder-rowan");
+            var occupiedMapPositions = runtime.ExportState().Map.CampObjects.Select(item => item.Position)
+                .Concat(runtime.ExportState().Map.Resources.Select(item => item.Position))
+                .ToHashSet();
+            var worker = runtime.Inhabitants.First(item => !occupiedMapPositions.Contains(item.Position));
             var placementAction = new OwnerBuildingPlacementAction(
                 "camp-kitchen-one",
                 building.CanonicalId,

@@ -23,6 +23,8 @@ public partial class Main : Control
     private readonly OwnerPendingSubmissionStore pendingSubmissionStore = new(
         ProjectSettings.GlobalizePath("user://owner-pending-submission.json"));
     private readonly Dictionary<long, OwnerWorldEvent> knownEvents = [];
+    private readonly Dictionary<string, OwnerWorldPosition> renderedInhabitantPositions =
+        new(StringComparer.Ordinal);
 
     private readonly Label statusLabel = new();
     private readonly PanelContainer statusToast = new();
@@ -1533,11 +1535,20 @@ public partial class Main : Control
                 var actorSize = Math.Clamp(currentTileSize * 0.5f, 52, 78);
                 var offsetX = ((currentTileSize - actorSize) / 2) + ((index % 2) * 22);
                 var offsetY = ((currentTileSize - actorSize) / 2) + ((index / 2) * 22);
+                var targetPosition = new Vector2(
+                    inhabitant.Position.X * stride + offsetX,
+                    inhabitant.Position.Y * stride + offsetY);
+                var activity = ActivityGlyph(inhabitant.PublicIntention?.CandidateId);
                 var actorButton = new Button
                 {
-                    Text = $"●\n{ActorLabel(inhabitant.DisplayName)}",
-                    TooltipText = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)}",
-                    Position = new Vector2(inhabitant.Position.X * stride + offsetX, inhabitant.Position.Y * stride + offsetY),
+                    Text = $"● {activity}\n{ActorLabel(inhabitant.DisplayName)}",
+                    TooltipText = $"{inhabitant.DisplayName} · {Pretty(inhabitant.Lifecycle)} · " +
+                        (inhabitant.PublicIntention?.Summary ?? "taking in the world"),
+                    Position = renderedInhabitantPositions.TryGetValue(inhabitant.Id, out var previousPosition)
+                        ? new Vector2(
+                            previousPosition.X * stride + offsetX,
+                            previousPosition.Y * stride + offsetY)
+                        : targetPosition,
                     CustomMinimumSize = new Vector2(actorSize, actorSize),
                     ZIndex = 10,
                 };
@@ -1549,7 +1560,27 @@ public partial class Main : Control
                 actorButton.AddThemeStyleboxOverride("hover", ActorStyle(selected: true));
                 actorButton.Pressed += () => SelectInhabitant(inhabitant.Id);
                 entityLayer.AddChild(actorButton);
+                if (actorButton.Position != targetPosition)
+                {
+                    CreateTween()
+                        .SetTrans(Tween.TransitionType.Sine)
+                        .SetEase(Tween.EaseType.InOut)
+                        .TweenProperty(actorButton, "position", targetPosition, 0.62);
+                }
+
+                renderedInhabitantPositions[inhabitant.Id] = inhabitant.Position;
             }
+        }
+
+        var visibleInhabitantIds = snapshot.Inhabitants
+            .Where(inhabitant => !inhabitant.IsDraft)
+            .Select(inhabitant => inhabitant.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var removedId in renderedInhabitantPositions.Keys
+                     .Where(id => !visibleInhabitantIds.Contains(id))
+                     .ToArray())
+        {
+            renderedInhabitantPositions.Remove(removedId);
         }
 
         PositionSelectedInhabitantCard(snapshot);
@@ -2255,6 +2286,17 @@ public partial class Main : Control
 
         return trimmed.Length <= 8 ? trimmed : $"{trimmed[..7]}…";
     }
+
+    private static string ActivityGlyph(string? candidateId) => candidateId switch
+    {
+        "seek_food" => "→",
+        "harvest_food" => "✦",
+        "consume_food" => "♥",
+        "sleep" => "z",
+        not null when candidateId.StartsWith("build:", StringComparison.Ordinal) => "◆",
+        "safe_idle" => "·",
+        _ => "○",
+    };
 
     private static string TerrainMarker(string terrain) => terrain switch
     {

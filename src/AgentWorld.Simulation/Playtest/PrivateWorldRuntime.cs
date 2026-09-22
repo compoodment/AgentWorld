@@ -63,6 +63,9 @@ public sealed class PrivateWorldRuntime : IDisposable
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
+    private const long CognitionReevaluationIntervalTicks = 30;
+    private const int ResourceInteractionRange = 1;
+    private const int HarvestFoodYield = 4;
 
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly string worldSeed;
@@ -324,6 +327,7 @@ public sealed class PrivateWorldRuntime : IDisposable
             {
                 ApplyDecision(decision);
             }
+            ApplyContinuingIntentions(dispatch.Decisions.Select(item => item.InhabitantId));
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();
@@ -1390,9 +1394,9 @@ public sealed class PrivateWorldRuntime : IDisposable
     {
         foreach (var resource in worldSystems.Ecology.Resources)
         {
-            resources[resource.Id] = resource.State == EcologyResourceState.Depleted
-                ? ResourceState.Depleted
-                : ResourceState.Available;
+            resources[resource.Id] = resource.State == EcologyResourceState.Available && resource.Quantity > 0
+                ? ResourceState.Available
+                : ResourceState.Depleted;
         }
     }
 
@@ -1476,9 +1480,8 @@ public sealed class PrivateWorldRuntime : IDisposable
         {
             inhabitants[state.InhabitantId] = state with
             {
-                HungerBasisPoints = Math.Max(0, state.HungerBasisPoints - 80),
-                EnergyBasisPoints = Math.Max(0, state.EnergyBasisPoints - 60),
-                MoveWaitTicks = checked(state.MoveWaitTicks + 1),
+                HungerBasisPoints = Math.Max(0, state.HungerBasisPoints - 4),
+                EnergyBasisPoints = Math.Max(0, state.EnergyBasisPoints - 3),
             };
         }
     }
@@ -1498,12 +1501,20 @@ public sealed class PrivateWorldRuntime : IDisposable
 
     private void EnqueueDueCognition()
     {
+        var runtimes = society.Capture().Cognition.Runtimes
+            .ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         foreach (var inhabitant in society.Checkpoint.Inhabitants
                      .Where(item => item.Status == SocietyInhabitantStatus.Active)
                      .OrderBy(item => item.Id, StringComparer.Ordinal))
         {
             var physical = inhabitants[inhabitant.Id];
             var candidates = CreateCandidates(inhabitant.Id, physical);
+            var current = runtimes[inhabitant.Id].CurrentIntention;
+            if (!NeedsCognition(inhabitant.Id, current, candidates))
+            {
+                continue;
+            }
+
             var generation = checked((int)(WorldTick + 1));
             var observation = new InhabitantObservation(
                 inhabitant.Id,
@@ -1528,6 +1539,50 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
     }
 
+    private bool NeedsCognition(
+        string inhabitantId,
+        CognitionIntention? current,
+        IReadOnlyList<CognitionCandidate> candidates)
+    {
+        if (PendingInstructionFor(inhabitantId) is not null || current is null)
+        {
+            return true;
+        }
+
+        if (!candidates.Any(candidate => candidate.Id == current.CandidateId))
+        {
+            return true;
+        }
+
+        if (current.CandidateId is "harvest_food" or "consume_food")
+        {
+            return true;
+        }
+
+        return checked(WorldTick - current.WorldTick) >= CognitionReevaluationIntervalTicks;
+    }
+
+    private void ApplyContinuingIntentions(IEnumerable<string> dispatchedInhabitantIds)
+    {
+        var dispatched = dispatchedInhabitantIds.ToHashSet(StringComparer.Ordinal);
+        var runtimes = society.Capture().Cognition.Runtimes
+            .ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
+        foreach (var inhabitant in society.Checkpoint.Inhabitants
+                     .Where(item => item.Status == SocietyInhabitantStatus.Active)
+                     .OrderBy(item => item.Id, StringComparer.Ordinal))
+        {
+            if (dispatched.Contains(inhabitant.Id) ||
+                runtimes[inhabitant.Id].CurrentIntention is not { } intention ||
+                !inhabitants.TryGetValue(inhabitant.Id, out var state) ||
+                !CreateCandidates(inhabitant.Id, state).Any(candidate => candidate.Id == intention.CandidateId))
+            {
+                continue;
+            }
+
+            ApplyCandidate(inhabitant.Id, state, intention.CandidateId, reportIdle: false);
+        }
+    }
+
     private void ApplyDecision(SocietyCognitionDispatchResult decision)
     {
         if (!decision.Admission.Accepted || decision.Admission.Intention is null ||
@@ -1548,37 +1603,53 @@ public sealed class PrivateWorldRuntime : IDisposable
             candidateId = forcedCandidate;
         }
 
-        if (candidateId.StartsWith("build:", StringComparison.Ordinal))
-        {
-            ApplyBuildDecision(decision.InhabitantId, state, candidateId);
-        }
-        else
-        {
-            switch (candidateId)
-            {
-                case "seek_food":
-                    MoveToward(decision.InhabitantId, state, map.GetResource(BerryResourceId).Position, "food");
-                    break;
-                case "harvest_food":
-                    HarvestFood(decision.InhabitantId, state);
-                    break;
-                case "consume_food":
-                    ConsumeFood(decision.InhabitantId, state);
-                    break;
-                case "sleep":
-                    Sleep(decision.InhabitantId, state);
-                    break;
-                default:
-                    AppendEvent("inhabitant_idle", decision.InhabitantId);
-                    break;
-            }
-        }
+        ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
 
         if (pendingInstruction is not null &&
             (pendingInstruction.Kind == OwnerInstructionKind.Suggestive || forcedCandidate is not null))
         {
             completedInstructionIds.Add(pendingInstruction.InstructionId);
             AppendEvent("instruction_applied", $"{pendingInstruction.InstructionId}:{candidateId}");
+        }
+    }
+
+    private void ApplyCandidate(
+        string inhabitantId,
+        PlaytestInhabitantState state,
+        string candidateId,
+        bool reportIdle)
+    {
+        if (candidateId.StartsWith("build:", StringComparison.Ordinal))
+        {
+            ApplyBuildDecision(inhabitantId, state, candidateId);
+            return;
+        }
+
+        switch (candidateId)
+        {
+            case "seek_food":
+                MoveToward(
+                    inhabitantId,
+                    state,
+                    map.GetResource(BerryResourceId).Position,
+                    "food",
+                    ResourceInteractionRange);
+                break;
+            case "harvest_food":
+                HarvestFood(inhabitantId, state);
+                break;
+            case "consume_food":
+                ConsumeFood(inhabitantId, state);
+                break;
+            case "sleep":
+                Sleep(inhabitantId, state);
+                break;
+            default:
+                if (reportIdle)
+                {
+                    AppendEvent("inhabitant_idle", inhabitantId);
+                }
+                break;
         }
     }
 
@@ -1645,76 +1716,132 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
     }
 
-    private void MoveToward(string inhabitantId, PlaytestInhabitantState state, GridPoint destination, string reason)
+    private void MoveToward(
+        string inhabitantId,
+        PlaytestInhabitantState state,
+        GridPoint destination,
+        string reason,
+        int interactionRange = 0)
     {
-        if (state.Position == destination)
+        if (IsWithinInteractionRange(state.Position, destination, interactionRange))
         {
             AppendEvent("destination_reached", $"{inhabitantId}:{reason}");
             return;
         }
 
-        var route = DeterministicRouteFinder.Find(map, state.Position, destination);
+        var route = FindUnoccupiedRoute(inhabitantId, state.Position, destination, interactionRange);
         if (route.Count < 2)
         {
-            AppendEvent("movement_blocked", $"{inhabitantId}:no_route");
+            RecordMovementBlocked(inhabitantId, state, "no_route");
             return;
         }
 
         var next = route[1];
-        if (inhabitants.Values.Any(other => other.InhabitantId != inhabitantId && other.Position == next))
-        {
-            inhabitants[inhabitantId] = state with { MoveWaitTicks = checked(state.MoveWaitTicks + 1) };
-            AppendEvent("movement_blocked", $"{inhabitantId}:occupied");
-            return;
-        }
-
         inhabitants[inhabitantId] = state with { Position = next, MoveWaitTicks = 0 };
         AppendEvent("inhabitant_moved", $"{inhabitantId}:{state.Position.X},{state.Position.Y}->{next.X},{next.Y}:{reason}");
     }
 
+    private List<GridPoint> FindUnoccupiedRoute(
+        string inhabitantId,
+        GridPoint origin,
+        GridPoint destination,
+        int interactionRange)
+    {
+        var occupied = inhabitants.Values
+            .Where(item => item.InhabitantId != inhabitantId)
+            .Select(item => item.Position)
+            .ToHashSet();
+        var open = new Queue<GridPoint>();
+        var visited = new HashSet<GridPoint> { origin };
+        var predecessor = new Dictionary<GridPoint, GridPoint>();
+        open.Enqueue(origin);
+
+        while (open.TryDequeue(out var current))
+        {
+            if (IsWithinInteractionRange(current, destination, interactionRange))
+            {
+                var route = new List<GridPoint> { current };
+                while (current != origin)
+                {
+                    current = predecessor[current];
+                    route.Add(current);
+                }
+
+                route.Reverse();
+                return route;
+            }
+
+            foreach (var next in MapAcceptance.CardinalNeighbors(current))
+            {
+                if (!map.IsPassable(next) || occupied.Contains(next) || !visited.Add(next))
+                {
+                    continue;
+                }
+
+                predecessor[next] = current;
+                open.Enqueue(next);
+            }
+        }
+
+        return [];
+    }
+
+    private void RecordMovementBlocked(
+        string inhabitantId,
+        PlaytestInhabitantState state,
+        string reason)
+    {
+        var waitTicks = checked(state.MoveWaitTicks + 1);
+        inhabitants[inhabitantId] = state with { MoveWaitTicks = waitTicks };
+        if (waitTicks == 1 || waitTicks % 30 == 0)
+        {
+            AppendEvent("movement_blocked", $"{inhabitantId}:{reason}:wait={waitTicks}");
+        }
+    }
+
+    private static bool IsWithinInteractionRange(GridPoint origin, GridPoint destination, int interactionRange) =>
+        Math.Abs(origin.X - destination.X) + Math.Abs(origin.Y - destination.Y) <= interactionRange;
+
     private void HarvestFood(string inhabitantId, PlaytestInhabitantState state)
     {
-        if (state.Position != map.GetResource(BerryResourceId).Position ||
+        if (!IsWithinInteractionRange(
+                state.Position,
+                map.GetResource(BerryResourceId).Position,
+                ResourceInteractionRange) ||
             resources[BerryResourceId] != ResourceState.Available)
         {
             AppendEvent("harvest_failed", $"{inhabitantId}:not_at_available_food");
             return;
         }
 
-        var lot = society.Checkpoint.Inventory.Lots
-            .FirstOrDefault(item => item.Id == FoodLotId && item.OwnerId == HouseholdId && item.Quantity > 0);
-        if (lot is null)
+        var ecologyResource = worldSystems.Ecology.GetResource(BerryResourceId);
+        var harvest = EcologyRules.Harvest(ecologyResource, 1);
+        if (!harvest.IsValid || harvest.Resource is null)
         {
-            resources[BerryResourceId] = ResourceState.Depleted;
-            AppendEvent("harvest_failed", $"{inhabitantId}:food_depleted");
+            SyncEcologyResourceStates();
+            AppendEvent("harvest_failed", $"{inhabitantId}:{harvest.Failure ?? "food_depleted"}");
             return;
         }
 
-        society.Apply(checkpoint => SocietyFixture.TransferInventory(
-            checkpoint,
-            $"harvest:{WorldTick}:{inhabitantId}",
-            HouseholdId,
-            inhabitantId,
-            FoodLotId,
-            1,
-            "harvested_food"));
-        var ecologyResource = worldSystems.Ecology.GetResource(BerryResourceId);
-        var harvest = EcologyRules.Harvest(ecologyResource, 1);
-        if (harvest.IsValid && harvest.Resource is not null)
+        worldSystems = worldSystems with
         {
-            worldSystems = worldSystems with
+            Ecology = worldSystems.Ecology with
             {
-                Ecology = worldSystems.Ecology with
-                {
-                    Resources = worldSystems.Ecology.Resources
-                        .Select(resource => resource.Id == BerryResourceId ? harvest.Resource : resource)
-                        .ToArray(),
-                },
-            };
-            SyncEcologyResourceStates();
-        }
+                Resources = worldSystems.Ecology.Resources
+                    .Select(resource => resource.Id == BerryResourceId ? harvest.Resource : resource)
+                    .ToArray(),
+            },
+        };
+        SyncEcologyResourceStates();
+        ApplyInventoryTransition(inventory => InventoryFixture.AddLot(
+            inventory,
+            $"food:harvest:{WorldTick:D10}:{inhabitantId}",
+            "food",
+            inhabitantId,
+            HarvestFoodYield,
+            WorldTick));
 
-        AppendEvent("food_harvested", inhabitantId);
+        AppendEvent("food_harvested", $"{inhabitantId}:{HarvestFoodYield}");
     }
 
     private void ConsumeFood(string inhabitantId, PlaytestInhabitantState state)
@@ -1728,20 +1855,20 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
 
         society.Apply(checkpoint => SocietyFixture.ConsumeInventory(checkpoint, inhabitantId, lot.Id, 1));
-        inhabitants[inhabitantId] = state with { HungerBasisPoints = Math.Min(10_000, state.HungerBasisPoints + 2_500) };
+        inhabitants[inhabitantId] = state with { HungerBasisPoints = Math.Min(10_000, state.HungerBasisPoints + 3_000) };
         AppendEvent("food_consumed", inhabitantId);
     }
 
     private void Sleep(string inhabitantId, PlaytestInhabitantState state)
     {
         var bedroll = map.GetObject("bedroll");
-        if (state.Position != bedroll.Position)
+        if (!IsWithinInteractionRange(state.Position, bedroll.Position, ResourceInteractionRange))
         {
-            MoveToward(inhabitantId, state, bedroll.Position, "sleep");
+            MoveToward(inhabitantId, state, bedroll.Position, "sleep", ResourceInteractionRange);
             return;
         }
 
-        inhabitants[inhabitantId] = state with { EnergyBasisPoints = Math.Min(10_000, state.EnergyBasisPoints + 2_000) };
+        inhabitants[inhabitantId] = state with { EnergyBasisPoints = Math.Min(10_000, state.EnergyBasisPoints + 2_500) };
         AppendEvent("inhabitant_slept", inhabitantId);
     }
 
@@ -1770,13 +1897,24 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
 
         var berry = map.GetResource(BerryResourceId);
-        if (resources[BerryResourceId] == ResourceState.Available && state.Position == berry.Position)
+        var foodPriority = state.HungerBasisPoints < 2_500 ? 2 : 5;
+        var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000;
+        if (shouldGatherFood && resources[BerryResourceId] == ResourceState.Available &&
+            IsWithinInteractionRange(state.Position, berry.Position, ResourceInteractionRange))
         {
-            candidates.Add(new CognitionCandidate("harvest_food", "Gather food at the berry patch.", 0, BerryResourceId));
+            candidates.Add(new CognitionCandidate(
+                "harvest_food",
+                "Gather several food servings from the nearby berry patch.",
+                foodPriority,
+                BerryResourceId));
         }
-        else if (resources[BerryResourceId] == ResourceState.Available && state.HungerBasisPoints < 7_000)
+        else if (shouldGatherFood && resources[BerryResourceId] == ResourceState.Available)
         {
-            candidates.Add(new CognitionCandidate("seek_food", "Travel to the available berry patch.", 5, BerryResourceId));
+            candidates.Add(new CognitionCandidate(
+                "seek_food",
+                "Travel within gathering range of the available berry patch.",
+                foodPriority,
+                BerryResourceId));
         }
 
         if (instructionCandidate == "seek_food" && resources[BerryResourceId] == ResourceState.Available &&
@@ -1787,7 +1925,7 @@ public sealed class PrivateWorldRuntime : IDisposable
 
         if (instructionCandidate == "harvest_food" &&
             resources[BerryResourceId] == ResourceState.Available &&
-            state.Position == berry.Position &&
+            IsWithinInteractionRange(state.Position, berry.Position, ResourceInteractionRange) &&
             !candidates.Any(item => item.Id == "harvest_food"))
         {
             candidates.Add(new CognitionCandidate("harvest_food", "Follow the owner's harvest instruction.", 0, BerryResourceId));
@@ -1795,7 +1933,8 @@ public sealed class PrivateWorldRuntime : IDisposable
 
         if (state.EnergyBasisPoints < 3_500 && !candidates.Any(item => item.Id == "sleep"))
         {
-            candidates.Add(new CognitionCandidate("sleep", "Sleep to recover energy.", 10, "bedroll"));
+            var sleepPriority = state.EnergyBasisPoints < 1_500 ? 1 : 10;
+            candidates.Add(new CognitionCandidate("sleep", "Sleep near the bedroll to recover energy.", sleepPriority, "bedroll"));
         }
 
         var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);

@@ -136,6 +136,13 @@ state and paired-device authority state are stored separately and atomically; a
 configured seed checks the identity of an existing saved world rather than
 silently replacing it.
 
+The packaged systemd unit optionally reads
+`/etc/agentworld-viewer/provider.env`. Keep that file owned by root with mode
+`0600`; it may select `AgentWorld__Runtime__DecisionProvider=jev` and supply
+`TYPESAFE_API_KEY` without placing credentials in the checked-in unit, world
+save, or process arguments. If the file is absent, the host remains on the
+deterministic provider.
+
 For playtesting with hosted chat models, set
 `AgentWorld__Runtime__DecisionProvider=openai` or
 `AgentWorld__Runtime__DecisionProvider=ollama-cloud`, provide the model through

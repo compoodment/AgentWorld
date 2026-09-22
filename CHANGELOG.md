@@ -64,6 +64,18 @@ release yet.
 
 ### Changed
 
+- Changed inhabitant cognition from one provider request per person per world
+  second to bounded, persistent intentions. Inhabitants now carry out legal
+  movement, rest, gathering, eating, and building work locally until the plan
+  completes, becomes invalid, or reaches a scheduled reevaluation; hosted Jev
+  decisions for different inhabitants are dispatched concurrently.
+- Animated inhabitant movement between observed tiles and added compact
+  activity markers and intention summaries, making travel and current work
+  visible without exposing private reasoning.
+- Added an optional root-owned provider environment file to the hosted service,
+  allowing Jev to be activated without embedding its API key in the systemd
+  unit, world save, or process arguments; deterministic cognition remains the
+  default when the file is absent.
 - Replaced the inspector-style Godot shell with a world-first, responsive 16:9
   play surface. The world now fills the screen beneath a compact clock and
   weather HUD instead of sharing space with permanent developer panels.
@@ -85,6 +97,14 @@ release yet.
 
 ### Fixed
 
+- Fixed the four-inhabitant world deadlocking around a single berry tile.
+  Inhabitants now route around occupied tiles, interact with resources from an
+  adjacent tile, prioritize critical sleep, and suppress repeated blocked-path
+  noise while they yield or retry.
+- Fixed survival gathering so renewable ecology produces carried food rather
+  than trying to transfer a depleted household fixture lot. Regenerating
+  resources are no longer treated as harvestable, and inhabitants stop
+  stripping the patch while they still carry food.
 - Fixed re-pairing after a world-authority change by exposing a `Pair again`
   action in Settings; players no longer need to find and delete client files to
   replace an obsolete saved registration.
