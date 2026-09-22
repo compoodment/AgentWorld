@@ -78,6 +78,12 @@ capabilities remain disabled until a separate sandbox contract exists.
     artifact. Artifact validation matches asset identities, digests, and byte
     reservations; export additionally rejects non-redistributable rights and
     disabled executable capabilities.
+16. **Inhabitant-owned builds:** approved building and recipe definitions now
+    enter cognition as `build` candidates rather than owner gameplay controls.
+    The kernel validates structure sites, costs, workstations, workers, and
+    capacity before committing a build. Crop-tagged recipes can build on the
+    generated fertile-land site, complete deterministically, and create their
+    declared inventory outputs; crop build state survives checkpoint reload.
 
 ## Evidence
 
@@ -102,7 +108,8 @@ capabilities remain disabled until a separate sandbox contract exists.
   rejection, canonical checkpoint round-trips, and package release.
 - `PrivateWorldRuntimeTests` and `ViewerHttpTests` cover typed building/recipe
   activation, deterministic placement and production, checkpoint round-trip,
-  signed lifecycle/action routing, and rollback.
+  signed lifecycle/action routing, inhabitant-owned build decisions, crop
+  cultivation on generated fertile land, and rollback.
 - `ContentDefinitionTests` covers mutation-free preview success and failure
   isolation.
 - `ContentPackageManifestCodecTests` covers order-independent canonical bytes,

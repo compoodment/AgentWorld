@@ -647,3 +647,27 @@ card with needs, public intention summaries, and relationship edges.
 This is intentionally not a raw model-trace viewer. Private chain-of-thought is
 not exposed, and developer-only paused authoring tools remain separate from the
 final product experience.
+
+## 2026-09-22 — Inhabitant-owned build decisions
+
+### Decision
+
+Construction and production use the shared public action word **build** in
+inhabitant cognition. The owner does not place buildings or start recipes
+through ordinary gameplay controls. An inhabitant may choose a valid building,
+workstation recipe, or crop recipe; the authoritative runtime then checks the
+definition, role/site, footprint, inventory, worker location, capacity, and
+timing before committing the transition.
+
+Crop recipes are declarative recipes tagged `crop`. They may have no material
+inputs because generated fertile land is their required build medium. Every
+seeded first-world map therefore contains a reachable fertile-land site. A
+successful crop build still completes on its declared duration and creates its
+declared output through the normal inventory ledger.
+
+### Reason
+
+The interesting choice belongs to the inhabitants. The human should watch a
+farmer decide to grow carrots or a builder decide to raise a workshop, while
+the kernel remains responsible for rejecting impossible actions and preserving
+resource conservation.

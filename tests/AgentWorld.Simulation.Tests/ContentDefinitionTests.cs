@@ -76,6 +76,14 @@ public sealed class ContentDefinitionTests
             durationTicks: 0);
         Assert.Throws<ArgumentException>(() => invalidRecipe.Validate());
 
+        var crop = Recipe(
+            "carrots",
+            inputs: [],
+            outputs: [new ContentQuantity("carrot", 1)],
+            tags: ["crop"]);
+        crop.Validate();
+        Assert.True(crop.IsCrop);
+
         var badReference = Recipe(
             "bad-reference",
             workstationBuildingId: "not-a-canonical-building-id");

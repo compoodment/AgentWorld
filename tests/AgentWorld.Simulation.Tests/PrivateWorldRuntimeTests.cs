@@ -1,6 +1,8 @@
+using AgentWorld.Simulation.Cognition;
 using AgentWorld.Simulation.Content;
 using AgentWorld.Simulation.Playtest;
 using AgentWorld.Simulation.Harness;
+using AgentWorld.Simulation.Society;
 using AgentWorld.Simulation.World;
 
 namespace AgentWorld.Simulation.Tests;
@@ -36,7 +38,7 @@ public sealed class PrivateWorldRuntimeTests
         _ = await runtime.AdvanceOneTickAsync();
 
         Assert.Equal(runtime.WorldTick, runtime.WorldSystems.WorldTick);
-        Assert.Equal(2, runtime.WorldSystems.Ecology.Resources.Count);
+        Assert.Equal(3, runtime.WorldSystems.Ecology.Resources.Count);
         var restoredState = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
         using var restored = PrivateWorldRuntime.Restore(restoredState);
 
@@ -249,6 +251,77 @@ public sealed class PrivateWorldRuntimeTests
     }
 
     [Fact]
+    public async Task InhabitantsChooseBuildForBuildingsAndRecipesWithoutOwnerCommands()
+    {
+        using var runtime = new PrivateWorldRuntime(
+            "playtest-alpha",
+            _ => new BuildSelectingProvider());
+        var (package, building, recipe) = MaterialPackage(durationTicks: 2);
+        Activate(runtime, package);
+
+        var decisions = new List<SocietyCognitionDispatchResult>();
+        for (var tick = 0; tick < 6; tick++)
+        {
+            var result = await runtime.AdvanceOneTickAsync();
+            decisions.AddRange(result.Decisions);
+        }
+
+        Assert.Contains(
+            decisions,
+            decision => decision.InhabitantId == "founder-rowan" &&
+                decision.Admission.Intention?.CandidateId == $"build:building:{building.CanonicalId}");
+        Assert.Contains(runtime.WorldSimulation.Buildings, item => item.DefinitionId == building.CanonicalId);
+        Assert.Contains(runtime.ExportState().Events, item => item.Kind == "build_completed");
+        Assert.Contains(
+            decisions,
+            decision => decision.InhabitantId == "founder-rowan" &&
+                decision.Admission.Intention?.CandidateId == $"build:recipe:{recipe.CanonicalId}");
+        Assert.Contains(runtime.WorldSimulation.ProductionJobs, item =>
+            item.RecipeId == recipe.CanonicalId && item.State == WorldProductionJobState.Completed);
+        Assert.Contains(runtime.Society.Inventory.Lots, item => item.ItemKind == "meal" && item.Quantity > 0);
+    }
+
+    [Fact]
+    public async Task InhabitantCanBuildAZeroInputCropOnGeneratedFertileLand()
+    {
+        using var runtime = new PrivateWorldRuntime(
+            "playtest-alpha",
+            _ => new BuildSelectingProvider());
+        var (package, recipe) = CropPackage();
+        Activate(runtime, package);
+
+        var decisions = new List<SocietyCognitionDispatchResult>();
+        for (var tick = 0; tick < 8; tick++)
+        {
+            var result = await runtime.AdvanceOneTickAsync();
+            decisions.AddRange(result.Decisions);
+        }
+
+        Assert.Equal(
+            new GridPoint(2, 3),
+            runtime.ExportState().Map.GetResource(SeededMapGenerator.FertileLandResourceId).Position);
+        Assert.Contains(
+            decisions,
+            decision => decision.InhabitantId == "founder-mira" &&
+                decision.Admission.Intention?.CandidateId == $"build:recipe:{recipe.CanonicalId}");
+        var build = Assert.Single(
+            runtime.WorldSimulation.CropBuilds ?? [],
+            item => item.RecipeId == recipe.CanonicalId && item.State == WorldProductionJobState.Completed);
+        Assert.Equal(
+            WorldBuildSiteRules.FertileLandSiteId(new GridPoint(2, 3)),
+            build.BuildingInstanceId);
+        Assert.Contains(runtime.ExportState().Events, item => item.Kind == "build_completed");
+        Assert.Contains(runtime.Society.Inventory.Lots, item => item.ItemKind == "carrot" && item.Quantity > 0);
+
+        var restoredState = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+        using var restored = PrivateWorldRuntime.Restore(restoredState);
+        Assert.Equal(
+            PrivateWorldRuntimeCodec.Encode(runtime.ExportState()),
+            PrivateWorldRuntimeCodec.Encode(restored.ExportState()));
+        Assert.Equal(runtime.Society.Inventory.Lots, restored.Society.Inventory.Lots);
+    }
+
+    [Fact]
     public void PrivateWorldCodecReadsLegacyCheckpointWithoutContentRegistry()
     {
         using var runtime = new PrivateWorldRuntime("playtest-alpha");
@@ -326,6 +399,35 @@ public sealed class PrivateWorldRuntimeTests
             []), building, recipe);
     }
 
+    private static (ContentPackageManifest Package, RecipeDefinition Recipe) CropPackage()
+    {
+        var packageDigest = "sha256:" + new string('f', 64);
+        var version = ContentVersion.Parse("1.0.0");
+        var recipe = new RecipeDefinition(
+            packageDigest,
+            "carrots",
+            version,
+            "Carrots",
+            [],
+            [new ContentQuantity("carrot", 1)],
+            2,
+            null,
+            ["crop"]);
+        return (new ContentPackageManifest(
+            "crop-content",
+            version,
+            packageDigest,
+            [],
+            [new ContentDefinition(
+                RecipeDefinition.SchemaKind,
+                recipe.LocalId,
+                recipe.Version,
+                recipe.DisplayName,
+                recipe.PayloadDigest,
+                """{"schema":"recipe/v1","inputs":[],"outputs":[{"resourceId":"carrot","amount":1}],"durationTicks":2,"workstationBuildingId":null,"tags":["crop"]}""")],
+            []), recipe);
+    }
+
     private static void Activate(PrivateWorldRuntime runtime, ContentPackageManifest package)
     {
         var resolution = PrivateWorldRuntime.PreviewContent([package], [package.PackageId]);
@@ -333,5 +435,41 @@ public sealed class PrivateWorldRuntimeTests
         runtime.ValidateContent(package.PackageId, resolution);
         runtime.ApproveContent(package.PackageId);
         runtime.StageContent(package.PackageId);
+    }
+
+    private sealed class BuildSelectingProvider : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.Deterministic;
+
+        public long ProviderEpoch => 0;
+
+        public ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            request.Validate();
+            cancellationToken.ThrowIfCancellationRequested();
+            var selected = request.Observation.Candidates
+                .FirstOrDefault(candidate => candidate.Id.StartsWith("build:", StringComparison.Ordinal))
+                ?? request.Observation.Candidates
+                    .OrderBy(candidate => candidate.DeterministicPriority)
+                    .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
+                    .First();
+            var probabilities = request.Observation.Candidates.ToDictionary(
+                candidate => candidate.Id,
+                candidate => candidate.Id == selected.Id ? 1d : 0d,
+                StringComparer.Ordinal);
+            return ValueTask.FromResult(new CognitionDecisionResponse(
+                request.RequestId,
+                request.Observation.InhabitantId,
+                Kind,
+                ProviderEpoch,
+                request.Observation.RunEpoch,
+                request.Observation.DecisionGeneration,
+                request.Observation.ObservationDigest,
+                selected.Id,
+                1d,
+                probabilities));
+        }
     }
 }

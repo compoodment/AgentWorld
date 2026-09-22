@@ -203,6 +203,14 @@ public sealed class RecipeDefinition
 
     public string PayloadDigest { get; }
 
+    /// <summary>
+    /// A crop is a declarative recipe that can be built on generated fertile
+    /// land instead of requiring a workstation building. The tag is data, not
+    /// executable behaviour; the authoritative world runtime supplies the
+    /// corresponding deterministic build-site rule.
+    /// </summary>
+    public bool IsCrop => Tags.Contains("crop", StringComparer.Ordinal);
+
     public string CanonicalId => ContentPackageRules.CanonicalDefinitionId(
         PackageDigest,
         SchemaKind,
@@ -213,7 +221,7 @@ public sealed class RecipeDefinition
     {
         ContentDefinitionRules.ValidateIdentity(PackageDigest, LocalId, Version);
         ContentDefinitionRules.ValidateDisplayName(DisplayName);
-        ContentDefinitionRules.ValidateQuantities(Inputs, nameof(Inputs), allowEmpty: false);
+        ContentDefinitionRules.ValidateQuantities(Inputs, nameof(Inputs), allowEmpty: IsCrop);
         ContentDefinitionRules.ValidateQuantities(Outputs, nameof(Outputs), allowEmpty: false);
         if (DurationTicks is < 1 or > ContentDefinitionRules.MaxDurationTicks)
         {
@@ -225,6 +233,11 @@ public sealed class RecipeDefinition
 
         if (WorkstationBuildingId is not null)
         {
+            if (IsCrop)
+            {
+                throw new InvalidDataException("A crop recipe must use generated fertile land rather than a workstation building.");
+            }
+
             ContentDefinitionRules.ValidateBuildingReference(WorkstationBuildingId);
         }
 

@@ -185,7 +185,9 @@ public sealed class PrivateWorldRuntime : IDisposable
             minimumCognitionConfidence);
         runtime.contentRegistry = ContentPackageRegistry.Restore(state.Content);
         runtime.worldContent = state.WorldContent ?? RebuildWorldContent(runtime.contentRegistry.ExportState());
-        runtime.worldSimulation = state.WorldSimulation ?? WorldContentSimulationState.Empty;
+        runtime.worldSimulation = state.WorldSimulation is null
+            ? WorldContentSimulationState.Empty
+            : state.WorldSimulation with { CropBuilds = state.WorldSimulation.CropBuilds ?? [] };
         runtime.assetReservations = WorldAssetReservationLedger.Restore(state.AssetReservations);
         runtime.worldSystems = state.WorldSystems is null
             ? AdvanceWorldSystemsTo(
@@ -312,6 +314,7 @@ public sealed class PrivateWorldRuntime : IDisposable
             }
             worldContent = activatedWorldContent;
             ProcessProduction(targetTick);
+            ProcessCropBuilds(targetTick);
 
             DrainNeeds();
             RemoveDeadPhysicalState();
@@ -489,6 +492,22 @@ public sealed class PrivateWorldRuntime : IDisposable
         gate.Wait();
         try
         {
+            return PlaceBuildingCore(instanceId, definitionId, position, "building_placed");
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private BuildingPlacementResult PlaceBuildingCore(
+        string instanceId,
+        string definitionId,
+        GridPoint position,
+        string eventKind)
+    {
+        try
+        {
             var normalizedInstanceId = NormalizeRequiredText(instanceId, nameof(instanceId));
             var normalizedDefinitionId = NormalizeRequiredText(definitionId, nameof(definitionId));
             ContentPackageRules.ValidateLocalId(normalizedInstanceId);
@@ -535,8 +554,9 @@ public sealed class PrivateWorldRuntime : IDisposable
                     .OrderBy(item => item.InstanceId, StringComparer.Ordinal)
                     .ToArray(),
                 worldSimulation.ProductionJobs,
-                worldSimulation.NextProductionJobSequence);
-            AppendEvent("building_placed", $"{placed.InstanceId}:{placed.DefinitionId}:{position.X},{position.Y}");
+                worldSimulation.NextProductionJobSequence,
+                worldSimulation.CropBuilds);
+            AppendEvent(eventKind, $"{placed.InstanceId}:{placed.DefinitionId}:{position.X},{position.Y}");
             return BuildingPlacementResult.Success(placed);
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
@@ -546,10 +566,6 @@ public sealed class PrivateWorldRuntime : IDisposable
                 definitionId?.Trim() ?? string.Empty,
                 position,
                 exception.Message);
-        }
-        finally
-        {
-            gate.Release();
         }
     }
 
@@ -561,6 +577,22 @@ public sealed class PrivateWorldRuntime : IDisposable
         gate.Wait();
         try
         {
+            return StartProductionCore(recipeId, buildingInstanceId, workerId, "recipe_started");
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private ProductionStartResult StartProductionCore(
+        string recipeId,
+        string buildingInstanceId,
+        string workerId,
+        string eventKind)
+    {
+        try
+        {
             var normalizedRecipeId = NormalizeRequiredText(recipeId, nameof(recipeId));
             var normalizedBuildingId = NormalizeRequiredText(buildingInstanceId, nameof(buildingInstanceId));
             var normalizedWorkerId = NormalizeRequiredText(workerId, nameof(workerId));
@@ -570,23 +602,46 @@ public sealed class PrivateWorldRuntime : IDisposable
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The recipe is not active.");
             }
 
-            var placed = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == normalizedBuildingId);
-            if (placed is null)
+            GridPoint workPosition;
+            var isFertileLandBuild = recipe.IsCrop && recipe.WorkstationBuildingId is null;
+            PlacedBuilding? placed = null;
+            if (isFertileLandBuild)
             {
-                return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation building is not placed.");
-            }
+                if (!WorldBuildSiteRules.TryGetFertileLandPosition(normalizedBuildingId, out workPosition) ||
+                    !WorldContentSimulationRules.IsFertileLandPosition(map, workPosition))
+                {
+                    return ProductionStartResult.Rejected(normalizedRecipeId, "The crop must use a generated fertile-land site.");
+                }
 
-            if (recipe.WorkstationBuildingId is not null && recipe.WorkstationBuildingId != placed.DefinitionId)
-            {
-                return ProductionStartResult.Rejected(normalizedRecipeId, "The placed building is not a valid workstation for this recipe.");
+                if ((worldSimulation.CropBuilds ?? []).Any(job =>
+                        job.State == WorldProductionJobState.Running &&
+                        job.BuildingInstanceId == normalizedBuildingId))
+                {
+                    return ProductionStartResult.Rejected(normalizedRecipeId, "The fertile-land site is already being used.");
+                }
             }
-
-            var buildingDefinition = worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
-            var activeJobs = worldSimulation.ProductionJobs.Count(item =>
-                item.BuildingInstanceId == placed.InstanceId && item.State == WorldProductionJobState.Running);
-            if (activeJobs >= buildingDefinition.Capacity)
+            else
             {
-                return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation has no free production capacity.");
+                placed = worldSimulation.Buildings.SingleOrDefault(item => item.InstanceId == normalizedBuildingId);
+                if (placed is null)
+                {
+                    return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation building is not placed.");
+                }
+
+                if (recipe.WorkstationBuildingId is not null && recipe.WorkstationBuildingId != placed.DefinitionId)
+                {
+                    return ProductionStartResult.Rejected(normalizedRecipeId, "The placed building is not a valid workstation for this recipe.");
+                }
+
+                var buildingDefinition = worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
+                var activeJobs = worldSimulation.ProductionJobs.Count(item =>
+                    item.BuildingInstanceId == placed.InstanceId && item.State == WorldProductionJobState.Running);
+                if (activeJobs >= buildingDefinition.Capacity)
+                {
+                    return ProductionStartResult.Rejected(normalizedRecipeId, "The workstation has no free production capacity.");
+                }
+
+                workPosition = placed.Position;
             }
 
             var worker = society.Checkpoint.Inhabitants.SingleOrDefault(item => item.Id == normalizedWorkerId);
@@ -595,9 +650,9 @@ public sealed class PrivateWorldRuntime : IDisposable
                 return ProductionStartResult.Rejected(normalizedRecipeId, "The production worker is not active.");
             }
 
-            if (!inhabitants.TryGetValue(normalizedWorkerId, out var physical) || physical.Position != placed.Position)
+            if (!inhabitants.TryGetValue(normalizedWorkerId, out var physical) || physical.Position != workPosition)
             {
-                return ProductionStartResult.Rejected(normalizedRecipeId, "The worker must be standing at the workstation.");
+                return ProductionStartResult.Rejected(normalizedRecipeId, "The worker must be standing at the build site.");
             }
 
             var jobId = $"production-{worldSimulation.NextProductionJobSequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}";
@@ -617,29 +672,30 @@ public sealed class PrivateWorldRuntime : IDisposable
             var job = new WorldProductionJob(
                 jobId,
                 recipe.CanonicalId,
-                placed.InstanceId,
+                normalizedBuildingId,
                 normalizedWorkerId,
                 WorldTick,
                 completionTick,
                 WorldProductionJobState.Running,
                 reservationIds.ToArray());
+            var productionJobs = isFertileLandBuild
+                ? worldSimulation.ProductionJobs
+                : worldSimulation.ProductionJobs.Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray();
+            var cropBuilds = isFertileLandBuild
+                ? (worldSimulation.CropBuilds ?? []).Append(job).OrderBy(item => item.JobId, StringComparer.Ordinal).ToArray()
+                : worldSimulation.CropBuilds;
             worldSimulation = new WorldContentSimulationState(
                 worldSimulation.Buildings,
-                worldSimulation.ProductionJobs
-                    .Append(job)
-                    .OrderBy(item => item.JobId, StringComparer.Ordinal)
-                    .ToArray(),
-                checked(worldSimulation.NextProductionJobSequence + 1));
-            AppendEvent("recipe_started", $"{job.JobId}:{job.RecipeId}:{job.BuildingInstanceId}");
+                productionJobs,
+                checked(worldSimulation.NextProductionJobSequence + 1),
+                cropBuilds);
+            AppendEvent(eventKind == "recipe_started" && isFertileLandBuild ? "build_started" : eventKind,
+                $"{job.JobId}:{job.RecipeId}:{job.BuildingInstanceId}");
             return ProductionStartResult.Success(job);
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
         {
             return ProductionStartResult.Rejected(recipeId?.Trim() ?? string.Empty, exception.Message);
-        }
-        finally
-        {
-            gate.Release();
         }
     }
 
@@ -716,7 +772,9 @@ public sealed class PrivateWorldRuntime : IDisposable
         var inventoryReservationIds = society.Checkpoint.Inventory.Reservations
             .Select(item => item.Id)
             .ToHashSet(StringComparer.Ordinal);
-        foreach (var job in worldSimulation.ProductionJobs.Where(item => item.State == WorldProductionJobState.Running))
+        foreach (var job in worldSimulation.ProductionJobs
+                     .Concat(worldSimulation.CropBuilds ?? [])
+                     .Where(item => item.State == WorldProductionJobState.Running))
         {
             if (job.InputReservationIds.Any(id => !inventoryReservationIds.Contains(id)))
             {
@@ -848,6 +906,110 @@ public sealed class PrivateWorldRuntime : IDisposable
             throw new InvalidDataException("The world asset reservation ledger does not match active package reservations.");
         }
     }
+
+    private bool TryFindBuildingPosition(BuildingDefinition definition, out GridPoint position)
+    {
+        for (var y = 0; y < map.Height; y++)
+        {
+            for (var x = 0; x < map.Width; x++)
+            {
+                var candidate = new GridPoint(x, y);
+                if (CanPlaceBuilding(definition, candidate, out _) &&
+                    HasAvailableQuantities(definition.BuildCosts))
+                {
+                    position = candidate;
+                    return true;
+                }
+            }
+        }
+
+        position = default;
+        return false;
+    }
+
+    private bool TryFindRecipeSite(
+        RecipeDefinition recipe,
+        out string siteId,
+        out GridPoint position)
+    {
+        if (recipe.IsCrop)
+        {
+            foreach (var resource in map.Resources
+                         .Where(item => item.Id == SeededMapGenerator.FertileLandResourceId &&
+                             item.Kind == "fertile_land")
+                         .OrderBy(item => item.Id, StringComparer.Ordinal))
+            {
+                if (resources.TryGetValue(resource.Id, out var resourceState) &&
+                    resourceState == ResourceState.Available &&
+                    !(worldSimulation.CropBuilds ?? []).Any(job =>
+                        job.State == WorldProductionJobState.Running &&
+                        job.BuildingInstanceId == WorldBuildSiteRules.FertileLandSiteId(resource.Position)))
+                {
+                    siteId = WorldBuildSiteRules.FertileLandSiteId(resource.Position);
+                    position = resource.Position;
+                    return true;
+                }
+            }
+
+            siteId = string.Empty;
+            position = default;
+            return false;
+        }
+
+        if (recipe.WorkstationBuildingId is null)
+        {
+            siteId = string.Empty;
+            position = default;
+            return false;
+        }
+
+        foreach (var placed in worldSimulation.Buildings.OrderBy(item => item.InstanceId, StringComparer.Ordinal))
+        {
+            if (placed.DefinitionId != recipe.WorkstationBuildingId)
+            {
+                continue;
+            }
+
+            var definition = worldContent.Buildings.Single(item => item.CanonicalId == placed.DefinitionId);
+            var activeJobs = worldSimulation.ProductionJobs.Count(item =>
+                item.BuildingInstanceId == placed.InstanceId && item.State == WorldProductionJobState.Running);
+            if (activeJobs < definition.Capacity)
+            {
+                siteId = placed.InstanceId;
+                position = placed.Position;
+                return true;
+            }
+        }
+
+        siteId = string.Empty;
+        position = default;
+        return false;
+    }
+
+    private bool HasAvailableQuantities(IReadOnlyList<ContentQuantity> quantities)
+    {
+        var inventory = society.Checkpoint.Inventory;
+        foreach (var requested in quantities)
+        {
+            var available = inventory.Lots
+                .Where(lot => lot.OwnerId == HouseholdId && lot.ItemKind == requested.ResourceId)
+                .Sum(lot => lot.Quantity - inventory.Reservations
+                    .Where(reservation => reservation.LotId == lot.Id &&
+                        reservation.State is InventoryReservationState.Reserved or
+                            InventoryReservationState.PartiallyConsumed or
+                            InventoryReservationState.Committed)
+                    .Sum(reservation => reservation.Quantity));
+            if (available < requested.Amount)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string BuildInstanceId(string inhabitantId, BuildingDefinition definition) =>
+        $"build-{inhabitantId}-{definition.PackageDigest[7..15]}-{definition.LocalId}";
 
     private bool CanPlaceBuilding(
         BuildingDefinition definition,
@@ -1032,28 +1194,7 @@ public sealed class PrivateWorldRuntime : IDisposable
                 throw new InvalidDataException($"Production job '{job.JobId}' references a recipe that is no longer active.");
             }
 
-            ApplyInventoryTransition(inventory =>
-            {
-                var current = inventory;
-                foreach (var reservationId in job.InputReservationIds.Order(StringComparer.Ordinal))
-                {
-                    current = InventoryFixture.ConsumeReservation(current, reservationId);
-                }
-
-                for (var outputIndex = 0; outputIndex < recipe.Outputs.Count; outputIndex++)
-                {
-                    var output = recipe.Outputs[outputIndex];
-                    current = InventoryFixture.AddLot(
-                        current,
-                        $"{job.JobId}:output:{outputIndex.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}",
-                        output.ResourceId,
-                        HouseholdId,
-                        output.Amount,
-                        targetTick);
-                }
-
-                return current;
-            });
+            CompleteProductionJob(job, recipe, targetTick);
 
             worldSimulation = new WorldContentSimulationState(
                 worldSimulation.Buildings,
@@ -1063,9 +1204,69 @@ public sealed class PrivateWorldRuntime : IDisposable
                         : candidate)
                     .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
                     .ToArray(),
-                worldSimulation.NextProductionJobSequence);
+                worldSimulation.NextProductionJobSequence,
+                worldSimulation.CropBuilds);
             AppendEvent("recipe_completed", $"{job.JobId}:{recipe.CanonicalId}");
         }
+    }
+
+    private void ProcessCropBuilds(long targetTick)
+    {
+        var due = (worldSimulation.CropBuilds ?? [])
+            .Where(job => job.State == WorldProductionJobState.Running && job.CompletionTick <= targetTick)
+            .OrderBy(job => job.CompletionTick)
+            .ThenBy(job => job.JobId, StringComparer.Ordinal)
+            .ToArray();
+        foreach (var job in due)
+        {
+            var recipe = worldContent.Recipes.SingleOrDefault(item => item.CanonicalId == job.RecipeId);
+            if (recipe is null || !recipe.IsCrop)
+            {
+                throw new InvalidDataException($"Crop build '{job.JobId}' references a recipe that is no longer active.");
+            }
+
+            CompleteProductionJob(job, recipe, targetTick);
+            worldSimulation = new WorldContentSimulationState(
+                worldSimulation.Buildings,
+                worldSimulation.ProductionJobs,
+                worldSimulation.NextProductionJobSequence,
+                (worldSimulation.CropBuilds ?? [])
+                    .Select(candidate => candidate.JobId == job.JobId
+                        ? candidate with { State = WorldProductionJobState.Completed }
+                        : candidate)
+                    .OrderBy(candidate => candidate.JobId, StringComparer.Ordinal)
+                    .ToArray());
+            AppendEvent("build_completed", $"{job.JobId}:{recipe.CanonicalId}");
+        }
+    }
+
+    private void CompleteProductionJob(
+        WorldProductionJob job,
+        RecipeDefinition recipe,
+        long targetTick)
+    {
+        ApplyInventoryTransition(inventory =>
+        {
+            var current = inventory;
+            foreach (var reservationId in job.InputReservationIds.Order(StringComparer.Ordinal))
+            {
+                current = InventoryFixture.ConsumeReservation(current, reservationId);
+            }
+
+            for (var outputIndex = 0; outputIndex < recipe.Outputs.Count; outputIndex++)
+            {
+                var output = recipe.Outputs[outputIndex];
+                current = InventoryFixture.AddLot(
+                    current,
+                    $"{job.JobId}:output:{outputIndex.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}",
+                    output.ResourceId,
+                    HouseholdId,
+                    output.Amount,
+                    targetTick);
+            }
+
+            return current;
+        });
     }
 
     private void ReleaseProductionReservationsForPackage(string packageDigest)
@@ -1076,6 +1277,9 @@ public sealed class PrivateWorldRuntime : IDisposable
                     building.InstanceId == job.BuildingInstanceId &&
                     building.DefinitionId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)))
             .SelectMany(job => job.InputReservationIds)
+            .Concat((worldSimulation.CropBuilds ?? [])
+                .Where(job => job.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal))
+                .SelectMany(job => job.InputReservationIds))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         if (affected.Length == 0)
@@ -1344,23 +1548,30 @@ public sealed class PrivateWorldRuntime : IDisposable
             candidateId = forcedCandidate;
         }
 
-        switch (candidateId)
+        if (candidateId.StartsWith("build:", StringComparison.Ordinal))
         {
-            case "seek_food":
-                MoveToward(decision.InhabitantId, state, map.GetResource(BerryResourceId).Position, "food");
-                break;
-            case "harvest_food":
-                HarvestFood(decision.InhabitantId, state);
-                break;
-            case "consume_food":
-                ConsumeFood(decision.InhabitantId, state);
-                break;
-            case "sleep":
-                Sleep(decision.InhabitantId, state);
-                break;
-            default:
-                AppendEvent("inhabitant_idle", decision.InhabitantId);
-                break;
+            ApplyBuildDecision(decision.InhabitantId, state, candidateId);
+        }
+        else
+        {
+            switch (candidateId)
+            {
+                case "seek_food":
+                    MoveToward(decision.InhabitantId, state, map.GetResource(BerryResourceId).Position, "food");
+                    break;
+                case "harvest_food":
+                    HarvestFood(decision.InhabitantId, state);
+                    break;
+                case "consume_food":
+                    ConsumeFood(decision.InhabitantId, state);
+                    break;
+                case "sleep":
+                    Sleep(decision.InhabitantId, state);
+                    break;
+                default:
+                    AppendEvent("inhabitant_idle", decision.InhabitantId);
+                    break;
+            }
         }
 
         if (pendingInstruction is not null &&
@@ -1368,6 +1579,69 @@ public sealed class PrivateWorldRuntime : IDisposable
         {
             completedInstructionIds.Add(pendingInstruction.InstructionId);
             AppendEvent("instruction_applied", $"{pendingInstruction.InstructionId}:{candidateId}");
+        }
+    }
+
+    private void ApplyBuildDecision(
+        string inhabitantId,
+        PlaytestInhabitantState state,
+        string candidateId)
+    {
+        const string buildingPrefix = "build:building:";
+        const string recipePrefix = "build:recipe:";
+        if (candidateId.StartsWith(buildingPrefix, StringComparison.Ordinal))
+        {
+            var definitionId = candidateId[buildingPrefix.Length..];
+            var definition = worldContent.Buildings.SingleOrDefault(item => item.CanonicalId == definitionId);
+            if (definition is null || !TryFindBuildingPosition(definition, out var position))
+            {
+                AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:no_valid_site");
+                return;
+            }
+
+            if (state.Position != position)
+            {
+                MoveToward(inhabitantId, state, position, "build");
+                return;
+            }
+
+            var placement = PlaceBuildingCore(
+                BuildInstanceId(inhabitantId, definition),
+                definition.CanonicalId,
+                position,
+                "build_completed");
+            if (!placement.Applied)
+            {
+                AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:{placement.Failure}");
+            }
+
+            return;
+        }
+
+        if (!candidateId.StartsWith(recipePrefix, StringComparison.Ordinal))
+        {
+            AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:unknown_target");
+            return;
+        }
+
+        var recipeId = candidateId[recipePrefix.Length..];
+        var recipe = worldContent.Recipes.SingleOrDefault(item => item.CanonicalId == recipeId);
+        if (recipe is null || !TryFindRecipeSite(recipe, out var siteId, out var sitePosition))
+        {
+            AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:no_valid_site");
+            return;
+        }
+
+        if (state.Position != sitePosition)
+        {
+            MoveToward(inhabitantId, state, sitePosition, "build");
+            return;
+        }
+
+        var started = StartProductionCore(recipe.CanonicalId, siteId, inhabitantId, "build_started");
+        if (!started.Applied)
+        {
+            AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:{started.Failure}");
         }
     }
 
@@ -1524,8 +1798,57 @@ public sealed class PrivateWorldRuntime : IDisposable
             candidates.Add(new CognitionCandidate("sleep", "Sleep to recover energy.", 10, "bedroll"));
         }
 
+        var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
+        AddBuildCandidates(candidates, inhabitant, state);
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
         return candidates;
+    }
+
+    private void AddBuildCandidates(
+        List<CognitionCandidate> candidates,
+        SocietyInhabitant inhabitant,
+        PlaytestInhabitantState state)
+    {
+        var canBuildStructures = inhabitant.CurrentRole == SocietyWorkRole.Builder ||
+            state.Aspiration.Contains("build", StringComparison.OrdinalIgnoreCase);
+        if (canBuildStructures)
+        {
+            foreach (var definition in worldContent.Buildings)
+            {
+                var instanceId = BuildInstanceId(inhabitant.Id, definition);
+                if (worldSimulation.Buildings.Any(item => item.InstanceId == instanceId) ||
+                    !HasAvailableQuantities(definition.BuildCosts) ||
+                    !TryFindBuildingPosition(definition, out var position))
+                {
+                    continue;
+                }
+
+                candidates.Add(new CognitionCandidate(
+                    $"build:building:{definition.CanonicalId}",
+                    $"Build {definition.DisplayName} on a valid site.",
+                    20,
+                    $"build-site:{position.X},{position.Y}"));
+            }
+        }
+
+        var canGrow = inhabitant.CurrentRole == SocietyWorkRole.Farmer ||
+            state.Aspiration.Contains("self-sufficient", StringComparison.OrdinalIgnoreCase);
+        var canProduce = inhabitant.CurrentRole is SocietyWorkRole.Farmer or
+            SocietyWorkRole.Builder or SocietyWorkRole.Trader or SocietyWorkRole.Organizer;
+        foreach (var recipe in worldContent.Recipes.Where(item => item.IsCrop ? canGrow : canProduce))
+        {
+            if (!HasAvailableQuantities(recipe.Inputs) ||
+                !TryFindRecipeSite(recipe, out _, out var position))
+            {
+                continue;
+            }
+
+            candidates.Add(new CognitionCandidate(
+                $"build:recipe:{recipe.CanonicalId}",
+                $"Build {recipe.DisplayName} at a valid site.",
+                recipe.IsCrop ? 20 : 30,
+                $"build-site:{position.X},{position.Y}"));
+        }
     }
 
     private static int PriorityFor(PlaytestInhabitantState state) =>

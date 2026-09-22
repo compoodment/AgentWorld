@@ -68,7 +68,8 @@ public static class SeededMapGenerator
     public const int MaximumAttempts = 32;
     public const string GeneratorId = "temperate-fixture";
     public const string GeneratorVersion = "v1";
-    public const string GeneratorConfigDigest = "sha256:temperate-fixture-config-v1";
+    public const string GeneratorConfigDigest = "sha256:temperate-fixture-config-v2";
+    public const string FertileLandResourceId = "fertile-land";
 
     public static SeededMap Generate(string worldSeed)
     {
@@ -140,6 +141,7 @@ public static class SeededMapGenerator
         {
             new MapResource("berry-patch", "food", new GridPoint(4, 1), true),
             new MapResource("timber-tree", "construction", new GridPoint(4, 3), false),
+            new MapResource(FertileLandResourceId, "fertile_land", new GridPoint(2, 3), false),
         };
         var withoutDigest = new SeededMap(width, height, attempt, tiles, campObjects, resources, string.Empty);
         return withoutDigest with { ManifestDigest = MapManifestCodec.Digest(withoutDigest) };
@@ -255,9 +257,11 @@ public static class MapAcceptance
 
         if (!map.Resources.Any(resource => resource.IsRenewable &&
                 string.Equals(resource.Kind, "food", StringComparison.Ordinal)) ||
-            !map.Resources.Any(resource => string.Equals(resource.Kind, "construction", StringComparison.Ordinal)))
+            !map.Resources.Any(resource => string.Equals(resource.Kind, "construction", StringComparison.Ordinal)) ||
+            !map.Resources.Any(resource => string.Equals(resource.Id, SeededMapGenerator.FertileLandResourceId, StringComparison.Ordinal) &&
+                string.Equals(resource.Kind, "fertile_land", StringComparison.Ordinal)))
         {
-            return MapValidationResult.Invalid("Reachable food or construction resources are missing.");
+            return MapValidationResult.Invalid("Reachable food, construction, or fertile-land resources are missing.");
         }
 
         var reachable = ReachableFrom(map, founder.Position);
