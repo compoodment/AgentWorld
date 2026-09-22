@@ -69,7 +69,7 @@ the authority file; old challenges fail closed after restart.
 | Family, aging and death | **Integrated but thin** | Separate parental consent, preparation, dependent infants and actual caregiver food/warmth delivery; infants have no paid cognition. Household adults can volunteer to replace lost carers; older dependents accept/refuse independently. Pause-only Life pace settings optionally make biological years last one world day or a quarter-day, preserving existing ages and historical dates. Lifecycle, estates and inheritance remain in the society runtime | Calendar aging remains the default; legal guardianship and long-run intergenerational balance need further work |
 | Ecology and weather | **Integrated but thin** | Renewable resources, seasons and weather affect warmth, fuel demand, illness, crop food yields and travel fatigue | Broader ecosystems, drought/flood damage and long-run tuning remain incomplete |
 | Factions, law, currency and culture | **Integrated but thin** | A household council can change shared-food access by majority vote; persistent faction/currency/culture contracts exist | Broader institutions, currency circulation and contested law remain incomplete |
-| Content governance | **Integrated but thin** | Canonical data-only packages and bundled starter content; validation, approval, staging, activation, rollback and quarantine | No friendly player proposal/approval workflow |
+| Content governance | **Integrated but thin** | Canonical data-only packages and bundled starter content; validation, approval, staging, activation and unused-package withdrawal into quarantine | No friendly player proposal/approval workflow; committed references require an explicit migration before removal |
 | Asset governance | **Verified primitive** | Provenance, rights metadata, quotas, cache/reservation accounting, preview contracts and artifact envelopes | No end-to-end creator/approval experience and no production art pipeline |
 | Client presentation | **Playable** | World-first view, shared stores, project phases/blockers, social notes, provider activity, compact per-inhabitant settings and centered menu | Prototype visuals; no dedicated economy/project management screen |
 | Multiplayer/public worlds | **Excluded** | Single-player only by owner decision | Multiple paired owner devices are not multiplayer |
@@ -123,6 +123,13 @@ Resource markers display authoritative stock/capacity and stable hover help
 for finite deposits or seasonal regrowth. Legacy hosts without these optional
 fields show unknown details rather than fabricated quantities. Engine checks
 exercise hover, stock refresh and marker removal alongside menu geometry.
+
+Content rollback is conservative: placed buildings, production/crop history
+and recorded settlement projects block removal before any mutation. Unused
+packages can still enter quarantine without cancelling unrelated work. The
+signed endpoint reports a conflict for referenced content; `content_rollback`
+logs contain only tick, package ID and outcome. A reference-preserving conversion
+or executable-content suspension workflow is not implemented by this guard.
 
 An additive forestry package supplies managed coppice: two seeds and a fertile
 plot are committed for 1,440 world ticks, producing 24 wood and two replacement

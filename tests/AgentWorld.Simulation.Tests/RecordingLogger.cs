@@ -3,6 +3,13 @@ using Microsoft.Extensions.Logging;
 
 namespace AgentWorld.Simulation.Tests;
 
+internal sealed class RecordingLoggerProvider<T>(RecordingLogger<T> logger) : ILoggerProvider
+{
+    public ILogger CreateLogger(string categoryName) => logger;
+
+    public void Dispose() { }
+}
+
 internal sealed class RecordingLogger<T> : ILogger<T>
 {
     private readonly ConcurrentQueue<string> messages = new();

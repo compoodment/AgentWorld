@@ -856,10 +856,17 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         gate.Wait();
         try
         {
+            var manifest = GetContentManifest(packageId);
+            var remainingSimulation = WorldContentSimulationRules.RemovePackage(worldSimulation, manifest.PackageDigest);
+            if (inhabitants.Values.Any(person => person.Project is { } project &&
+                (project.CandidateId.StartsWith($"build:building:{manifest.PackageDigest}/", StringComparison.Ordinal) ||
+                 project.CandidateId.StartsWith($"build:recipe:{manifest.PackageDigest}/", StringComparison.Ordinal))))
+            {
+                throw new InvalidOperationException("Content referenced by settlement projects requires an explicit migration before removal.");
+            }
             var record = contentRegistry.Rollback(packageId, WorldTick, reason);
             worldContent = ContentDefinitionApplicator.RemovePackage(worldContent, record.Manifest.PackageDigest);
-            ReleaseProductionReservationsForPackage(record.Manifest.PackageDigest);
-            worldSimulation = WorldContentSimulationRules.RemovePackage(worldSimulation, record.Manifest.PackageDigest);
+            worldSimulation = remainingSimulation;
             if (survivalState is not null)
             {
                 survivalState = survivalState with
@@ -1510,39 +1517,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             AppendEvent("crop_weather_loss", $"{job.JobId}:{worldSystems.Climate.Weather.ToString().ToLowerInvariant()}");
         }
         return true;
-    }
-
-    private void ReleaseProductionReservationsForPackage(string packageDigest)
-    {
-        var affected = worldSimulation.ProductionJobs
-            .Where(job => job.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal) ||
-                worldSimulation.Buildings.Any(building =>
-                    building.InstanceId == job.BuildingInstanceId &&
-                    building.DefinitionId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)))
-            .SelectMany(job => job.InputReservationIds)
-            .Concat((worldSimulation.CropBuilds ?? [])
-                .Where(job => job.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal))
-                .SelectMany(job => job.InputReservationIds))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        if (affected.Length == 0)
-        {
-            return;
-        }
-
-        ApplyInventoryTransition(inventory =>
-        {
-            var current = inventory;
-            foreach (var reservationId in affected.Order(StringComparer.Ordinal))
-            {
-                if (current.Reservations.Any(reservation => reservation.Id == reservationId))
-                {
-                    current = InventoryFixture.ReleaseReservation(current, reservationId, "content_rollback");
-                }
-            }
-
-            return current;
-        });
     }
 
     private static WorldSystemsState CreateWorldSystems(string worldSeed, SeededMap map)

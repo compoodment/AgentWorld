@@ -7,7 +7,7 @@ using AgentWorld.Simulation.World;
 
 namespace AgentWorld.Simulation.Tests;
 
-public sealed class PrivateWorldRuntimeTests
+public sealed partial class PrivateWorldRuntimeTests
 {
     [Fact]
     public void PrivateWorldStartsWithAnActiveSettlementInsteadOfAuthoringDrafts()

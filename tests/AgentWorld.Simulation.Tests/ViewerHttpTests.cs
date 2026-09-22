@@ -10,6 +10,7 @@ using AgentWorld.Viewer.Observation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace AgentWorld.Simulation.Tests;
 
@@ -471,7 +472,10 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
             Assert.True(placementReceipt!.Applied, placementReceipt.Failure);
             Assert.Single(runtime.WorldSimulation.Buildings);
 
-            var rollback = new OwnerContentRollbackAction(package.PackageId, "preview mismatch");
+            var rollbackLogger = new RecordingLogger<PrivateWorldRuntimeService>();
+            host.Services.GetRequiredService<ILoggerFactory>().AddProvider(new RecordingLoggerProvider<PrivateWorldRuntimeService>(rollbackLogger));
+            var rollback = new OwnerContentRollbackAction(package.PackageId, "sk-private-rollback-reason");
+            var beforeRollback = PrivateWorldRuntimeCodec.Encode(runtime.ExportState());
             using var rolledBack = await SendSignedAsync(
                 host,
                 client,
@@ -480,11 +484,15 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
                 "/api/v1/owner/content/rollback",
                 rollback,
                 OwnerContentBinding.RollbackPayload(rollback));
-            var rollbackReceipt = await rolledBack.Content.ReadFromJsonAsync<OwnerContentPackageReceipt>();
-            Assert.Equal(HttpStatusCode.OK, rolledBack.StatusCode);
-            Assert.Equal("quarantined", rollbackReceipt!.Lifecycle);
-            Assert.Empty(runtime.WorldContent.Buildings);
-            Assert.Empty(runtime.WorldSimulation.Buildings);
+            Assert.Equal(HttpStatusCode.Conflict, rolledBack.StatusCode);
+            var rollbackFailure = await rolledBack.Content.ReadFromJsonAsync<OwnerControlFailure>();
+            Assert.Equal("content_rejected", rollbackFailure!.Code);
+            Assert.Equal(beforeRollback, PrivateWorldRuntimeCodec.Encode(runtime.ExportState()));
+            Assert.Single(runtime.WorldContent.Buildings);
+            Assert.Single(runtime.WorldSimulation.Buildings);
+            Assert.Contains(rollbackLogger.Messages, message => message.Contains("content_rollback", StringComparison.Ordinal) &&
+                message.Contains("package=camp-recipes outcome=rejected", StringComparison.Ordinal));
+            Assert.DoesNotContain(rollbackLogger.Messages, message => message.Contains(rollback.Reason, StringComparison.Ordinal));
         }
         finally
         {

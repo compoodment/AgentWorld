@@ -189,6 +189,12 @@ balance remain open.
 **Gate:** new content materially expands the live world while preserving save,
 authority, rollback and host-isolation guarantees.
 
+**Safety prerequisite repaired:** unused package withdrawal preserves unrelated
+jobs. Removal of content referenced by buildings, production history or recorded
+projects is rejected atomically. A usable creator workflow must expose that
+restriction and eventually provide explicit, previewed conversion; it must not
+describe destructive deletion as rollback.
+
 ## Single-player release
 
 Public packaging comes after the private world is coherent:

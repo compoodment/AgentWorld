@@ -256,36 +256,14 @@ public static class WorldContentSimulationRules
         string packageDigest)
     {
         ContentPackageRules.ValidateDigest(packageDigest, nameof(packageDigest));
-        var removedBuildingIds = state.Buildings
-            .Where(item => item.DefinitionId.StartsWith($"{packageDigest}/", StringComparison.Ordinal))
-            .Select(item => item.InstanceId)
-            .ToHashSet(StringComparer.Ordinal);
-        return new WorldContentSimulationState(
-            state.Buildings
-                .Where(item => !item.DefinitionId.StartsWith($"{packageDigest}/", StringComparison.Ordinal))
-                .ToArray(),
-            state.ProductionJobs
-                .Where(item => !removedBuildingIds.Contains(item.BuildingInstanceId) &&
-                    !item.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal))
-                .Select(item => item with
-                {
-                    State = item.State == WorldProductionJobState.Running
-                        ? WorldProductionJobState.Cancelled
-                        : item.State,
-                })
-                .OrderBy(item => item.JobId, StringComparer.Ordinal)
-                .ToArray(),
-            state.NextProductionJobSequence,
-            (state.CropBuilds ?? [])
-                .Where(item => !item.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal))
-                .Select(item => item with
-                {
-                    State = item.State == WorldProductionJobState.Running
-                        ? WorldProductionJobState.Cancelled
-                        : item.State,
-                })
-                .OrderBy(item => item.JobId, StringComparer.Ordinal)
-                .ToArray());
+        if (state.Buildings.Any(item => item.DefinitionId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)) ||
+            state.ProductionJobs.Concat(state.CropBuilds ?? []).Any(item =>
+                item.RecipeId.StartsWith($"{packageDigest}/", StringComparison.Ordinal)))
+        {
+            throw new InvalidOperationException("Content with committed buildings or production history requires an explicit migration before removal.");
+        }
+        // Withdrawal of unused definitions cannot mutate another package's jobs.
+        return state;
     }
 
     public static bool IsFertileLandPosition(SeededMap map, GridPoint position) =>

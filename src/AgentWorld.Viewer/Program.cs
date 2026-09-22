@@ -765,7 +765,8 @@ app.MapPost("/api/v1/owner/content/stage", (
 app.MapPost("/api/v1/owner/content/rollback", (
     OwnerSignedHttpRequest<OwnerContentRollbackAction> request,
     OwnerRequestAuthorizer authorizer,
-    IServiceProvider services) =>
+    IServiceProvider services,
+    ILogger<PrivateWorldRuntimeService> logger) =>
 {
     if (!isPrivateWorld)
     {
@@ -807,6 +808,7 @@ app.MapPost("/api/v1/owner/content/rollback", (
     {
         var record = runtime.RollbackContent(request.Action.PackageId, request.Action.Reason);
         stateFile.Save(runtime);
+        OwnerContentTelemetry.Rollback(logger, runtime.WorldTick, record.Manifest.PackageId, "quarantined");
         return Results.Ok(OwnerContentPackageReceipt.From("rollback", record));
     }
     catch (ArgumentException exception)
@@ -818,6 +820,7 @@ app.MapPost("/api/v1/owner/content/rollback", (
     }
     catch (InvalidOperationException exception)
     {
+        OwnerContentTelemetry.Rollback(logger, runtime.WorldTick, request.Action.PackageId, "rejected");
         return Results.Conflict(new OwnerControlFailure("content_rejected", exception.Message));
     }
     catch (KeyNotFoundException exception)

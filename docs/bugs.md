@@ -14,6 +14,16 @@ path.
 
 ## Original reports and resolution evidence
 
+- **AW-B020 — fixed:** rollback deleted placed buildings and production history
+  belonging to the package, despite committed costs and outputs. Referenced
+  packages now reject removal before any mutation; recorded settlement projects
+  also block removal. A compatible conversion/migration workflow remains future
+  work, not a hidden destructive fallback.
+- **AW-B021 — fixed:** removing an unrelated unused package changed every
+  remaining running production/crop job to cancelled. Unused withdrawal now
+  preserves those jobs and reservations; regressions prove normal completion
+  and restart afterwards.
+
 - **AW-B018 — fixed:** household-owned production reservations outlived a dead
   worker, allowing unfinished crafting and crops to complete. Running jobs now
   cancel before completion and release remaining inputs. Six regressions cover

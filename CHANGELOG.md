@@ -8,6 +8,11 @@ release yet.
 
 ### Added
 
+- Package withdrawal now rejects committed building, production-history and
+  settlement-project references until an explicit migration is available.
+  A rejected request preserves the world; withdrawing unused content no longer
+  cancels another package's work. Rollback outcome logs omit private reason text.
+
 - Resource markers show remaining stock and capacity, with working hover help
   for finite deposits and seasonal regrowth. Markers persist across refreshes
   so updates no longer discard the hovered control.
