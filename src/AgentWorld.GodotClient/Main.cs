@@ -2128,7 +2128,11 @@ public partial class Main : Control
                 (project.Blocker is null ? "" : $"\n{project.Blocker}")
             : "No settlement project";
         var socialNotes = inhabitant.SocialNotes.Count == 0 ? "" : "\n" + string.Join("\n", inhabitant.SocialNotes);
-        inhabitantSocialDetails.Text = $"{(inhabitant.Project is null ? intention : projectText)}\n{relationships}{socialNotes}\n{activity}";
+        var condition = inhabitant.Survival is { } survival
+            ? $"Warmth {survival.WarmthBasisPoints / 100}% · Illness {survival.IllnessBasisPoints / 100}%" +
+                $" · Diet {survival.NutritionBasisPoints / 100}%\n" +
+                $"{(survival.HasClothing ? "Clothed" : "No warm clothing")} · {(survival.HasTool ? "Tool equipped" : "Working by hand")}\n" : "";
+        inhabitantSocialDetails.Text = $"{condition}{(inhabitant.Project is null ? intention : projectText)}\n{relationships}{socialNotes}\n{activity}";
         inhabitantSocialDetails.TooltipText = decision is null ? "" :
             $"Last accepted decision\nRole: {decision.Role ?? "not reported"}\nModel: {decision.Model ?? "not reported"}\nConfidence: {decision.Confidence:P0}\n" +
             $"Latency: {decision.LatencyMilliseconds?.ToString(CultureInfo.CurrentCulture) ?? "—"} ms\n" +

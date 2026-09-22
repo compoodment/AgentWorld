@@ -12,7 +12,12 @@ may track active implementation work, but closing an issue does not remove an
 entry here until the fix is merged and verified through the normal product
 path.
 
-| ID | Priority | Area | Problem | Acceptance condition |
+## Original reports and resolution evidence
+
+The reports below describe the original defects; their resolution is recorded
+in the following repair evidence, not implied to remain open.
+
+| ID | Priority | Area | Original problem | Acceptance condition |
 | --- | --- | --- | --- | --- |
 | AW-B001 | High | Content/gameplay | A fresh/default private world has no active starter package, leaving zero building and recipe definitions and no meaningful planning-provider work. | A new and existing private world receive a versioned starter content pack with useful materials, tools, shelter, storage, fire/workshop and crop/food recipes; planning candidates occur in normal play. |
 | AW-B002 | High | Cognition/cost | Routine cognition can repeatedly pay for `safe_idle` when no meaningful observation changed. | Idle decisions are reused/coalesced until relevant state changes or a bounded reevaluation deadline; telemetry proves materially fewer no-op calls. |
@@ -43,6 +48,19 @@ path.
 These are implementation evidence, not a claim that Living Settlement's whole
 acceptance gate is complete. Live migration remains deferred while the owner
 keeps the existing world manually paused.
+
+## Survival integration regressions
+
+- **AW-B006 — fixed:** production could reserve fresh ingredients that spoiled
+  before completion, causing the tick to throw repeatedly. Completion now
+  cancels that job, releases remaining reservations and emits
+  `production_input_unusable`; the regression verifies subsequent ticks advance.
+- Food availability, consumption and production input selection all exclude
+  spoiled/ruined lots, so an older unusable lot cannot shadow usable stock.
+- **AW-B007 — fixed:** construction could repeatedly select a site occupied by
+  an idle inhabitant. Candidate sites now exclude other inhabitants and require
+  a reachable route. An urgent-cold bootstrap regression proves protective
+  construction and heating remain possible instead of permanent path retries.
 
 ## Runtime audit issues
 

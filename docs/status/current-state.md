@@ -44,7 +44,8 @@ Provider work runs against an isolated proposed tick, so owner observations and
 pause remain responsive. Cancellation or intervening owner changes discard the
 proposal without partial world mutations. In-flight provider work is cancelled
 on manual pause or client lease expiry.
-Save schema 5 preserves work projects and additive settlement resources;
+Save schema 6 preserves survival conditions and fuel deadlines alongside
+work projects and additive settlement resources;
 the schema-4 history mechanism bounds hot histories
 and archives older events with verified hashes; reconnect explicitly resets
 stale cursors. See [persistence and backup requirements](../planning/architecture.md#persistence-and-replay).
@@ -58,15 +59,15 @@ the authority file; old challenges fail closed after restart.
 | World host and persistence | **Playable** | Persistent private save, event stream, restart recovery, manual pause and client-presence gate | No player-facing save selection or migration UI |
 | Owner security | **Playable** | Windows device key, host-approved pairing, signed/replay-resistant owner requests, revocation and origin pinning | Private single-owner model only |
 | Map and movement | **Playable** | Seeded tile map, deterministic routing, occupancy, contention, adjacent resource interaction and animated client movement | Small fixed first-world presentation; no broad exploration loop |
-| Survival | **Playable** | Hunger, energy, gathering, carried food, eating, sleep, resource depletion and regeneration | Shelter, exposure, varied nutrition and illness are not connected loops |
+| Survival | **Playable** | Hunger, energy, warmth, exposure illness/recovery, fresh food, source-based diet variety, sleep, clothing, fuelled heat, shelter and bedding | Illness and monotonous diets increase fatigue rather than causing mortality; balance is still early-alpha |
 | Observation and control | **Playable** | World view, inhabitants, needs, intentions, inventories, relationships, events, pause/resume and suggestive/must-do instructions | UI remains early-alpha and some diagnostics are operator-only |
 | Cognition | **Playable** | World defaults and per-inhabitant provider/model overrides; Jev for routine and OpenAI/Ollama Cloud for planning; validation, fallback, retry, safe logs and selection-card telemetry | Legal planning remains bounded to building/recipe choices, not free-form social reasoning |
 | Inventory and ownership | **Playable** | Carried items and shared stores, gathering wood/stone/fiber/seeds, material requests, household sharing and food pickup | Negotiated barter and a broader economy remain incomplete |
-| Buildings and production | **Playable** | Starter and settlement packages; persistent projects acquire inputs, travel, work, build or produce, survive pause/restart and report blockers | Bedding/clothing/tools can be produced but do not yet provide their intended survival/work benefits |
+| Buildings and production | **Playable** | Persistent acquisition/work projects; hearth fuel, shelter insulation, storehouse preservation, bedding rest, clothing insulation and tool work-speed benefits | Equipment durability, repair and sophisticated logistics remain incomplete |
 | Trade and economy | **Verified primitive** | Atomic direct transfer, barter settlement, ownership and currency state are implemented and tested | Inhabitants do not autonomously request, negotiate or repeat trade in the live world |
 | Relationships and households | **Integrated but thin** | Persistent households/relationships, material-request cooperation and visible public gratitude memories | Conflict, changing trust and negotiated allocation remain incomplete |
 | Family, aging and death | **Integrated but thin** | Lifecycle, caregiving, birth, aging, death, estates and inheritance exist in society runtime/tests | Timescale and default play do not yet make this a practical player experience |
-| Ecology and weather | **Integrated but thin** | Renewable resources, seasons, deterministic weather and world summaries | Weather has little survival/economic consequence |
+| Ecology and weather | **Integrated but thin** | Renewable resources, seasons and weather affect warmth, fuel demand, illness, crop food yields and travel fatigue | Broader ecosystems, drought/flood damage and long-run tuning remain incomplete |
 | Factions, law, currency and culture | **Integrated but thin** | Bounded persistent state and deterministic contracts | Mostly summaries/state containers; inhabitants do not create or contest institutions in normal play |
 | Content governance | **Integrated but thin** | Canonical data-only packages and bundled starter content; validation, approval, staging, activation, rollback and quarantine | No friendly player proposal/approval workflow |
 | Asset governance | **Verified primitive** | Provenance, rights metadata, quotas, cache/reservation accounting, preview contracts and artifact envelopes | No end-to-end creator/approval experience and no production art pipeline |
@@ -98,8 +99,19 @@ verifies both the original generator output and the bounded registered resource
 additions. Work projects persist their phase, accumulated work and production
 job; urgent needs interrupt work, and missing materials create requests that
 other inhabitants can help fulfil. Blocked projects become eligible for
-reconsideration after 60 ticks. Food production feeds ordinary eating; useful
-effects of clothing, bedding and tools belong to consequential survival.
+reconsideration after 60 ticks. Food production feeds ordinary eating. Carried
+tools double work progress; clothing reduces exposure; shelter and bedding
+improve rest. Hearths consume wood for 120 ticks of heat. Critical exposure
+interrupts projects, and warmth plus food permits illness recovery. Food decays
+without affecting non-perishables, and storehouses halve household decay.
+Production stock targets reduce surplus equipment work. Snow halves crop food
+yield, storms retain three quarters, and bad weather adds travel fatigue.
+Food provenance distinguishes foraging, crops, cooked meals and camp rations;
+inhabitants prefer a different available source, while monotonous diets reduce
+their diet score. Low scores add fatigue. Spoiled reserved ingredients cancel
+the affected production job and release its remaining inputs rather than
+stalling the world. These are bounded first survival rules, not a finished
+nutrition/health/ecology model.
 
 Settings select either **World defaults** or a named inhabitant. Each role may
 inherit its world default or override its provider/model. API keys remain in

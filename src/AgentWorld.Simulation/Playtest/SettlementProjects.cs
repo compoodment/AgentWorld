@@ -134,6 +134,7 @@ public sealed partial class PrivateWorldRuntime
         state.Project is { Stage: not ("completed" or "cancelled") } project &&
         (project.Stage != "blocked" || WorldTick - project.LastTransitionTick < 60) &&
         state.HungerBasisPoints >= 3_500 && state.EnergyBasisPoints >= 2_500 &&
+        (!HasUrgentExposure(state) || IsProtectiveProject(state.Project)) &&
         PendingInstructionFor(state.InhabitantId) is null;
 
     private void BeginProject(string inhabitantId, PlaytestInhabitantState state, string candidateId)
@@ -191,10 +192,15 @@ public sealed partial class PrivateWorldRuntime
             AcquireProjectInput(inhabitantId, state, missing);
             return;
         }
+        if (survivalState is not null && !HasCarriedItem(inhabitantId, "tool") && SharedItem("tool") is not null)
+        {
+            CollectEquipment(inhabitantId, state, "tool");
+            return;
+        }
 
         GridPoint position;
         var hasSite = building is not null
-            ? TryFindBuildingPosition(building, out position)
+            ? TryFindBuildingPosition(building, inhabitantId, out position)
             : TryFindRecipeSite(recipe!, out _, out position);
         if (!hasSite)
         {
@@ -209,7 +215,8 @@ public sealed partial class PrivateWorldRuntime
         }
         if (project.WorkDone < ProjectWorkTicks)
         {
-            SetProject(inhabitantId, project with { Stage = "working", WorkDone = project.WorkDone + 1, Blocker = null });
+            var work = HasCarriedItem(inhabitantId, "tool") ? 2 : 1;
+            SetProject(inhabitantId, project with { Stage = "working", WorkDone = Math.Min(ProjectWorkTicks, project.WorkDone + work), Blocker = null });
             return;
         }
         ApplyBuildDecision(inhabitantId, state, project.CandidateId);
@@ -376,7 +383,7 @@ public sealed partial class PrivateWorldRuntime
         AppendEvent("project_request_fulfilled", $"{helperId}:{request.Requester}:{itemKind}:{quantity}");
     }
 
-    private int AvailableLotQuantity(InventoryLot lot) => lot.Quantity - society.Checkpoint.Inventory.Reservations
+    private int AvailableLotQuantity(InventoryLot lot) => lot.FreshnessBasisPoints == 0 || lot.ConditionBasisPoints == 0 ? 0 : lot.Quantity - society.Checkpoint.Inventory.Reservations
         .Where(reservation => reservation.LotId == lot.Id && reservation.State is InventoryReservationState.Reserved or
             InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed).Sum(reservation => reservation.Quantity);
 

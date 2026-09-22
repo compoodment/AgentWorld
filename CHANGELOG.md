@@ -8,6 +8,23 @@ release yet.
 
 ### Added
 
+- Connected weather exposure to warmth and recoverable illness, with clothing
+  insulation, shelter, fuelled hearths, better rest from bedding and faster
+  project work with carried tools. Inhabitants collect equipment and seek heat.
+- Added perishable-food decay, slower household decay with a storehouse, and
+  fresh-only consumption/reservation selection. Production now observes stock
+  targets instead of endlessly manufacturing equipment.
+- Weather now changes crop food yields and travel fatigue. Inhabitants prefer
+  varied food sources; diet quality survives transfers and affects fatigue.
+- Cancelled production safely when reserved ingredients become unusable,
+  releasing remaining inputs instead of repeatedly failing the world tick.
+- Fixed builders repeatedly selecting occupied or unreachable sites. Urgent
+  exposure still permits protective construction and clothing work, while
+  interrupting unrelated projects; exposure changes invalidate idle reuse.
+- Added visible warmth/illness/equipment state and bounded survival-transition
+  logs. Save schema 6 retains survival conditions and fire fuel deadlines;
+  older paused saves are unchanged and receive no retroactive spoilage.
+
 - Added persistent settlement projects with material acquisition, travel, work,
   interruption/restart recovery and explicit blockers. Other inhabitants can
   fulfil material requests; successful help leaves inspectable public memories.

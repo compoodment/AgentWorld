@@ -75,6 +75,18 @@ public sealed partial class PrivateWorldRuntimeService(
                         project?.Stage ?? "helping", project?.WorkDone ?? 0,
                         project?.Blocker is not null);
                 }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind == "survival_condition_changed"))
+                {
+                    var actor = worldEvent.Detail.Split(':', 2)[0];
+                    if (runtime.Inhabitants.FirstOrDefault(person => person.InhabitantId == actor)?.Survival is { } condition)
+                    {
+                        LogSurvivalCondition(logger, result.WorldTick, actor, condition.WarmthBasisPoints, condition.IllnessBasisPoints);
+                    }
+                }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind is "fire_fuelled" or "fire_extinguished"))
+                {
+                    LogSurvivalEnvironment(logger, result.WorldTick, worldEvent.Kind);
+                }
             }
         }
 
@@ -145,6 +157,14 @@ public sealed partial class PrivateWorldRuntimeService(
         Message = "settlement_activity tick={WorldTick} event={EventKind} inhabitant={InhabitantId} stage={Stage} work={WorkDone} blocked={Blocked}")]
     private static partial void LogSettlementActivity(ILogger logger, long worldTick, string eventKind,
         string inhabitantId, string stage, int workDone, bool blocked);
+
+    [LoggerMessage(EventId = 2205, Level = LogLevel.Information,
+        Message = "survival_condition tick={WorldTick} inhabitant={InhabitantId} warmth={Warmth} illness={Illness}")]
+    private static partial void LogSurvivalCondition(ILogger logger, long worldTick, string inhabitantId, int warmth, int illness);
+
+    [LoggerMessage(EventId = 2206, Level = LogLevel.Information,
+        Message = "survival_environment tick={WorldTick} event={EventKind}")]
+    private static partial void LogSurvivalEnvironment(ILogger logger, long worldTick, string eventKind);
 
     [LoggerMessage(
         EventId = 2201,

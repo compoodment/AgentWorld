@@ -80,6 +80,7 @@ public sealed record ViewerInhabitant(
     public ViewerPublicIntention? PublicIntention { get; init; }
 
     public ViewerProject? Project { get; init; }
+    public ViewerSurvival? Survival { get; init; }
 
     public IReadOnlyList<string> SocialNotes { get; init; } = [];
 
@@ -87,6 +88,8 @@ public sealed record ViewerInhabitant(
 }
 
 public sealed record ViewerProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
+public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoints, bool HasClothing, bool HasTool,
+    int NutritionBasisPoints, string? LastMealKind);
 
 public sealed record ViewerStockpile(string OwnerId, string Name, IReadOnlyList<ViewerInventoryEntry> Items);
 

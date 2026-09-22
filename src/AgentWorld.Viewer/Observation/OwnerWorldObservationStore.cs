@@ -465,6 +465,10 @@ public sealed class OwnerWorldObservationStore
             Project = physical.Project is { } project
                 ? new ViewerProject(project.Label, project.Stage, project.WorkDone, 10, project.Blocker, project.StartedTick)
                 : null,
+            Survival = physical.Survival is { } survival
+                ? new ViewerSurvival(survival.WarmthBasisPoints, survival.IllnessBasisPoints,
+                    inventory.Any(item => item.Kind == "clothing" && item.Quantity > 0),
+                    inventory.Any(item => item.Kind == "tool" && item.Quantity > 0), survival.NutritionBasisPoints, survival.LastMealKind) : null,
             SocialNotes = state.Society.Society.Memories.Where(memory => memory.OwnerId == inhabitant.Id && memory.Visibility == "public")
                 .OrderByDescending(memory => memory.SourceTick).Take(3).Select(memory => memory.Summary).ToArray(),
         };

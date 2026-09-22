@@ -75,13 +75,23 @@ different build revision cannot falsely appear as a simulation change.
 
 ## Release checklist
 
+### Private-world save schema 6
+
+Schema 6 adds optional per-inhabitant warmth/illness/diet and settlement fire-fuel
+deadlines. Schemas 1–5 remain readable without an on-load rewrite. Survival
+initializes on a resumed tick after settlement content activation, advancing
+legacy food processing timestamps without retroactive spoilage. New worlds
+use schema 6. Invalid condition ranges, duplicate/unknown fires and invalid
+fuel deadlines fail closed. Preserve the matching application, checkpoint and
+history when rolling back; older hosts cannot load schema-6 saves.
+
 ### Private-world save schema 5
 
 Schema 5 adds optional persistent settlement projects and validated additive
 resource nodes from the built-in settlement package. Schemas 1–4 remain
 readable. Loading or observing an older paused save preserves its bytes;
 creating a project, adding settlement resources or compacting history upgrades
-the checkpoint. New worlds use schema 5. Null project fields remain omitted.
+the checkpoint to the current schema. Null project fields remain omitted.
 Restore checks the seeded map plus only the registered resource additions and
 rejects invalid project phases/work counters. Rollback requires the matching
 pre-upgrade save and application, not loading a schema-5 save in an older host.

@@ -187,7 +187,9 @@ public static class InventoryFixture
     public static InventoryCheckpoint ProcessSpoilage(
         InventoryCheckpoint checkpoint,
         long targetTick,
-        int freshnessLossPerTick)
+        int freshnessLossPerTick,
+        IReadOnlySet<string>? itemKinds = null,
+        IReadOnlySet<string>? protectedOwnerIds = null)
     {
         ValidateCheckpoint(checkpoint);
         if (targetTick < checkpoint.WorldTick || freshnessLossPerTick < 0)
@@ -204,7 +206,12 @@ public static class InventoryFixture
                 return lot;
             }
 
-            var freshnessLoss = checked(elapsed * freshnessLossPerTick);
+            var rate = itemKinds is not null && !itemKinds.Contains(lot.ItemKind) ? 0 : freshnessLossPerTick;
+            if (protectedOwnerIds?.Contains(lot.OwnerId) == true)
+            {
+                rate /= 2;
+            }
+            var freshnessLoss = checked(elapsed * rate);
             var freshness = freshnessLoss >= lot.FreshnessBasisPoints
                 ? 0
                 : lot.FreshnessBasisPoints - checked((int)freshnessLoss);

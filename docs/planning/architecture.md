@@ -93,9 +93,10 @@ world or apply half an action. A prolonged individual failure can fall back to
 simple local behaviour; a provider-level outage pauses the game and notifies
 the human.
 
-The first normal clock is intentionally simple: 365 in-world days per year,
-four seasons, about 2 minutes 40 seconds of daylight and 1 minute 20 seconds of
-night per in-world day. Pausing stops the world. Sleep changes an inhabitant's
+The implemented clock has 365 in-world days per year and four seasons.
+There are 1,440 ticks per world day; at the private host's one-tick-per-second
+cadence this is 24 real minutes per world day, not the earlier four-minute
+design target. Pausing stops the world. Sleep changes an inhabitant's
 state and cognition eligibility; it does not require the whole simulation to
 stop. The timing is a world configuration, not a permanent balance law, so it
 can be changed after playtesting without changing the calendar model.

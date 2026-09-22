@@ -84,9 +84,9 @@ and exposes stores, project blockers and public gratitude in Godot. The
 1,000-tick `SettlementProjectTests` scenario verifies that connected loop;
 separate tests cover interrupted work and old-save migration. Provider/model
 assignments, idle reuse and menu fixes are delivered foundations for this loop.
-This is not evidence of richer negotiated barter, resentment/trust, emergent
-roles or useful clothing/tool effects. Those workstreams remain open; the next
-survival increment must make produced equipment and buildings matter.
+This is not evidence of richer negotiated barter, resentment/trust or emergent
+roles. Those workstreams remain open. Clothing, tools and buildings now have
+bounded useful effects, described in the current-state matrix.
 
 ## Next — Consequential survival
 
@@ -101,6 +101,15 @@ Once a settlement has useful work, make the world push back:
 **Gate:** inhabitants anticipate and respond to one seasonal/weather crisis
 using settlement resources, and the player can understand why they succeeded
 or failed.
+
+**Current evidence:** a deterministic snow scenario exercises fuel collection,
+hearth heating, tool/clothing collection, condition changes and restart recovery.
+Separate comparisons prove clothing insulation, food-storage preservation and
+warmth/food-driven illness recovery. The player sees warmth, illness and clothing
+on the inhabitant card. Crop yield, travel fatigue and food-source variety now
+have deterministic effects and regression coverage. Wider ecology and long-run
+balance remain open; this bounded crisis gate does not establish that the whole
+simulation is balanced across seasons.
 
 ## Then — Social continuity
 
