@@ -38,7 +38,10 @@ access only to a specifically paired device.
    world saves, snapshots, event projections, or logs.
 5. Each read or control request carries a short-lived server challenge and a
    signature over canonical request data. The server consumes the challenge
-   once and persists that consumption before asking the runtime to commit. It
+   once before asking the runtime to commit. Challenges are process-local:
+   restarting the host invalidates both pending and consumed challenges, so an
+   old nonce cannot be replayed after a crash. Pairing and revocation remain
+   durable; idle reads do not rewrite the authority file. It
    derives the durable issuer from the active device; the runtime mints durable
    IDs, event ordering, and submission sequence. A client request ID and
    idempotency key are signed ingress values, not ownership claims.

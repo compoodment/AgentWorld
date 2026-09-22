@@ -345,13 +345,13 @@ public sealed class JevDecisionProvider : IDecisionProvider
             httpRequest,
             HttpCompletionOption.ResponseHeadersRead,
             timeout.Token).ConfigureAwait(false);
-        var responseBody = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
                 $"Jev returned HTTP {(int)response.StatusCode} ({response.StatusCode}).");
         }
 
+        var responseBody = await ProviderResponseBody.ReadAsync(response.Content, timeout.Token).ConfigureAwait(false);
         return ParseResponse(request, responseBody);
     }
 
@@ -544,13 +544,13 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
             httpRequest,
             HttpCompletionOption.ResponseHeadersRead,
             timeout.Token).ConfigureAwait(false);
-        var responseBody = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
                 $"OpenAI-compatible provider returned HTTP {(int)response.StatusCode} ({response.StatusCode}).");
         }
 
+        var responseBody = await ProviderResponseBody.ReadAsync(response.Content, timeout.Token).ConfigureAwait(false);
         return ParseResponse(request, responseBody);
     }
 

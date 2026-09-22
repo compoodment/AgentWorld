@@ -172,18 +172,18 @@ public sealed class WorldAssetReservationLedger
 
         ArgumentNullException.ThrowIfNull(state.Reservations);
         ArgumentNullException.ThrowIfNull(state.Events);
-        var previousReservationKey = string.Empty;
+        WorldAssetReservation? previousReservation = null;
         foreach (var reservation in state.Reservations)
         {
             ArgumentNullException.ThrowIfNull(reservation);
             ValidateReservation(reservation);
             var reservationKey = ReservationKey(reservation);
-            if (string.CompareOrdinal(reservationKey, previousReservationKey) <= 0)
+            if (previousReservation is not null && CompareReservations(previousReservation, reservation) >= 0)
             {
                 throw new InvalidDataException("The world asset reservation entries are not in canonical order.");
             }
 
-            previousReservationKey = reservationKey;
+            previousReservation = reservation;
             if (!ledger.reservations.TryAdd(reservationKey, reservation))
             {
                 throw new InvalidDataException("The world asset reservation ledger contains duplicate entries.");
@@ -272,7 +272,19 @@ public sealed class WorldAssetReservationLedger
                 request.GpuBytes,
                 request.RenderUnits)))
             .ToArray();
-        var totals = SumTotals(candidate);
+        WorldAssetReservationTotals totals;
+        try
+        {
+            totals = SumTotals(candidate);
+        }
+        catch (OverflowException)
+        {
+            return WorldAssetReservationResult.Failure(Diagnostic("asset_reservation_overflow", "assets", "Aggregate asset charges exceed supported integer limits."));
+        }
+        catch (InvalidDataException)
+        {
+            return WorldAssetReservationResult.Failure(Diagnostic("asset_reservation_conflicting_charge", "assets", "Shared asset identities must declare identical charges."));
+        }
         var diagnostics = BudgetDiagnostics(totals);
         if (diagnostics.Count > 0)
         {
@@ -368,6 +380,13 @@ public sealed class WorldAssetReservationLedger
     private static WorldAssetReservationTotals SumTotals(IEnumerable<WorldAssetReservation> values)
     {
         var ordered = values.ToArray();
+        if (ordered.GroupBy(item => item.NormalizedDigest, StringComparer.Ordinal)
+                .Any(group => group.Select(item => item.DurableStorageBytes).Distinct().Skip(1).Any()) ||
+            ordered.GroupBy(item => (item.NormalizedDigest, item.DecodeProfile))
+                .Any(group => group.Select(item => (item.DecodedCacheBytes, item.GpuBytes)).Distinct().Skip(1).Any()))
+        {
+            throw new InvalidDataException("Shared asset charges conflict.");
+        }
         var durable = ordered
             .GroupBy(item => item.NormalizedDigest, StringComparer.Ordinal)
             .Sum(group => group.First().DurableStorageBytes);
@@ -426,6 +445,16 @@ public sealed class WorldAssetReservationLedger
 
     private static string ReservationKey(WorldAssetReservation reservation) =>
         $"{reservation.PackageId}|{reservation.AssetId}|{reservation.DecodeProfile}";
+
+    private static int CompareReservations(WorldAssetReservation left, WorldAssetReservation right)
+    {
+        var result = string.CompareOrdinal(left.PackageId, right.PackageId);
+        if (result == 0)
+        {
+            result = string.CompareOrdinal(left.AssetId, right.AssetId);
+        }
+        return result != 0 ? result : string.CompareOrdinal(left.DecodeProfile, right.DecodeProfile);
+    }
 
     private static string FormatTotals(WorldAssetReservationTotals totals) =>
         string.Join(',',

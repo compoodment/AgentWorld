@@ -10,6 +10,30 @@ namespace AgentWorld.Simulation.Tests;
 public sealed class GodotOwnerWorldApiTests
 {
     [Fact]
+    public void AcceptsExplicitHistoryResetButRejectsSilentOrFalseReset()
+    {
+        var original = CreateCoherentReconnect();
+        var response = original with
+        {
+            Baseline = original.Baseline with
+            {
+                Events = original.Baseline.Events with { AfterEventId = 0, EventHistoryFloor = 3, ResetRequired = true },
+            },
+        };
+        var session = new OwnerWorldObservationSession();
+        Assert.True(session.TryAccept(response, 0, out var failure), failure);
+        Assert.Equal(5, session.EventCursor);
+        Assert.False(new OwnerWorldObservationSession().TryAccept(response with
+        {
+            Baseline = response.Baseline with { Events = response.Baseline.Events with { ResetRequired = false } },
+        }, 0, out _));
+        Assert.False(new OwnerWorldObservationSession().TryAccept(response with
+        {
+            Baseline = response.Baseline with { Events = response.Baseline.Events with { EventHistoryFloor = 0 } },
+        }, 0, out _));
+    }
+
+    [Fact]
     public void AcceptsCoherentPairedOwnerReconnectAndAdvancesCursor()
     {
         var session = new OwnerWorldObservationSession();

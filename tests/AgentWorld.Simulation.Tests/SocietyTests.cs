@@ -7,6 +7,23 @@ namespace AgentWorld.Simulation.Tests;
 public sealed class SocietyTests
 {
     [Fact]
+    public void SocietyClockExpiresInventoryReservationsExactlyOnce()
+    {
+        var checkpoint = Genesis(TestConfig(), "alice", "bob");
+        checkpoint = checkpoint with
+        {
+            Inventory = InventoryFixture.Reserve(checkpoint.Inventory, "meal", "alice", "food-lot", 1, "meal", 2),
+        };
+        var atBoundary = SocietyFixture.AdvanceTo(checkpoint, 2).Checkpoint;
+        Assert.Equal(InventoryReservationState.Reserved, atBoundary.Inventory.GetReservation("meal").State);
+        var after = SocietyFixture.AdvanceTo(atBoundary, 3).Checkpoint;
+        Assert.Equal(InventoryReservationState.Released, after.Inventory.GetReservation("meal").State);
+        Assert.Single(after.Inventory.Events, item => item.Kind == "reservation_released");
+        var later = SocietyFixture.AdvanceTo(after, 9).Checkpoint;
+        Assert.Single(later.Inventory.Events, item => item.Kind == "reservation_released");
+    }
+
+    [Fact]
     public void RelationshipConsentAndCardinalityAreAuthoritative()
     {
         var config = TestConfig();

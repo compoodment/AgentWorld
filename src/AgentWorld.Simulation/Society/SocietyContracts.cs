@@ -1,4 +1,5 @@
 using AgentWorld.Simulation.Kernel;
+using System.Text.Json.Serialization;
 
 namespace AgentWorld.Simulation.Society;
 
@@ -252,7 +253,8 @@ public sealed record SocietyCheckpoint(
     IReadOnlyList<SocietyEstate> Estates,
     IReadOnlyList<SocietyBirthRecord> Births,
     InventoryCheckpoint Inventory,
-    IReadOnlyList<SocietyEvent> Events)
+    IReadOnlyList<SocietyEvent> Events,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long EventHistoryFloor = 0)
 {
     public SocietyInhabitant GetInhabitant(string id) =>
         Inhabitants.Single(item => string.Equals(item.Id, id, StringComparison.Ordinal));

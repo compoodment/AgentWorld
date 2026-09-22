@@ -5,6 +5,28 @@ namespace AgentWorld.Simulation.Tests;
 
 public sealed class InventoryFixtureTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExpiredBarterCannotAcquireEitherPartysAcceptance(bool firstAlreadyAccepted)
+    {
+        var offered = InventoryFixture.CreateDirectBarterOffer(Genesis(),
+            new DirectBarterProposal("expiry", 1, "alpha", "bravo", "alpha-wood", 1, "bravo-food", 1, 2));
+        if (firstAlreadyAccepted)
+        {
+            offered = InventoryFixture.AcceptDirectBarterOffer(offered, "expiry", 1, "alpha");
+        }
+        var expired = offered with { WorldTick = 3 };
+        var before = InventoryCheckpointCodec.Encode(expired);
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.AcceptDirectBarterOffer(expired,
+            "expiry", 1, firstAlreadyAccepted ? "bravo" : "alpha"));
+        Assert.Equal(before, InventoryCheckpointCodec.Encode(expired));
+        var released = InventoryFixture.ReleaseExpiredReservations(expired, 3);
+        Assert.Equal(DirectBarterState.Cancelled, released.GetOffer("expiry").State);
+        Assert.All(released.Reservations, item => Assert.Equal(InventoryReservationState.Released, item.State));
+        Assert.Equal(InventoryCheckpointCodec.Encode(released), InventoryCheckpointCodec.Encode(InventoryFixture.ReleaseExpiredReservations(released, 3)));
+    }
+
     [Fact]
     public void LotSplitSpoilageAndSaveRestoreRemainCanonicalAndDoNotDecayTwice()
     {
@@ -28,7 +50,11 @@ public sealed class InventoryFixtureTests
     public void ReservationExpiryReleasesOnlyTheReservedQuantity()
     {
         var reserved = InventoryFixture.Reserve(Genesis(), "reserve-1", "alpha", "alpha-berries", 1, "meal", 2);
-        var released = InventoryFixture.ReleaseExpiredReservations(reserved, 2);
+        var atExpiry = InventoryFixture.ReleaseExpiredReservations(reserved, 2);
+        Assert.Equal(InventoryReservationState.Reserved, atExpiry.GetReservation("reserve-1").State);
+        Assert.Equal(InventoryReservationState.Completed, InventoryFixture.ConsumeReservation(atExpiry, "reserve-1").GetReservation("reserve-1").State);
+        var released = InventoryFixture.ReleaseExpiredReservations(reserved, 3);
+        Assert.Throws<InvalidOperationException>(() => InventoryFixture.ConsumeReservation(reserved with { WorldTick = 3 }, "reserve-1"));
 
         Assert.Equal(InventoryReservationState.Reserved, reserved.GetReservation("reserve-1").State);
         Assert.Equal(InventoryReservationState.Released, released.GetReservation("reserve-1").State);

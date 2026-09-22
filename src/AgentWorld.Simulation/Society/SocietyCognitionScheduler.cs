@@ -1,4 +1,5 @@
 using AgentWorld.Simulation.Cognition;
+using System.Text.Json.Serialization;
 
 namespace AgentWorld.Simulation.Society;
 
@@ -26,7 +27,8 @@ public sealed record SocietyCognitionSchedulerState(
     int MaxDispatchPerCycle,
     IReadOnlyList<SocietyCognitionScheduleEntry> Queue,
     IReadOnlyList<CognitionRuntimeState> Runtimes,
-    IReadOnlyList<SocietyCognitionSchedulerEvent> Events);
+    IReadOnlyList<SocietyCognitionSchedulerEvent> Events,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long EventHistoryFloor = 0);
 
 /// <summary>
 /// Fair multi-inhabitant cognition admission. Each inhabitant has one
@@ -45,6 +47,7 @@ public sealed class SocietyCognitionScheduler
     private readonly Func<string, IDecisionProvider> providerFactory;
     private readonly double minimumConfidence;
     private long nextEventId = 1;
+    private long eventHistoryFloor;
 
     public SocietyCognitionScheduler(
         IEnumerable<SocietyInhabitant> inhabitants,
@@ -218,7 +221,7 @@ public sealed class SocietyCognitionScheduler
             maxDispatchPerCycle,
             queue.OrderBy(item => item.ScheduleId, StringComparer.Ordinal).ToArray(),
             runtimeStates,
-            events.ToArray());
+            events.ToArray(), eventHistoryFloor);
     }
 
     public static SocietyCognitionScheduler Restore(
@@ -267,19 +270,20 @@ public sealed class SocietyCognitionScheduler
         }
 
         scheduler.events.AddRange(state.Events);
-        scheduler.nextEventId = checked(scheduler.events.Count + 1L);
+        scheduler.eventHistoryFloor = state.EventHistoryFloor;
+        scheduler.nextEventId = checked(scheduler.eventHistoryFloor + scheduler.events.Count + 1L);
         scheduler.Validate();
         return scheduler;
     }
 
     public void Validate()
     {
-        if (queue.Count > maxQueueLength)
+        if (queue.Count > maxQueueLength || eventHistoryFloor < 0)
         {
             throw new InvalidDataException("The society cognition queue exceeds its configured limit.");
         }
 
-        var expected = 1L;
+        var expected = checked(eventHistoryFloor + 1);
         var previousTick = 0L;
         foreach (var schedulerEvent in events)
         {

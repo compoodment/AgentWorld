@@ -410,7 +410,7 @@ public static class SocietyFixture
             throw new InvalidOperationException("Consumption requires an owned lot with sufficient quantity.");
         }
 
-        var reservationId = $"consume:{owner}:{lotId}:{checkpoint.Inventory.Events.Count + 1}";
+        var reservationId = $"consume:{owner}:{lotId}:{checkpoint.Inventory.EventHistoryFloor + checkpoint.Inventory.Events.Count + 1}";
         var reserved = InventoryFixture.Reserve(
             checkpoint.Inventory,
             reservationId,
@@ -733,7 +733,11 @@ public static class SocietyFixture
             }
         }
 
-        var expectedEventId = 1L;
+        if (checkpoint.EventHistoryFloor < 0)
+        {
+            throw new InvalidDataException("The society event history floor is invalid.");
+        }
+        var expectedEventId = checked(checkpoint.EventHistoryFloor + 1);
         var previousTick = 0L;
         foreach (var societyEvent in checkpoint.Events)
         {
@@ -862,7 +866,7 @@ public static class SocietyFixture
 
             var inventoryEvents = current.Inventory.Events.ToList();
             inventoryEvents.Add(new InventoryEvent(
-                checked(inventoryEvents.Count + 1L),
+                checked(current.Inventory.EventHistoryFloor + inventoryEvents.Count + 1L),
                 targetTick,
                 "estate_settled",
                 estate.Id));
@@ -874,7 +878,7 @@ public static class SocietyFixture
                     nextLots.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
                     current.Inventory.Reservations,
                     current.Inventory.Offers,
-                    inventoryEvents),
+                    inventoryEvents, current.Inventory.EventHistoryFloor),
                 Estates = current.Estates.Select(item =>
                         item.Id == estate.Id ? item with { Settled = true } : item)
                     .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
@@ -906,11 +910,11 @@ public static class SocietyFixture
             .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray();
         var events = inventory.Events.ToList();
         events.Add(new InventoryEvent(
-            checked(events.Count + 1L),
+            checked(inventory.EventHistoryFloor + events.Count + 1L),
             targetTick,
             "estate_escrow_created",
             estateId));
-        return new InventoryCheckpoint(targetTick, lots, reservations, offers, events);
+        return new InventoryCheckpoint(targetTick, lots, reservations, offers, events, inventory.EventHistoryFloor);
     }
 
     private static InventoryCheckpoint WithInventoryTick(
@@ -918,7 +922,7 @@ public static class SocietyFixture
         long targetTick) =>
         inventory.WorldTick == targetTick
             ? inventory
-            : inventory with { WorldTick = targetTick };
+            : InventoryFixture.ReleaseExpiredReservations(inventory, targetTick);
 
     private static SocietyRelationship BirthRelationship(
         SocietyBirthRequest request,
@@ -1056,7 +1060,7 @@ public static class SocietyFixture
         foreach (var item in pending)
         {
             events.Add(new SocietyEvent(
-                checked(events.Count + 1L),
+                checked(checkpoint.EventHistoryFloor + events.Count + 1L),
                 checkpoint.WorldTick,
                 NormalizeRequiredText(item.Kind, nameof(item.Kind)),
                 NormalizeRequiredText(item.Detail, nameof(item.Detail))));

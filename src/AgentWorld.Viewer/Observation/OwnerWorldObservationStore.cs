@@ -16,6 +16,7 @@ public sealed class OwnerWorldObservationStore
     [
         "snapshot.read.v1",
         "event-replay.read.v1",
+        "event-history-reset.read.v1",
         "reconnect-baseline.read.v1",
         "seeded-map.read.v1",
         "inhabitant-inspection.read.v1",
@@ -71,7 +72,7 @@ public sealed class OwnerWorldObservationStore
                 state.Events
                     .Where(worldEvent => worldEvent.EventId > afterEventId)
                     .Select(ToEvent)
-                    .ToArray());
+                    .ToArray(), state.EventHistoryFloor, afterEventId < state.EventHistoryFloor);
         }
 
         var capture = ownerRuntime!.Capture(afterEventId);
@@ -95,7 +96,7 @@ public sealed class OwnerWorldObservationStore
                     state.Events
                         .Where(worldEvent => worldEvent.EventId > afterEventId)
                         .Select(ToEvent)
-                        .ToArray()));
+                        .ToArray(), state.EventHistoryFloor, afterEventId < state.EventHistoryFloor));
         }
 
         var capture = ownerRuntime!.Capture(afterEventId);
@@ -195,9 +196,17 @@ public sealed class OwnerWorldObservationStore
             .ToArray();
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var resourceStates = state.Resources.ToDictionary(item => item.ResourceId, item => item.State, StringComparer.Ordinal);
-        var first = activeInhabitants.First();
-        var firstPhysical = physicalById[first.Id];
-        var firstInventory = InventoryFor(state, first.Id);
+        var first = activeInhabitants.FirstOrDefault();
+        ViewerActor? actor = null;
+        if (first is not null)
+        {
+            var physical = physicalById[first.Id];
+            var inventory = InventoryFor(state, first.Id);
+            actor = new ViewerActor(first.Id, ToPosition(physical.Position), physical.HungerBasisPoints,
+                physical.EnergyBasisPoints, inventory.Where(item => item.Kind == "food").Sum(item => item.Quantity),
+                inventory.Where(item => item.Kind == "wood").Sum(item => item.Quantity));
+        }
+        var jobs = state.WorldSimulation?.ProductionJobs.Concat(state.WorldSimulation.CropBuilds ?? []).ToArray() ?? [];
         var latestEventId = state.Events.Count == 0 ? 0 : state.Events[^1].EventId;
         return new ViewerWorldSnapshot(
             state.Society.Society.WorldId,
@@ -223,13 +232,7 @@ public sealed class OwnerWorldObservationStore
                         ? ToWireValue(resourceState)
                         : "available"))
                 .ToArray(),
-            new ViewerActor(
-                first.Id,
-                ToPosition(firstPhysical.Position),
-                firstPhysical.HungerBasisPoints,
-                firstPhysical.EnergyBasisPoints,
-                firstInventory.Where(item => item.Kind == "food").Sum(item => item.Quantity),
-                firstInventory.Where(item => item.Kind == "wood").Sum(item => item.Quantity)),
+            actor,
             latestEventId)
         {
             Inhabitants = activeInhabitants
@@ -293,7 +296,7 @@ public sealed class OwnerWorldObservationStore
                     state.WorldContent?.Buildings.Count ?? 0,
                     state.WorldContent?.Recipes.Count ?? 0,
                     state.WorldSimulation?.Buildings.Count ?? 0,
-                    state.WorldSimulation?.ProductionJobs.Count ?? 0,
+                    jobs.Length,
                     state.AssetReservations?.Reservations
                         .Select(item => item.NormalizedDigest)
                         .Distinct(StringComparer.Ordinal)
@@ -323,7 +326,7 @@ public sealed class OwnerWorldObservationStore
                     ToPosition(item.Position),
                     item.PlacedTick))
                 .ToArray() ?? [],
-            ProductionJobs = state.WorldSimulation?.ProductionJobs
+            ProductionJobs = jobs
                 .OrderBy(item => item.JobId, StringComparer.Ordinal)
                 .Select(item => new ViewerProductionJob(
                     item.JobId,
@@ -333,7 +336,7 @@ public sealed class OwnerWorldObservationStore
                     item.StartedTick,
                     item.CompletionTick,
                     item.State.ToString().ToLowerInvariant()))
-                .ToArray() ?? [],
+                .ToArray(),
         };
     }
 

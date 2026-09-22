@@ -179,7 +179,7 @@ public sealed record ViewerWorldSnapshot(
     IReadOnlyList<ViewerTile> Tiles,
     IReadOnlyList<ViewerMapObject> Objects,
     IReadOnlyList<ViewerResource> Resources,
-    ViewerActor Actor,
+    ViewerActor? Actor,
     long LatestEventId)
 {
     /// <summary>
@@ -209,7 +209,8 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerProductionJob> ProductionJobs { get; init; } = [];
 }
 
-public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events);
+public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events,
+    long EventHistoryFloor = 0, bool ResetRequired = false);
 
 /// <summary>
 /// A reconnect response is one server-side capture, not a race between a

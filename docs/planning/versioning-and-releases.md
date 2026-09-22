@@ -75,6 +75,21 @@ different build revision cannot falsely appear as a simulation change.
 
 ## Release checklist
 
+### Private-world save schema 4
+
+Schema 4 adds event-history floors and a content-addressed archive head.
+Schemas 1–3 remain readable; a schema-3 save is not rewritten to schema 4 merely
+by loading it. Its first history compaction upgrades it. New worlds use schema
+4. Default/zero history fields are omitted to preserve legacy checkpoint bytes.
+Downgrading a compacted save to an older binary is unsupported: restore the
+pre-upgrade application and matching save backup instead.
+
+Back up `<save>.history/` with the checkpoint, pairing authority and provider
+store. Verify the hash chain on restore; a missing/corrupt referenced segment
+fails closed. See [persistence](architecture.md#persistence-and-replay).
+
+### Public release gate
+
 Before creating a public release:
 
 1. Select the next SemVer label according to the rules above.

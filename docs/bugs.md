@@ -41,7 +41,23 @@ These are implementation evidence, not a claim that Living Settlement's whole
 acceptance gate is complete. Live migration remains deferred while the owner
 keeps the existing world manually paused.
 
-## Maintenance rules
+## Runtime audit issues
+
+The following confirmed GitHub reports are tracked here as well; their issue
+pages retain reproductions and regression requirements.
+
+| Issues | Status in implementation | Defect |
+| --- | --- | --- |
+| [#107](https://github.com/compoodment/AgentWorld/issues/107) | Fixed; regression covered | Dependency quarantine/activation order |
+| [#108](https://github.com/compoodment/AgentWorld/issues/108) | Implemented; archive/restart and stale-cursor regression coverage | Unbounded checkpoint event history and rewrite cost |
+| [#109](https://github.com/compoodment/AgentWorld/issues/109), [#116](https://github.com/compoodment/AgentWorld/issues/116) | Fixed; stalled-provider, pause, cancellation and concurrent-tick tests | Partial ticks and provider-held authoritative locks |
+| [#110](https://github.com/compoodment/AgentWorld/issues/110), [#111](https://github.com/compoodment/AgentWorld/issues/111), [#112](https://github.com/compoodment/AgentWorld/issues/112) | Fixed; boundary and clock-advance regressions | Expired barter acceptance and reservation expiry |
+| [#113](https://github.com/compoodment/AgentWorld/issues/113), [#114](https://github.com/compoodment/AgentWorld/issues/114), [#115](https://github.com/compoodment/AgentWorld/issues/115) | Fixed; atomic rejection and restore regressions | Asset ordering, conflicting shared charges and overflow |
+| [#117](https://github.com/compoodment/AgentWorld/issues/117), [#118](https://github.com/compoodment/AgentWorld/issues/118) | Fixed; projection and restore regressions | Missing crop jobs and empty-population observation crash |
+| [#119](https://github.com/compoodment/AgentWorld/issues/119) | Fixed; declared/chunked/misreported size tests | Unbounded provider response buffering |
+| [#120](https://github.com/compoodment/AgentWorld/issues/120) | Fixed; 600 signed polls with no authority writes | Idle authority write amplification |
+
+## Register maintenance
 
 - Record only reproduced defects or demonstrated product gaps.
 - Put speculative features on the [roadmap](planning/roadmap.md), not here.

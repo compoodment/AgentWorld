@@ -40,6 +40,16 @@ The static web assets retained by the HTTP host are legacy protocol-diagnostic
 infrastructure. They are not a supported game client or an alternative owner
 interface.
 
+Provider work runs against an isolated proposed tick, so owner observations and
+pause remain responsive. Cancellation or intervening owner changes discard the
+proposal without partial world mutations. In-flight provider work is cancelled
+on manual pause or client lease expiry.
+Save schema 4 bounds hot histories
+and archives older events with verified hashes; reconnect explicitly resets
+stale cursors. See [persistence and backup requirements](../planning/architecture.md#persistence-and-replay).
+Signed polling uses process-local one-use challenges rather than rewriting
+the authority file; old challenges fail closed after restart.
+
 ## Capability matrix
 
 | Area | Status | What exists now | Important limitation |

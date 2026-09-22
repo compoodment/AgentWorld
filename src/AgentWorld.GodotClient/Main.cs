@@ -468,6 +468,10 @@ public partial class Main : Control
                 return;
             }
 
+            if (reconnect.Baseline.Events.ResetRequired)
+            {
+                knownEvents.Clear();
+            }
             Render(reconnect.Baseline.Snapshot, reconnect.Baseline.Events.Events);
             if (!isOwnerAction)
             {
@@ -1827,6 +1831,10 @@ public partial class Main : Control
         foreach (var worldEvent in appendedEvents)
         {
             knownEvents[worldEvent.EventId] = worldEvent;
+        }
+        foreach (var expiredId in knownEvents.Keys.OrderByDescending(id => id).Skip(2048).ToArray())
+        {
+            knownEvents.Remove(expiredId);
         }
 
         RenderInhabitantList(snapshot);

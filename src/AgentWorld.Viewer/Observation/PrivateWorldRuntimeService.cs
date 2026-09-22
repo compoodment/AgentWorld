@@ -37,11 +37,32 @@ public sealed partial class PrivateWorldRuntimeService(
         }
 
         _ = runtime.StageStarterContent();
-        var result = await runtime.AdvanceOneTickAsync(cancellationToken);
+        using var monitorLifetime = new CancellationTokenSource();
+        using var tickCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var monitor = MonitorTickGateAsync(tickCancellation, monitorLifetime.Token);
+        PrivateWorldStepResult result;
+        try
+        {
+            result = await runtime.AdvanceOneTickAsync(() => clientPresence.HasActiveClient, tickCancellation.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && tickCancellation.IsCancellationRequested)
+        {
+            LogGateTransition(runtime.Society.IsPaused ? "paused" : "waiting_for_client", runtime.WorldTick);
+            return false;
+        }
+        finally
+        {
+            await monitorLifetime.CancelAsync();
+            await monitor;
+        }
         LogGateTransition(result.Advanced ? "advancing" : result.Outcome, result.WorldTick);
         if (result.Advanced)
         {
-            stateFile.Save(runtime);
+            if (stateFile.Save(runtime) && logger is not null)
+            {
+                var checkpoint = runtime.ExportState();
+                LogHistoryCompacted(logger, result.WorldTick, checkpoint.EventHistoryFloor, checkpoint.Events.Count);
+            }
         }
 
         foreach (var decision in result.Decisions.OrderBy(item => item.InhabitantId, StringComparer.Ordinal))
@@ -69,6 +90,26 @@ public sealed partial class PrivateWorldRuntimeService(
         return result.Advanced;
     }
 
+    private async Task MonitorTickGateAsync(CancellationTokenSource tickCancellation, CancellationToken monitorToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(200));
+            while (await timer.WaitForNextTickAsync(monitorToken))
+            {
+                if (!clientPresence.HasActiveClient || runtime.Society.IsPaused)
+                {
+                    await tickCancellation.CancelAsync();
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (monitorToken.IsCancellationRequested)
+        {
+            // The proposed tick completed; no lifecycle watcher survives it.
+        }
+    }
+
     private void LogGateTransition(string state, long worldTick)
     {
         if (string.Equals(lastGateState, state, StringComparison.Ordinal))
@@ -82,6 +123,10 @@ public sealed partial class PrivateWorldRuntimeService(
             LogWorldTickGate(logger, state, worldTick, clientPresence.ActiveClientCount);
         }
     }
+
+    [LoggerMessage(EventId = 2203, Level = LogLevel.Information,
+        Message = "world_history_compacted tick={WorldTick} event_floor={EventFloor} recent_events={RecentEvents}")]
+    private static partial void LogHistoryCompacted(ILogger logger, long worldTick, long eventFloor, int recentEvents);
 
     [LoggerMessage(
         EventId = 2201,

@@ -247,8 +247,9 @@ public sealed record OwnerRequestAuthorizationResult(
 
 /// <summary>
 /// Single ingress guard for signed owner operations. It compares the server's
-/// reconstructed binding before consuming the challenge, then persists the
-/// consumed anti-replay state before a caller asks the simulation to commit.
+/// reconstructed binding before consuming a process-local one-use challenge.
+/// Restart invalidates all old challenges; only durable pairing/device changes
+/// require a file rewrite before a caller asks the simulation to commit.
 /// </summary>
 public sealed class OwnerRequestAuthorizer(
     OwnerAuthorityStore authority,
@@ -288,9 +289,8 @@ public sealed class OwnerRequestAuthorizer(
             expectedBinding,
             request.CanonicalProof,
             request.SignatureBase64));
-        // ConsumeChallenge also applies expiry/retention cleanup on rejected
-        // requests. Persist before branching so a restart cannot resurrect a
-        // just-expired challenge or discarded terminal history.
+        // Persist any pairing/device cleanup, but not process-local challenges.
+        // A restart discards all pending and consumed challenges, failing closed.
         stateFile.Save(authority);
         if (!consumed.IsSuccess)
         {

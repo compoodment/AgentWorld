@@ -43,7 +43,9 @@ public sealed record PrivateWorldRuntimeState(
     WorldSystemsState? WorldSystems = null,
     DeclarativeWorldContentState? WorldContent = null,
     WorldContentSimulationState? WorldSimulation = null,
-    WorldAssetReservationLedgerState? AssetReservations = null);
+    WorldAssetReservationLedgerState? AssetReservations = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long EventHistoryFloor = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? HistoryArchiveHead = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,
@@ -61,7 +63,7 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 3;
+    public const int StateSchemaVersion = 4;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
@@ -70,9 +72,11 @@ public sealed class PrivateWorldRuntime : IDisposable
     private const int HarvestFoodYield = 4;
 
     private readonly SemaphoreSlim gate = new(1, 1);
+    private readonly SemaphoreSlim tickGate = new(1, 1);
     private readonly string worldSeed;
     private readonly Func<string, IDecisionProvider>? providerFactory;
     private readonly double minimumCognitionConfidence;
+    private readonly int maxCognitionDispatchPerCycle;
     private SeededMap map;
     private SocietyWorldRuntime society;
     private ContentPackageRegistry contentRegistry;
@@ -80,15 +84,18 @@ public sealed class PrivateWorldRuntime : IDisposable
     private DeclarativeWorldContentState worldContent;
     private WorldContentSimulationState worldSimulation;
     private WorldAssetReservationLedger assetReservations;
-    private readonly Dictionary<string, PlaytestInhabitantState> inhabitants = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, ResourceState> resources = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
+    private Dictionary<string, PlaytestInhabitantState> inhabitants = new(StringComparer.Ordinal);
+    private Dictionary<string, ResourceState> resources = new(StringComparer.Ordinal);
+    private Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
         new(StringComparer.Ordinal);
-    private readonly Dictionary<string, OwnerInstructionReceipt> instructionReceipts =
+    private Dictionary<string, OwnerInstructionReceipt> instructionReceipts =
         new(StringComparer.Ordinal);
-    private readonly HashSet<string> completedInstructionIds = new(StringComparer.Ordinal);
-    private readonly List<PlaytestWorldEvent> events = [];
+    private HashSet<string> completedInstructionIds = new(StringComparer.Ordinal);
+    private List<PlaytestWorldEvent> events = [];
     private long nextEventId = 1;
+    private long eventHistoryFloor;
+    private string? historyArchiveHead;
+    private int checkpointSchemaVersion = StateSchemaVersion;
     private long nextInstructionSequence = 1;
 
     public PrivateWorldRuntime(
@@ -113,6 +120,7 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
 
         this.minimumCognitionConfidence = minimumCognitionConfidence;
+        this.maxCognitionDispatchPerCycle = maxCognitionDispatchPerCycle;
         contentRegistry = new ContentPackageRegistry();
         worldContent = new DeclarativeWorldContentState([], []);
         worldSimulation = WorldContentSimulationState.Empty;
@@ -183,6 +191,9 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
 
         runtime.map = state.Map;
+        runtime.eventHistoryFloor = state.EventHistoryFloor;
+        runtime.historyArchiveHead = state.HistoryArchiveHead;
+        runtime.checkpointSchemaVersion = Math.Max(3, state.SchemaVersion);
         runtime.society.Dispose();
         runtime.society = SocietyWorldRuntime.Restore(
             state.Society,
@@ -243,13 +254,95 @@ public sealed class PrivateWorldRuntime : IDisposable
 
         runtime.events.Clear();
         runtime.events.AddRange(state.Events);
-        runtime.nextEventId = runtime.events.Count == 0 ? 1 : checked(runtime.events[^1].EventId + 1);
+        runtime.nextEventId = runtime.events.Count == 0 ? checked(runtime.eventHistoryFloor + 1) : checked(runtime.events[^1].EventId + 1);
         runtime.Validate();
         return runtime;
     }
 
+    public ValueTask<PrivateWorldStepResult> AdvanceOneTickAsync(CancellationToken cancellationToken = default) =>
+        AdvanceOneTickAsync(null, cancellationToken);
+
     public async ValueTask<PrivateWorldStepResult> AdvanceOneTickAsync(
-        CancellationToken cancellationToken = default)
+        Func<bool>? commitPermitted, CancellationToken cancellationToken = default)
+    {
+        await tickGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            PrivateWorldRuntimeState baseline;
+            long baselineEventId;
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (society.Checkpoint.IsPaused)
+                {
+                    return new PrivateWorldStepResult(false, "paused", WorldTick, [], []);
+                }
+                baseline = CaptureState();
+                baselineEventId = nextEventId;
+            }
+            finally
+            {
+                gate.Release();
+            }
+
+            // External cognition operates only on an isolated proposed tick.
+            // Readers and owner controls continue to use the last committed world.
+            using var proposed = Restore(baseline, providerFactory, maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+            var result = await proposed.AdvancePreparedTickAsync(cancellationToken).ConfigureAwait(false);
+            await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (commitPermitted is not null && !commitPermitted())
+                {
+                    return new PrivateWorldStepResult(false, "waiting_for_client", WorldTick, [], []);
+                }
+                if (nextEventId != baselineEventId || WorldTick != baseline.Society.Society.WorldTick || historyArchiveHead != baseline.HistoryArchiveHead)
+                {
+                    return new PrivateWorldStepResult(false, "tick_superseded_by_owner_change", WorldTick, [], []);
+                }
+                if (!result.Advanced)
+                {
+                    return result;
+                }
+                CommitPreparedTick(proposed);
+                return result;
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+        finally
+        {
+            tickGate.Release();
+        }
+    }
+
+    private void CommitPreparedTick(PrivateWorldRuntime proposed)
+    {
+        // Transfer the committed society; disposing the proposal retires the old one.
+        (society, proposed.society) = (proposed.society, society);
+        map = proposed.map;
+        contentRegistry = proposed.contentRegistry;
+        worldSystems = proposed.worldSystems;
+        worldContent = proposed.worldContent;
+        worldSimulation = proposed.worldSimulation;
+        assetReservations = proposed.assetReservations;
+        inhabitants = proposed.inhabitants;
+        resources = proposed.resources;
+        instructionsByIdempotency = proposed.instructionsByIdempotency;
+        instructionReceipts = proposed.instructionReceipts;
+        completedInstructionIds = proposed.completedInstructionIds;
+        events = proposed.events;
+        nextEventId = proposed.nextEventId;
+        eventHistoryFloor = proposed.eventHistoryFloor;
+        historyArchiveHead = proposed.historyArchiveHead;
+        checkpointSchemaVersion = proposed.checkpointSchemaVersion;
+        nextInstructionSequence = proposed.nextInstructionSequence;
+    }
+
+    private async ValueTask<PrivateWorldStepResult> AdvancePreparedTickAsync(CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -261,11 +354,7 @@ public sealed class PrivateWorldRuntime : IDisposable
 
             var startingEvent = events.Count;
             var targetTick = checked(WorldTick + 1);
-            var readyPackages = contentRegistry.ExportState().Packages
-                .Where(package => package.Lifecycle == ContentPackageLifecycle.Staged &&
-                    package.StagedTick is { } stagedTick && targetTick > stagedTick)
-                .OrderBy(package => package.Manifest.PackageId, StringComparer.Ordinal)
-                .ToArray();
+            var readyPackages = contentRegistry.GetActivationCandidates(targetTick);
             var reservationPreview = WorldAssetReservationLedger.Restore(
                 assetReservations.ExportState(),
                 assetReservations.Policy);
@@ -848,7 +937,7 @@ public sealed class PrivateWorldRuntime : IDisposable
             }
         }
 
-        var expectedEventId = 1L;
+        var expectedEventId = checked(eventHistoryFloor + 1);
         var previousTick = 0L;
         foreach (var worldEvent in events)
         {
@@ -868,10 +957,30 @@ public sealed class PrivateWorldRuntime : IDisposable
     {
         society.Dispose();
         gate.Dispose();
+        tickGate.Dispose();
+    }
+
+    public void PersistCheckpoint(Func<PrivateWorldRuntimeState, PrivateWorldRuntimeState> persist)
+    {
+        ArgumentNullException.ThrowIfNull(persist);
+        gate.Wait();
+        try
+        {
+            var saved = persist(CaptureState());
+            if (saved.HistoryArchiveHead != historyArchiveHead)
+            {
+                using var compacted = Restore(saved, providerFactory, maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+                CommitPreparedTick(compacted);
+            }
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     private PrivateWorldRuntimeState CaptureState() => new(
-        StateSchemaVersion,
+        checkpointSchemaVersion,
         worldSeed,
         map,
         society.ExportState(),
@@ -887,7 +996,7 @@ public sealed class PrivateWorldRuntime : IDisposable
         worldSystems,
         worldContent,
         worldSimulation,
-        assetReservations.ExportState());
+        assetReservations.ExportState(), eventHistoryFloor, historyArchiveHead);
 
     public DeclarativeWorldContentState WorldContent => worldContent;
 
@@ -903,12 +1012,16 @@ public sealed class PrivateWorldRuntime : IDisposable
     {
         ArgumentNullException.ThrowIfNull(state);
         var result = new DeclarativeWorldContentState([], []);
-        foreach (var package in state.Packages
-                     .Where(package => package.Lifecycle == ContentPackageLifecycle.Active)
-                     .OrderBy(package => package.ActivationTick ?? long.MaxValue)
-                     .ThenBy(package => package.Manifest.PackageId, StringComparer.Ordinal))
+        var active = state.Packages.Where(package => package.Lifecycle == ContentPackageLifecycle.Active)
+            .ToDictionary(package => package.Manifest.PackageId, StringComparer.Ordinal);
+        var resolution = ContentPackageResolver.Resolve(active.Values.Select(package => package.Manifest), active.Keys);
+        if (!resolution.IsSuccess)
         {
-            result = ContentDefinitionPayloadCodec.ApplyPackage(result, package.Manifest);
+            throw new InvalidDataException("Active world content has an invalid dependency graph.");
+        }
+        foreach (var entry in resolution.Lock)
+        {
+            result = ContentDefinitionPayloadCodec.ApplyPackage(result, active[entry.PackageId].Manifest);
         }
 
         return result;
@@ -2171,9 +2284,18 @@ public sealed class PrivateWorldRuntime : IDisposable
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (state.SchemaVersion is not (1 or 2 or StateSchemaVersion) || string.IsNullOrWhiteSpace(state.WorldSeed))
+        if (state.SchemaVersion is not (1 or 2 or 3 or StateSchemaVersion) || string.IsNullOrWhiteSpace(state.WorldSeed) || state.EventHistoryFloor < 0)
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");
+        }
+        var hasArchivedEvents = state.EventHistoryFloor > 0 || state.Society.Society.EventHistoryFloor > 0 ||
+            state.Society.Society.Inventory.EventHistoryFloor > 0 || state.Society.Cognition.EventHistoryFloor > 0 ||
+            state.Society.Cognition.Runtimes.Any(runtime => runtime.EventHistoryFloor > 0);
+        if ((hasArchivedEvents && state.HistoryArchiveHead is null) ||
+            (state.SchemaVersion < 4 && (hasArchivedEvents || state.HistoryArchiveHead is not null)) ||
+            (state.HistoryArchiveHead is { } head && (head.Length != 64 || head.Any(character => character is not (>= '0' and <= '9') and not (>= 'a' and <= 'f')))))
+        {
+            throw new InvalidDataException("The private-world history reference or schema is invalid.");
         }
 
         if (!MapAcceptance.Validate(state.Map).IsValid)
@@ -2183,7 +2305,7 @@ public sealed class PrivateWorldRuntime : IDisposable
 
         using var society = SocietyWorldRuntime.Restore(state.Society);
         ContentPackageRegistry.Restore(state.Content);
-        if (state.SchemaVersion >= StateSchemaVersion && state.Content is null)
+        if (state.SchemaVersion >= 3 && state.Content is null)
         {
             throw new InvalidDataException("The current private-world schema requires content governance state.");
         }
@@ -2197,13 +2319,13 @@ public sealed class PrivateWorldRuntime : IDisposable
                 throw new InvalidDataException("The saved richer-systems state does not match the saved society clock or seed.");
             }
         }
-        else if (state.SchemaVersion >= StateSchemaVersion)
+        else if (state.SchemaVersion >= 3)
         {
             throw new InvalidDataException("The current private-world schema requires richer-systems state.");
         }
 
         state.WorldContent?.Validate();
-        if (state.SchemaVersion >= StateSchemaVersion &&
+        if (state.SchemaVersion >= 3 &&
             (state.WorldContent is null || state.WorldSimulation is null || state.AssetReservations is null))
         {
             throw new InvalidDataException(

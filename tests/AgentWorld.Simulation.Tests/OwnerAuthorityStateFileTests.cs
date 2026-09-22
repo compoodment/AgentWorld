@@ -51,6 +51,39 @@ public sealed class OwnerAuthorityStateFileTests
             var device = finalRestart.GetDevice(pairing.DeviceId);
             Assert.True(device.IsSuccess);
             Assert.Equal(OwnerDeviceState.Active, device.Value!.State);
+
+            var initialWrites = stateFile.WriteCount;
+            OwnerChallengeConsumeRequest? oldRequest = null;
+            for (var poll = 0; poll < 600; poll++)
+            {
+                var requestId = $"poll-{poll}";
+                var issueProof = OwnerAuthorityStore.CreateChallengeIssueCanonicalProof(identity, pairing.DeviceId, requestId);
+                var challenge = finalRestart.IssueChallenge(new OwnerChallengeIssueRequest(
+                    pairing.DeviceId, requestId, issueProof, Sign(deviceKey, issueProof))).Value!;
+                stateFile.Save(finalRestart);
+                var consumeProof = OwnerAuthorityStore.CreateChallengeConsumeCanonicalProof(
+                    identity, pairing.DeviceId, challenge.ChallengeId, challenge.Nonce, "read-snapshot");
+                oldRequest = new OwnerChallengeConsumeRequest(pairing.DeviceId, challenge.ChallengeId,
+                    challenge.Nonce, "read-snapshot", consumeProof, Sign(deviceKey, consumeProof));
+                Assert.True(finalRestart.ConsumeChallenge(oldRequest).IsSuccess);
+                Assert.False(finalRestart.ConsumeChallenge(oldRequest).IsSuccess);
+                stateFile.Save(finalRestart);
+                clock.UtcNow += TimeSpan.FromSeconds(1);
+            }
+            Assert.Equal(initialWrites, stateFile.WriteCount);
+            var pendingIssueProof = OwnerAuthorityStore.CreateChallengeIssueCanonicalProof(identity, pairing.DeviceId, "pending-at-restart");
+            var pendingChallenge = finalRestart.IssueChallenge(new OwnerChallengeIssueRequest(
+                pairing.DeviceId, "pending-at-restart", pendingIssueProof, Sign(deviceKey, pendingIssueProof))).Value!;
+            var pendingConsumeProof = OwnerAuthorityStore.CreateChallengeConsumeCanonicalProof(
+                identity, pairing.DeviceId, pendingChallenge.ChallengeId, pendingChallenge.Nonce, "read-snapshot");
+            var pendingRequest = new OwnerChallengeConsumeRequest(pairing.DeviceId, pendingChallenge.ChallengeId,
+                pendingChallenge.Nonce, "read-snapshot", pendingConsumeProof, Sign(deviceKey, pendingConsumeProof));
+            stateFile.Save(finalRestart);
+            var afterPollingRestart = stateFile.LoadOrCreate(identity, clock);
+            Assert.False(afterPollingRestart.ConsumeChallenge(oldRequest!).IsSuccess);
+            Assert.False(afterPollingRestart.ConsumeChallenge(pendingRequest).IsSuccess);
+            Assert.True(finalRestart.ConsumeChallenge(pendingRequest).IsSuccess);
+            Assert.True(afterPollingRestart.GetDevice(pairing.DeviceId).IsSuccess);
         }
         finally
         {

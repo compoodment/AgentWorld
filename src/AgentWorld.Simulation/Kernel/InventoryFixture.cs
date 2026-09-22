@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AgentWorld.Simulation.Kernel;
 
@@ -73,7 +74,8 @@ public sealed record InventoryCheckpoint(
     IReadOnlyList<InventoryLot> Lots,
     IReadOnlyList<InventoryReservation> Reservations,
     IReadOnlyList<DirectBarterOffer> Offers,
-    IReadOnlyList<InventoryEvent> Events)
+    IReadOnlyList<InventoryEvent> Events,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long EventHistoryFloor = 0)
 {
     public InventoryLot GetLot(string id) => Lots.Single(lot => string.Equals(lot.Id, id, StringComparison.Ordinal));
     public InventoryReservation GetReservation(string id) => Reservations.Single(reservation => string.Equals(reservation.Id, id, StringComparison.Ordinal));
@@ -359,7 +361,7 @@ public static class InventoryFixture
         ArgumentOutOfRangeException.ThrowIfLessThan(targetTick, checkpoint.WorldTick);
 
         var released = checkpoint.Reservations.Where(reservation =>
-            reservation.State == InventoryReservationState.Reserved && reservation.ExpiryTick <= targetTick)
+            reservation.State is InventoryReservationState.Reserved or InventoryReservationState.PartiallyConsumed && reservation.ExpiryTick < targetTick)
             .Select(reservation => reservation.Id)
             .ToHashSet(StringComparer.Ordinal);
         var reservations = checkpoint.Reservations.Select(reservation => released.Contains(reservation.Id)
@@ -367,10 +369,15 @@ public static class InventoryFixture
                 : reservation)
             .OrderBy(reservation => reservation.Id, StringComparer.Ordinal)
             .ToArray();
+        var expiredOffers = checkpoint.Offers.Where(offer => offer.State == DirectBarterState.Open && offer.ExpiryTick < targetTick)
+            .Select(offer => offer.Id).ToHashSet(StringComparer.Ordinal);
+        var offers = checkpoint.Offers.Select(offer => expiredOffers.Contains(offer.Id)
+            ? offer with { State = DirectBarterState.Cancelled } : offer).ToArray();
         var events = released.OrderBy(id => id, StringComparer.Ordinal)
             .Select(id => ("reservation_released", id))
+            .Concat(expiredOffers.Order(StringComparer.Ordinal).Select(id => ("barter_expired", id)))
             .ToArray();
-        return Commit(checkpoint, targetTick, reservations: reservations, pendingEvents: events);
+        return Commit(checkpoint, targetTick, reservations: reservations, offers: offers, pendingEvents: events);
     }
 
     public static InventoryCheckpoint CreateDirectBarterOffer(
@@ -423,7 +430,7 @@ public static class InventoryFixture
     {
         ValidateCheckpoint(checkpoint);
         var offer = checkpoint.GetOffer(offerId);
-        if (offer.State != DirectBarterState.Open || offer.Revision != revision ||
+        if (offer.State != DirectBarterState.Open || checkpoint.WorldTick > offer.ExpiryTick || offer.Revision != revision ||
             (partyId != offer.FirstPartyId && partyId != offer.SecondPartyId))
         {
             throw new InvalidOperationException("Only an open offer's exact revision may be accepted by a party.");
@@ -546,14 +553,14 @@ public static class InventoryFixture
         var events = checkpoint.Events.ToList();
         if (eventKind is not null)
         {
-            events.Add(new InventoryEvent(checked(events.Count + 1L), nextTick, eventKind, detail ?? string.Empty));
+            events.Add(new InventoryEvent(checked(checkpoint.EventHistoryFloor + events.Count + 1L), nextTick, eventKind, detail ?? string.Empty));
         }
 
         if (pendingEvents is not null)
         {
             foreach (var pending in pendingEvents.OrderBy(item => item.Detail, StringComparer.Ordinal))
             {
-                events.Add(new InventoryEvent(checked(events.Count + 1L), nextTick, pending.Kind, pending.Detail));
+                events.Add(new InventoryEvent(checked(checkpoint.EventHistoryFloor + events.Count + 1L), nextTick, pending.Kind, pending.Detail));
             }
         }
 
@@ -562,13 +569,13 @@ public static class InventoryFixture
             lots ?? checkpoint.Lots,
             reservations ?? checkpoint.Reservations,
             offers ?? checkpoint.Offers,
-            events);
+            events, checkpoint.EventHistoryFloor);
     }
 
     private static void ValidateCheckpoint(InventoryCheckpoint checkpoint)
     {
         ArgumentNullException.ThrowIfNull(checkpoint);
-        if (checkpoint.WorldTick < 0)
+        if (checkpoint.WorldTick < 0 || checkpoint.EventHistoryFloor < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(checkpoint));
         }
@@ -631,7 +638,8 @@ public static class InventoryCheckpointCodec
         InventoryLot[] Lots,
         InventoryReservation[] Reservations,
         DirectBarterOffer[] Offers,
-        InventoryEvent[] Events);
+        InventoryEvent[] Events,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long EventHistoryFloor = 0);
 
     public static byte[] Encode(InventoryCheckpoint checkpoint)
     {
@@ -647,7 +655,7 @@ public static class InventoryCheckpointCodec
                     AcceptedBy = item.AcceptedBy.OrderBy(id => id, StringComparer.Ordinal).ToArray(),
                 })
                 .ToArray(),
-            checkpoint.Events.OrderBy(item => item.EventId).ToArray());
+            checkpoint.Events.OrderBy(item => item.EventId).ToArray(), checkpoint.EventHistoryFloor);
         return Encoding.UTF8.GetBytes($"{Header}\n{JsonSerializer.Serialize(document, JsonOptions)}");
     }
 
@@ -699,7 +707,7 @@ public static class InventoryCheckpointCodec
                     AcceptedBy = item.AcceptedBy.OrderBy(id => id, StringComparer.Ordinal).ToArray(),
                 })
                 .ToArray(),
-            document.Events.OrderBy(item => item.EventId).ToArray());
+            document.Events.OrderBy(item => item.EventId).ToArray(), document.EventHistoryFloor);
         _ = InventoryDigest.State(checkpoint);
         return checkpoint;
     }

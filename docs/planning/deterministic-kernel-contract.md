@@ -230,6 +230,11 @@ transform only through a declared world rule. There is no invisible respawn.
 Inventory work uses stable reservation/job IDs and the state path
 `available → reserved → partially_consumed_or_committed → completed_or_released`.
 Reservations declare owner, quantity/lot, purpose, expiry tick, and exclusivity.
+Reservations remain live **through** their expiry tick, supporting production
+completion and immediate consumption at that boundary. They expire when the
+world tick becomes strictly greater. Society clock advancement releases due
+holds and cancels due open barter offers exactly once; expired offers cannot
+gain even one-sided acceptance.
 Cancellation, failure, death, or recovery releases only unconsumed quantities.
 Access is never consent: a barter offer is immutable at a revision, each party
 accepts that exact revision, and final availability/access/acceptance are

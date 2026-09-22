@@ -574,6 +574,12 @@ public sealed class ContentPackageRegistry
     {
         var record = Get(packageId);
         RequireState(record, ContentPackageLifecycle.Approved);
+        var dependencyLock = RequireValidLock(record);
+        if (dependencyLock.Any(entry => entry.PackageId != packageId && Get(entry.PackageId).Lifecycle is not
+                (ContentPackageLifecycle.Approved or ContentPackageLifecycle.Staged or ContentPackageLifecycle.Active)))
+        {
+            throw new InvalidOperationException("Locked dependencies must be approved before staging.");
+        }
         record = record with { Lifecycle = ContentPackageLifecycle.Staged, StagedTick = worldTick };
         packages[packageId] = record;
         AppendEvent(worldTick, packageId, "package_staged", record.LockDigest ?? string.Empty);
@@ -584,6 +590,10 @@ public sealed class ContentPackageRegistry
     {
         var record = Get(packageId);
         RequireState(record, ContentPackageLifecycle.Staged);
+        if (RequireValidLock(record).Any(entry => entry.PackageId != packageId && Get(entry.PackageId).Lifecycle != ContentPackageLifecycle.Active))
+        {
+            throw new InvalidOperationException("Locked dependencies must be active before activation.");
+        }
         if (record.StagedTick is { } stagedTick && worldTick <= stagedTick)
         {
             throw new InvalidOperationException(
@@ -597,15 +607,62 @@ public sealed class ContentPackageRegistry
     }
 
     public IReadOnlyList<ContentPackageRecord> ActivateReady(long worldTick)
+        => GetActivationCandidates(worldTick).Select(item => Activate(item.Manifest.PackageId, worldTick)).ToArray();
+
+    public IReadOnlyList<ContentPackageRecord> GetActivationCandidates(long worldTick)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(worldTick);
-        var ready = packages.Values
+        var pending = packages.Values
             .Where(item => item.Lifecycle == ContentPackageLifecycle.Staged &&
                 item.StagedTick is { } stagedTick && worldTick > stagedTick)
             .OrderBy(item => item.Manifest.PackageId, StringComparer.Ordinal)
-            .Select(item => Activate(item.Manifest.PackageId, worldTick))
-            .ToArray();
+            .ToList();
+        var active = packages.Values.Where(item => item.Lifecycle == ContentPackageLifecycle.Active)
+            .Select(item => item.Manifest.PackageId).ToHashSet(StringComparer.Ordinal);
+        var ready = new List<ContentPackageRecord>();
+        while (pending.Count > 0)
+        {
+            var progressed = false;
+            foreach (var record in pending.ToArray())
+            {
+                IReadOnlyList<ContentLockEntry> dependencyLock;
+                try
+                {
+                    dependencyLock = RequireValidLock(record);
+                }
+                catch (InvalidOperationException)
+                {
+                    // A blocked staged package stays inspectable and can be rolled back.
+                    // It must not install definitions or stop unrelated world ticks.
+                    continue;
+                }
+                if (dependencyLock.Any(entry => entry.PackageId != record.Manifest.PackageId && !active.Contains(entry.PackageId)))
+                {
+                    continue;
+                }
+                ready.Add(record);
+                active.Add(record.Manifest.PackageId);
+                pending.Remove(record);
+                progressed = true;
+            }
+            if (!progressed)
+            {
+                break;
+            }
+        }
         return ready;
+    }
+
+    private IReadOnlyList<ContentLockEntry> RequireValidLock(ContentPackageRecord record)
+    {
+        var resolution = ContentPackageResolver.Resolve(packages.Values
+            .Where(item => item.Lifecycle != ContentPackageLifecycle.Quarantined)
+            .Select(item => item.Manifest), [record.Manifest.PackageId]);
+        if (!resolution.IsSuccess || ContentPackageRules.LockDigest(resolution.Lock) != record.LockDigest)
+        {
+            throw new InvalidOperationException("The validated dependency lock is no longer available.");
+        }
+        return resolution.Lock;
     }
 
     public ContentPackageRecord Rollback(string packageId, long worldTick, string reason)

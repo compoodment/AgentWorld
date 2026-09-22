@@ -107,6 +107,56 @@ public sealed class ContentGovernanceTests
         Assert.Contains("disabled capabilities", exception.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void QuarantinedDependenciesCannotBeStagedOrActivated(bool stageBeforeQuarantine)
+    {
+        var core = Package("core", "1.0.0", 'a');
+        var world = Package("world", "1.0.0", 'b', [Dependency("core")]);
+        var registry = new ContentPackageRegistry();
+        registry.Propose(core);
+        registry.Propose(world);
+        registry.Validate("core", ContentPackageResolver.Resolve([core, world], ["core"]), 0);
+        registry.Approve("core", 0);
+        registry.Stage("core", 0);
+        registry.Activate("core", 1);
+        registry.Validate("world", ContentPackageResolver.Resolve([core, world], ["world"]), 1);
+        registry.Approve("world", 1);
+        if (stageBeforeQuarantine)
+        {
+            registry.Stage("world", 1);
+        }
+        registry.Rollback("core", 2, "owner quarantine");
+        registry = ContentPackageRegistry.Restore(registry.ExportState());
+        if (stageBeforeQuarantine)
+        {
+            Assert.Empty(registry.ActivateReady(3));
+            Assert.Throws<InvalidOperationException>(() => registry.Activate("world", 3));
+        }
+        else
+        {
+            Assert.Throws<InvalidOperationException>(() => registry.Stage("world", 3));
+        }
+    }
+
+    [Fact]
+    public void ReadyPackagesActivateInDependencyOrderNotLexicalOrder()
+    {
+        var core = Package("z-core", "1.0.0", 'a');
+        var world = Package("a-world", "1.0.0", 'b', [Dependency("z-core")]);
+        var registry = new ContentPackageRegistry();
+        registry.Propose(core);
+        registry.Propose(world);
+        foreach (var package in new[] { core, world })
+        {
+            registry.Validate(package.PackageId, ContentPackageResolver.Resolve([core, world], [package.PackageId]), 0);
+            registry.Approve(package.PackageId, 0);
+            registry.Stage(package.PackageId, 0);
+        }
+        Assert.Equal(["z-core", "a-world"], registry.ActivateReady(1).Select(item => item.Manifest.PackageId));
+    }
+
     private static ContentPackageManifest Package(
         string id,
         string version,

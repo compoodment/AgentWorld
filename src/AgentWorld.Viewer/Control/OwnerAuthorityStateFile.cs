@@ -16,6 +16,8 @@ public sealed class OwnerAuthorityStateFile
     };
 
     private readonly object gate = new();
+    private string? lastSavedJson;
+    private long writeCount;
 
     public OwnerAuthorityStateFile(string path)
     {
@@ -24,6 +26,7 @@ public sealed class OwnerAuthorityStateFile
     }
 
     public string Path { get; }
+    public long WriteCount => Interlocked.Read(ref writeCount);
 
     public OwnerAuthorityStore LoadOrCreate(
         OwnerAuthorityIdentity initialIdentity,
@@ -54,10 +57,13 @@ public sealed class OwnerAuthorityStateFile
             }
 
             var restored = OwnerAuthorityStore.Restore(
-                state,
+                state with { Challenges = [] },
                 clock ?? SystemOwnerAuthorityClock.Instance,
                 random ?? CryptographicOwnerAuthorityRandom.Instance);
-            SaveUnsafe(restored.ExportState());
+            // Challenges belong to one host process. Restart rejects every old
+            // nonce, including pending ones, so no consumed nonce can resurrect.
+            // Preserve existing file bytes until durable pairing/device state changes.
+            lastSavedJson = SerializeDurable(restored.ExportState());
             return restored;
         }
     }
@@ -73,6 +79,11 @@ public sealed class OwnerAuthorityStateFile
 
     private void SaveUnsafe(OwnerAuthorityState state)
     {
+        var json = SerializeDurable(state);
+        if (string.Equals(lastSavedJson, json, StringComparison.Ordinal))
+        {
+            return;
+        }
         var directory = System.IO.Path.GetDirectoryName(Path) ??
             throw new InvalidOperationException("The owner-authority state path has no directory.");
         Directory.CreateDirectory(directory);
@@ -82,11 +93,12 @@ public sealed class OwnerAuthorityStateFile
             $".{System.IO.Path.GetFileName(Path)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            var json = JsonSerializer.Serialize(state, JsonOptions);
             File.WriteAllText(temporaryPath, json);
             RestrictPermissions(temporaryPath);
             File.Move(temporaryPath, Path, overwrite: true);
             RestrictPermissions(Path);
+            lastSavedJson = json;
+            Interlocked.Increment(ref writeCount);
         }
         finally
         {
@@ -96,6 +108,9 @@ public sealed class OwnerAuthorityStateFile
             }
         }
     }
+
+    private static string SerializeDurable(OwnerAuthorityState state) =>
+        JsonSerializer.Serialize(state with { Challenges = [] }, JsonOptions);
 
     private static void RestrictPermissions(string path)
     {

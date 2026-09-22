@@ -34,11 +34,17 @@ The private world runs the server and provider adapters on the same VPS. They
 remain separate logical components so model failures, API credentials, and
 expensive cognition cannot directly corrupt simulation state.
 
+Private-world ticks execute against an isolated proposed state. Provider I/O
+does not hold the authoritative world gate; snapshots and owner controls see
+the last committed tick. Commit checks the unchanged world/event generation.
+Cancellation discards the proposal, and a concurrent owner change supersedes
+it. A separate tick semaphore prevents competing tick commits.
+
 ## Engine direction
 
 Godot is the player-facing client/rendering engine because it provides a
 strong 2D and pixel-art workflow, tile-based rendering, animation, and a path
-toward a headless server and later multiplayer. A logical tile is a world cell,
+toward a headless private host. Multiplayer is excluded. A logical tile is a world cell,
 not one physical screen pixel, so a 256×256 logical map can use 16×16 or
 32×32-pixel artwork per cell.
 
@@ -64,7 +70,7 @@ The server owns:
 - human directives, broadcasts, and paused authoring-mode edits
 
 Clients render observations and submit requests. They do not decide whether an
-action happened. This is useful for integrity even before multiplayer exists.
+action happened. This preserves authority in the single-player hosted world.
 
 ## Simulation loop
 
@@ -131,20 +137,32 @@ chain-of-thought as authoritative state.
 
 ## Persistence and replay
 
-The persistence model is:
+The integrated host atomically replaces its checkpoint after committed ticks.
+World, society, inventory, scheduler and individual cognition event histories
+compact from more than 2,048 entries to the latest 1,024 entries on save. Global
+event IDs and explicit retention floors survive compaction and restart.
 
-- periodic complete snapshots
-- an append-only event log between snapshots
-- explicit schema and migration versions
-- deterministic world seed and simulation version
-- mod manifest included in saves
-- asset manifest and economic ledger included in saves
-- crash-safe checkpointing
-- a replay or reproduction mode for tests and bug reports
+Older events are written first into immutable SHA-256-named segments beside the
+save, in `<save>.history/`. Each segment links its predecessor; the checkpoint
+stores only the head digest. A segment is flushed before the checkpoint that
+references it is replaced. A crash before checkpoint replacement may leave an
+unreferenced segment; it cannot make the last committed checkpoint depend on
+an unwritten segment. Restart verifies the complete referenced hash chain.
+Archives are private (0700 directory, 0600 files); never delete referenced
+segments. Backups and restores must copy the save and its history together.
 
-SQLite is a plausible first storage engine, but it is not yet a requirement.
-The important invariant is that a world can be inspected and recovered without
-depending on a live LLM provider.
+Reconnect returns a recent contiguous suffix. If the requested cursor predates
+`eventHistoryFloor`, `resetRequired` explicitly requests a fresh snapshot and
+recent log; the Godot client validates the floor, clears its held log, and
+resumes at the new cursor. Client log retention is also bounded to 2,048 events.
+Older clients without this reset support must be upgraded before reconnecting
+to a compacted world. Offline archives are operator evidence, not an unbounded
+payload sent to the client.
+
+The save retains current world state, deterministic seeds, schema versions,
+content locks, asset reservations and economic state. Compaction bounds event
+history cost, not the size of genuinely growing world entities. No live model
+provider is required to load or inspect a checkpoint.
 
 ## World scale
 

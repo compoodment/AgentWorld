@@ -7,6 +7,42 @@ namespace AgentWorld.Simulation.Tests;
 
 public sealed class ViewerObservationTests
 {
+    [Fact]
+    public async Task CropJobsAreVisibleAlongsideWorkstationJobs()
+    {
+        using var runtime = new PrivateWorldRuntime("playtest-alpha");
+        Assert.True(runtime.StageStarterContent());
+        for (var tick = 0; tick < 150; tick++)
+        {
+            _ = await runtime.AdvanceOneTickAsync();
+        }
+        var snapshot = new OwnerWorldObservationStore(runtime).GetSnapshot();
+        var state = runtime.ExportState();
+        Assert.NotEmpty(state.WorldSimulation!.CropBuilds!);
+        var expected = state.WorldSimulation.ProductionJobs.Concat(state.WorldSimulation.CropBuilds!).Select(item => item.JobId).Order(StringComparer.Ordinal);
+        Assert.Equal(expected, snapshot.ProductionJobs.Select(item => item.JobId));
+        Assert.Equal(snapshot.ProductionJobs.Count, snapshot.WorldSystems!.ProductionJobCount);
+    }
+
+    [Fact]
+    public void EmptyPopulationRemainsObservableAfterRestore()
+    {
+        using var genesis = new PrivateWorldRuntime("playtest-alpha");
+        var state = genesis.ExportState();
+        var society = state.Society.Society;
+        foreach (var inhabitant in society.Inhabitants)
+        {
+            society = AgentWorld.Simulation.Society.SocietyFixture.Kill(society, inhabitant.Id,
+                AgentWorld.Simulation.Society.SocietyDeathCause.NaturalAge).Checkpoint;
+        }
+        state = state with { Society = state.Society with { Society = society }, Inhabitants = [] };
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
+        var baseline = new OwnerWorldObservationStore(restored).GetReconnectBaseline(0);
+        Assert.Empty(baseline.Snapshot.Inhabitants);
+        Assert.Null(baseline.Snapshot.Actor);
+        Assert.Equal(state.Society.Society.WorldTick, baseline.Snapshot.WorldTick);
+    }
+
     private static readonly HashSet<string> ResourceStates =
     [
         "available",
@@ -41,6 +77,7 @@ public sealed class ViewerObservationTests
         Assert.Equal(source.Identity.WorldTick, snapshot.WorldTick);
         Assert.Equal(source.Map.ManifestDigest, snapshot.MapManifestDigest);
         Assert.Equal(source.Map.Width * source.Map.Height, snapshot.Tiles.Count);
+        Assert.NotNull(snapshot.Actor);
         Assert.Equal(source.Actor.Id, snapshot.Actor.Id);
         Assert.Equal(source.Actor.Position.X, snapshot.Actor.Position.X);
         Assert.Equal(source.Actor.Position.Y, snapshot.Actor.Position.Y);

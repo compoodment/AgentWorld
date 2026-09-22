@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Serialization;
 
 namespace AgentWorld.Simulation.Cognition;
 
@@ -43,7 +44,8 @@ public sealed record CognitionRuntimeState(
     long DecisionGeneration,
     long NextRequestSequence,
     CognitionIntention? CurrentIntention,
-    IReadOnlyList<CognitionEvent> Events);
+    IReadOnlyList<CognitionEvent> Events,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long EventHistoryFloor = 0);
 
 public sealed record CognitionRuntimeSnapshot(
     string InhabitantId,
@@ -86,6 +88,7 @@ public sealed class CognitionRuntime
     private long decisionGeneration;
     private long nextRequestSequence = 1;
     private long nextEventId = 1;
+    private long eventHistoryFloor;
 
     public CognitionRuntime(
         string inhabitantId,
@@ -318,7 +321,7 @@ public sealed class CognitionRuntime
                 decisionGeneration,
                 nextRequestSequence,
                 currentIntention,
-                events.ToArray());
+                events.ToArray(), eventHistoryFloor);
         }
     }
 
@@ -346,9 +349,10 @@ public sealed class CognitionRuntime
             runtime.decisionGeneration = state.DecisionGeneration;
             runtime.nextRequestSequence = state.NextRequestSequence;
             runtime.currentIntention = state.CurrentIntention;
+            runtime.eventHistoryFloor = state.EventHistoryFloor;
             runtime.events.AddRange(state.Events ?? throw new InvalidDataException("Cognition events are missing."));
             runtime.ValidateEvents();
-            runtime.nextEventId = checked(runtime.events.Count + 1L);
+            runtime.nextEventId = checked(runtime.eventHistoryFloor + runtime.events.Count + 1L);
         }
 
         return runtime;
@@ -480,7 +484,11 @@ public sealed class CognitionRuntime
 
     private void ValidateEvents()
     {
-        var expectedId = 1L;
+        if (eventHistoryFloor < 0)
+        {
+            throw new InvalidDataException("The cognition event history floor is invalid.");
+        }
+        var expectedId = checked(eventHistoryFloor + 1);
         foreach (var worldEvent in events)
         {
             if (worldEvent.EventId != expectedId || worldEvent.WorldTick < 0 ||

@@ -1,5 +1,7 @@
 using AgentWorld.Simulation.Cognition;
 using AgentWorld.Simulation.Playtest;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace AgentWorld.Viewer.Observation;
 
@@ -35,6 +37,7 @@ public sealed class PrivateWorldStateFile
             }
 
             var state = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(Path));
+            VerifyHistory(state.HistoryArchiveHead);
             if (!string.Equals(state.WorldSeed, worldSeed, StringComparison.Ordinal))
             {
                 throw new InvalidDataException("The private-world save belongs to a different configured seed.");
@@ -46,17 +49,35 @@ public sealed class PrivateWorldStateFile
         }
     }
 
-    public void Save(PrivateWorldRuntime runtime)
+    public bool Save(PrivateWorldRuntime runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         lock (gate)
         {
-            SaveUnsafe(runtime.ExportState());
+            var compacted = false;
+            runtime.PersistCheckpoint(state =>
+            {
+                var saved = SaveUnsafe(state, compactHistory: true);
+                compacted = saved.HistoryArchiveHead != state.HistoryArchiveHead;
+                return saved;
+            });
+            return compacted;
         }
     }
 
-    private void SaveUnsafe(PrivateWorldRuntimeState state)
+    private PrivateWorldRuntimeState SaveUnsafe(PrivateWorldRuntimeState state, bool compactHistory = false)
     {
+        if (compactHistory)
+        {
+            var plan = PrivateWorldHistory.Prepare(state);
+            if (plan.Segment.Streams.Count > 0)
+            {
+                var bytes = JsonSerializer.SerializeToUtf8Bytes(plan.Segment);
+                var digest = Convert.ToHexStringLower(SHA256.HashData(bytes));
+                WriteHistorySegment(digest, bytes);
+                state = plan.State with { HistoryArchiveHead = digest };
+            }
+        }
         var directory = System.IO.Path.GetDirectoryName(Path) ??
             throw new InvalidOperationException("The private-world state path has no directory.");
         Directory.CreateDirectory(directory);
@@ -65,7 +86,11 @@ public sealed class PrivateWorldStateFile
             $".{System.IO.Path.GetFileName(Path)}.{Guid.NewGuid():N}.tmp");
         try
         {
-            File.WriteAllBytes(temporaryPath, PrivateWorldRuntimeCodec.Encode(state));
+            using (var stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(PrivateWorldRuntimeCodec.Encode(state));
+                stream.Flush(flushToDisk: true);
+            }
             RestrictPermissions(temporaryPath);
             File.Move(temporaryPath, Path, overwrite: true);
             RestrictPermissions(Path);
@@ -76,6 +101,71 @@ public sealed class PrivateWorldStateFile
             {
                 File.Delete(temporaryPath);
             }
+        }
+        return state;
+    }
+
+    private string HistoryPath(string digest)
+    {
+        if (digest.Length != 64 || digest.Any(character => !char.IsAsciiHexDigit(character)))
+        {
+            throw new InvalidDataException("The world history archive reference is invalid.");
+        }
+        return System.IO.Path.Combine(Path + ".history", digest + ".json");
+    }
+
+    private void WriteHistorySegment(string digest, byte[] bytes)
+    {
+        var destination = HistoryPath(digest);
+        Directory.CreateDirectory(Path + ".history");
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(Path + ".history", UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+        if (File.Exists(destination))
+        {
+            if (!File.ReadAllBytes(destination).AsSpan().SequenceEqual(bytes))
+            {
+                throw new InvalidDataException("A world history segment failed content verification.");
+            }
+            return;
+        }
+        var temporary = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
+            RestrictPermissions(temporary);
+            File.Move(temporary, destination);
+        }
+        finally
+        {
+            if (File.Exists(temporary))
+            {
+                File.Delete(temporary);
+            }
+        }
+    }
+
+    private void VerifyHistory(string? head)
+    {
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        while (head is not null)
+        {
+            if (!visited.Add(head))
+            {
+                throw new InvalidDataException("The world history archive contains a cycle.");
+            }
+            var bytes = File.ReadAllBytes(HistoryPath(head));
+            if (Convert.ToHexStringLower(SHA256.HashData(bytes)) != head)
+            {
+                throw new InvalidDataException("The world history archive is corrupt.");
+            }
+            head = (JsonSerializer.Deserialize<PrivateWorldHistorySegment>(bytes)
+                ?? throw new InvalidDataException("The world history archive is empty.")).Parent;
         }
     }
 

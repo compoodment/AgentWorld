@@ -8,6 +8,23 @@ release yet.
 
 ### Added
 
+- Bounded hot event histories with durable, hash-verified archive segments and
+  explicit stale-cursor snapshot resets. Save schema 4 keeps global event IDs;
+  backups must include the save's adjacent `.history` directory.
+- Hardened ticks against cancelled or slow providers: observations and pause
+  stay responsive, and cancelled/superseded ticks leave no partial world state.
+- Cancelled in-flight provider work when the last client lease expires or the
+  owner pauses, and rechecked client presence before committing a proposed tick.
+- Capped hosted-provider response bodies at 256 KiB before JSON parsing.
+- Corrected reservation/barter expiry, automatic release on society clock
+  advancement, asset-charge conflicts/overflow, and prefix-ID ledger restore.
+- Made dependency quarantine block subsequent content activation and enforce
+  dependency-first activation order.
+- Included crop work in owner job projections and kept empty-population worlds
+  observable after all inhabitants die.
+- Eliminated idle authority-file rewrites: one-use challenges are process-local
+  and fail closed across restart; paired identities and revocations stay durable.
+
 - Added per-inhabitant routine/planning provider and model overrides, with
   explicit inheritance from world defaults and shared host-only credentials.
 - Added automatic, versioned starter content activation on the first resumed

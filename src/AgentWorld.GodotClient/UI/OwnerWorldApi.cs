@@ -178,7 +178,7 @@ public sealed record OwnerWorldSnapshot(
     IReadOnlyList<OwnerWorldTile> Tiles,
     IReadOnlyList<OwnerWorldObject> Objects,
     IReadOnlyList<OwnerWorldResource> Resources,
-    OwnerWorldActor Actor,
+    OwnerWorldActor? Actor,
     long LatestEventId)
 {
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
@@ -205,7 +205,9 @@ public sealed record OwnerWorldEvent(long EventId, long WorldTick, string Kind, 
 public sealed record OwnerWorldEventSlice(
     long SnapshotTick,
     long AfterEventId,
-    IReadOnlyList<OwnerWorldEvent> Events);
+    IReadOnlyList<OwnerWorldEvent> Events,
+    long EventHistoryFloor = 0,
+    bool ResetRequired = false);
 
 public sealed record OwnerWorldReconnectBaseline(OwnerWorldSnapshot Snapshot, OwnerWorldEventSlice Events);
 
@@ -407,13 +409,16 @@ public sealed class OwnerWorldObservationSession
         if (baseline?.Snapshot is null || baseline.Events is null ||
             baseline.Events.AfterEventId != requestedAfterEventId ||
             baseline.Events.SnapshotTick != baseline.Snapshot.WorldTick ||
-            baseline.Snapshot.LatestEventId < requestedAfterEventId)
+            baseline.Snapshot.LatestEventId < requestedAfterEventId ||
+            baseline.Events.EventHistoryFloor < 0 ||
+            baseline.Events.EventHistoryFloor > baseline.Snapshot.LatestEventId ||
+            baseline.Events.ResetRequired != (requestedAfterEventId < baseline.Events.EventHistoryFloor))
         {
             failure = "The owner reconnect baseline is internally inconsistent.";
             return false;
         }
 
-        var expectedEventId = checked(requestedAfterEventId + 1);
+        var expectedEventId = checked(Math.Max(requestedAfterEventId, baseline.Events.EventHistoryFloor) + 1);
         foreach (var worldEvent in baseline.Events.Events ?? [])
         {
             if (worldEvent.EventId != expectedEventId ||
