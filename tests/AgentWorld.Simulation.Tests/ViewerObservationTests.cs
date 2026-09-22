@@ -1,3 +1,4 @@
+using AgentWorld.Simulation.Content;
 using AgentWorld.Simulation.Harness;
 using AgentWorld.Simulation.Playtest;
 using AgentWorld.Viewer.Observation;
@@ -148,6 +149,10 @@ public sealed class ViewerObservationTests
             Assert.NotEmpty(inhabitant.SpatialKnowledge.PerceivedTiles);
         });
         Assert.NotNull(snapshot.Cognition);
+        Assert.NotNull(snapshot.WorldSystems);
+        Assert.Equal("spring", snapshot.WorldSystems!.Season);
+        Assert.Equal(2, snapshot.WorldSystems.EcologyResourceCount);
+        Assert.Equal(1, snapshot.WorldSystems.FactionCount);
         Assert.Equal(4, snapshot.Inhabitants.Select(inhabitant => inhabitant.Id).Distinct().Count());
     }
 
@@ -165,5 +170,36 @@ public sealed class ViewerObservationTests
         Assert.Equal(snapshot.WorldTick, suffix.SnapshotTick);
         Assert.All(suffix.Events, worldEvent => Assert.True(worldEvent.EventId > 1));
         Assert.Contains(suffix.Events, worldEvent => worldEvent.Kind == "tick_advanced");
+    }
+
+    [Fact]
+    public async Task PrivateWorldObservationProjectsContentLifecycleAndGovernanceHistory()
+    {
+        using var runtime = new PrivateWorldRuntime("playtest-alpha");
+        var package = new ContentPackageManifest(
+            "camp-recipes",
+            ContentVersion.Parse("1.0.0"),
+            "sha256:" + new string('e', 64),
+            [],
+            [new ContentDefinition(
+                "recipe",
+                "berry-stew",
+                ContentVersion.Parse("1.0.0"),
+                "Berry stew",
+                "sha256:" + new string('e', 64))],
+            []);
+        var resolution = PrivateWorldRuntime.PreviewContent([package], [package.PackageId]);
+        runtime.ProposeContent(package);
+        runtime.ValidateContent(package.PackageId, resolution);
+        runtime.ApproveContent(package.PackageId);
+        runtime.StageContent(package.PackageId);
+        _ = await runtime.AdvanceOneTickAsync();
+
+        var snapshot = new OwnerWorldObservationStore(runtime).GetSnapshot();
+
+        var content = Assert.Single(snapshot.ContentPackages);
+        Assert.Equal(package.PackageId, content.PackageId);
+        Assert.Equal("active", content.Lifecycle);
+        Assert.Contains(snapshot.ContentEvents, item => item.Kind == "package_activated");
     }
 }

@@ -1,10 +1,12 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using AgentWorld.Simulation.Content;
 using AgentWorld.Simulation.Cognition;
 using AgentWorld.Simulation.Harness;
 using AgentWorld.Simulation.Kernel;
 using AgentWorld.Simulation.Society;
+using AgentWorld.Simulation.World;
 
 namespace AgentWorld.Simulation.Playtest;
 
@@ -34,7 +36,9 @@ public sealed record PrivateWorldRuntimeState(
     IReadOnlyList<PlaytestResourceState> Resources,
     IReadOnlyList<PlaytestWorldEvent> Events,
     IReadOnlyList<OwnerQueuedInstruction>? Instructions = null,
-    IReadOnlyList<string>? CompletedInstructionIds = null);
+    IReadOnlyList<string>? CompletedInstructionIds = null,
+    ContentRegistryState? Content = null,
+    WorldSystemsState? WorldSystems = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,
@@ -52,7 +56,7 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 1;
+    public const int StateSchemaVersion = 2;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
@@ -63,6 +67,8 @@ public sealed class PrivateWorldRuntime : IDisposable
     private readonly double minimumCognitionConfidence;
     private SeededMap map;
     private SocietyWorldRuntime society;
+    private ContentPackageRegistry contentRegistry;
+    private WorldSystemsState worldSystems;
     private readonly Dictionary<string, PlaytestInhabitantState> inhabitants = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ResourceState> resources = new(StringComparer.Ordinal);
     private readonly Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
@@ -96,7 +102,9 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
 
         this.minimumCognitionConfidence = minimumCognitionConfidence;
+        contentRegistry = new ContentPackageRegistry();
         map = SeededMapGenerator.Generate(this.worldSeed);
+        worldSystems = CreateWorldSystems(this.worldSeed, map);
         society = CreateSociety(
             this.worldSeed,
             providerFactory,
@@ -115,6 +123,10 @@ public sealed class PrivateWorldRuntime : IDisposable
     public long WorldTick => society.Checkpoint.WorldTick;
 
     public SocietyCheckpoint Society => society.Checkpoint;
+
+    public ContentRegistryState Content => contentRegistry.ExportState();
+
+    public WorldSystemsState WorldSystems => worldSystems;
 
     public IReadOnlyList<PlaytestInhabitantState> Inhabitants => inhabitants.Values
         .OrderBy(item => item.InhabitantId, StringComparer.Ordinal)
@@ -158,6 +170,12 @@ public sealed class PrivateWorldRuntime : IDisposable
             state.Society,
             providerFactory,
             minimumCognitionConfidence);
+        runtime.contentRegistry = ContentPackageRegistry.Restore(state.Content);
+        runtime.worldSystems = state.WorldSystems is null
+            ? AdvanceWorldSystemsTo(
+                CreateWorldSystems(state.WorldSeed, state.Map),
+                state.Society.Society.WorldTick)
+            : state.WorldSystems;
         runtime.inhabitants.Clear();
         foreach (var inhabitant in state.Inhabitants)
         {
@@ -221,6 +239,22 @@ public sealed class PrivateWorldRuntime : IDisposable
             var startingEvent = events.Count;
             var targetTick = checked(WorldTick + 1);
             society.AdvanceTo(targetTick);
+            var previousClimate = worldSystems.Climate;
+            worldSystems = WorldSystemsRules.AdvanceOneTick(worldSystems);
+            SyncEcologyResourceStates();
+            if (previousClimate.Season != worldSystems.Climate.Season ||
+                previousClimate.Weather != worldSystems.Climate.Weather)
+            {
+                AppendEvent(
+                    "weather_changed",
+                    $"{worldSystems.Climate.Season.ToString().ToLowerInvariant()}:{worldSystems.Climate.Weather.ToString().ToLowerInvariant()}");
+            }
+
+            foreach (var activated in contentRegistry.ActivateReady(targetTick))
+            {
+                AppendEvent("content_activated", activated.Manifest.PackageId);
+            }
+
             DrainNeeds();
             RemoveDeadPhysicalState();
             EnqueueDueCognition();
@@ -294,6 +328,90 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
     }
 
+    public static ContentResolutionResult PreviewContent(
+        IEnumerable<ContentPackageManifest> availablePackages,
+        IEnumerable<string> rootPackageIds) =>
+        ContentPackageResolver.Resolve(availablePackages, rootPackageIds);
+
+    public ContentPackageRecord ProposeContent(ContentPackageManifest manifest)
+    {
+        ArgumentNullException.ThrowIfNull(manifest);
+        gate.Wait();
+        try
+        {
+            var record = contentRegistry.Propose(manifest);
+            AppendEvent("content_proposed", manifest.PackageId);
+            return record;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public ContentPackageRecord ValidateContent(
+        string packageId,
+        ContentResolutionResult resolution)
+    {
+        gate.Wait();
+        try
+        {
+            var record = contentRegistry.Validate(packageId, resolution, WorldTick);
+            AppendEvent("content_validated", packageId);
+            return record;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public ContentPackageRecord ApproveContent(string packageId)
+    {
+        gate.Wait();
+        try
+        {
+            var record = contentRegistry.Approve(packageId, WorldTick);
+            AppendEvent("content_approved", packageId);
+            return record;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public ContentPackageRecord StageContent(string packageId)
+    {
+        gate.Wait();
+        try
+        {
+            var record = contentRegistry.Stage(packageId, WorldTick);
+            AppendEvent("content_staged", packageId);
+            return record;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public ContentPackageRecord RollbackContent(string packageId, string reason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        gate.Wait();
+        try
+        {
+            var record = contentRegistry.Rollback(packageId, WorldTick, reason);
+            AppendEvent("content_rolled_back", $"{packageId}:{reason.Trim()}");
+            return record;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     public void Pause()
     {
         gate.Wait();
@@ -334,6 +452,13 @@ public sealed class PrivateWorldRuntime : IDisposable
     {
         SocietyFixture.Validate(society.Checkpoint);
         society.Validate();
+        contentRegistry.Validate();
+        WorldSystemsRules.Validate(worldSystems);
+        if (worldSystems.WorldTick != WorldTick ||
+            !string.Equals(worldSystems.WorldSeed, worldSeed, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The private-world richer-systems state does not match the authoritative clock or seed.");
+        }
         var mapValidation = MapAcceptance.Validate(map);
         if (!mapValidation.IsValid)
         {
@@ -395,7 +520,103 @@ public sealed class PrivateWorldRuntime : IDisposable
         instructionsByIdempotency.Values
             .OrderBy(item => item.SubmissionSequence)
             .ToArray(),
-        completedInstructionIds.OrderBy(item => item, StringComparer.Ordinal).ToArray());
+        completedInstructionIds.OrderBy(item => item, StringComparer.Ordinal).ToArray(),
+        contentRegistry.ExportState(),
+        worldSystems);
+
+    private static WorldSystemsState CreateWorldSystems(string worldSeed, SeededMap map)
+    {
+        var config = WorldSystemsConfig.Default;
+        var resources = map.Resources
+            .Select(resource => resource.IsRenewable
+                ? new EcologyResource(
+                    resource.Id,
+                    resource.Kind,
+                    resource.Position,
+                    true,
+                    8,
+                    12,
+                    2,
+                    1,
+                    SeasonKind.Spring,
+                    1,
+                    EcologyResourceState.Available)
+                : new EcologyResource(
+                    resource.Id,
+                    resource.Kind,
+                    resource.Position,
+                    false,
+                    3,
+                    3,
+                    0,
+                    0,
+                    SeasonKind.Spring,
+                    0,
+                    EcologyResourceState.Available))
+            .ToArray();
+        var culture = new CultureState(
+            [new CultureDefinition("camp", "Camp", ["cooperation", "survival"])],
+            [
+                new CultureAssignment("founder-scout", "camp", ["mapping"]),
+                new CultureAssignment("founder-mira", "camp", ["harvest"]),
+                new CultureAssignment("founder-rowan", "camp", ["building"]),
+                new CultureAssignment("founder-ilya", "camp", ["memory"]),
+            ]);
+        var factions = new FactionState(
+            [new FactionDefinition("camp-alpha", "Camp Alpha", ["camp"])],
+            [
+                new FactionStanding("founder-scout", "camp-alpha", 0),
+                new FactionStanding("founder-mira", "camp-alpha", 0),
+                new FactionStanding("founder-rowan", "camp-alpha", 0),
+                new FactionStanding("founder-ilya", "camp-alpha", 0),
+            ],
+            [new LawRule("camp-no-theft", "camp-alpha", LawActionKind.Theft, LawSeverity.Major, 500, 25)],
+            []);
+        var currency = new CurrencyState(
+            [new CurrencyDefinition("copper", "Copper", "cp")],
+            [new CurrencyAccount("camp-wallet", HouseholdId, "copper", 100)],
+            []);
+        var chunk = ChunkManifestCodec.WithDigest(new ChunkManifest(
+            new ChunkCoordinate(0, 0),
+            ChunkRules.DefaultChunkSize,
+            map.Width,
+            map.Height,
+            SeededMapGenerator.GeneratorId,
+            SeededMapGenerator.GeneratorVersion,
+            map.Resources.Select(resource => new ChunkResourceMetadata(
+                resource.Id,
+                resource.Kind,
+                resource.Position,
+                resource.IsRenewable)).ToArray()));
+        return WorldSystemsRules.CreateGenesis(
+            worldSeed,
+            config,
+            resources,
+            factions,
+            currency,
+            culture,
+            [chunk]);
+    }
+
+    private static WorldSystemsState AdvanceWorldSystemsTo(WorldSystemsState state, long targetTick)
+    {
+        while (state.WorldTick < targetTick)
+        {
+            state = WorldSystemsRules.AdvanceOneTick(state);
+        }
+
+        return state;
+    }
+
+    private void SyncEcologyResourceStates()
+    {
+        foreach (var resource in worldSystems.Ecology.Resources)
+        {
+            resources[resource.Id] = resource.State == EcologyResourceState.Depleted
+                ? ResourceState.Depleted
+                : ResourceState.Available;
+        }
+    }
 
     private static SocietyWorldRuntime CreateSociety(
         string worldSeed,
@@ -629,6 +850,22 @@ public sealed class PrivateWorldRuntime : IDisposable
             FoodLotId,
             1,
             "harvested_food"));
+        var ecologyResource = worldSystems.Ecology.GetResource(BerryResourceId);
+        var harvest = EcologyRules.Harvest(ecologyResource, 1);
+        if (harvest.IsValid && harvest.Resource is not null)
+        {
+            worldSystems = worldSystems with
+            {
+                Ecology = worldSystems.Ecology with
+                {
+                    Resources = worldSystems.Ecology.Resources
+                        .Select(resource => resource.Id == BerryResourceId ? harvest.Resource : resource)
+                        .ToArray(),
+                },
+            };
+            SyncEcologyResourceStates();
+        }
+
         AppendEvent("food_harvested", inhabitantId);
     }
 
@@ -799,7 +1036,7 @@ public sealed class PrivateWorldRuntime : IDisposable
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (state.SchemaVersion != StateSchemaVersion || string.IsNullOrWhiteSpace(state.WorldSeed))
+        if (state.SchemaVersion is not (1 or StateSchemaVersion) || string.IsNullOrWhiteSpace(state.WorldSeed))
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");
         }
@@ -810,6 +1047,25 @@ public sealed class PrivateWorldRuntime : IDisposable
         }
 
         using var society = SocietyWorldRuntime.Restore(state.Society);
+        ContentPackageRegistry.Restore(state.Content);
+        if (state.SchemaVersion >= StateSchemaVersion && state.Content is null)
+        {
+            throw new InvalidDataException("The current private-world schema requires content governance state.");
+        }
+
+        if (state.WorldSystems is not null)
+        {
+            WorldSystemsRules.Validate(state.WorldSystems);
+            if (state.WorldSystems.WorldTick != state.Society.Society.WorldTick ||
+                !string.Equals(state.WorldSystems.WorldSeed, state.WorldSeed, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("The saved richer-systems state does not match the saved society clock or seed.");
+            }
+        }
+        else if (state.SchemaVersion >= StateSchemaVersion)
+        {
+            throw new InvalidDataException("The current private-world schema requires richer-systems state.");
+        }
         var activeIds = state.Society.Society.Inhabitants
             .Where(item => item.Status == SocietyInhabitantStatus.Active)
             .Select(item => item.Id)

@@ -12,7 +12,7 @@ namespace AgentWorld.GodotClient;
 /// </summary>
 public partial class Main : Control
 {
-    private const int TileSize = 72;
+    private const int TileSize = 64;
     private const int RefreshSeconds = 1;
 
     private readonly System.Net.Http.HttpClient httpClient = new();
@@ -37,8 +37,10 @@ public partial class Main : Control
     private readonly Button forgetRegistrationButton = new();
 
     private readonly GridContainer titleBar = new();
+    private readonly ScrollContainer mainScroll = new();
     private readonly GridContainer mainContent = new();
     private readonly GridContainer worldGrid = new();
+    private readonly ScrollContainer mapScroll = new();
     private readonly Control mapCanvas = new();
     private readonly Control objectLayer = new();
     private readonly Control entityLayer = new();
@@ -48,6 +50,15 @@ public partial class Main : Control
     private readonly Label hudStateLabel = new();
     private readonly Label hudSelectionLabel = new();
     private readonly Label mapLegendLabel = new();
+    private readonly Label rosterSummaryLabel = new();
+    private readonly Label clockWorldValue = new();
+    private readonly Label clockTickValue = new();
+    private readonly Label clockStateValue = new();
+    private readonly Label clockClimateValue = new();
+    private readonly Label cognitionProviderValue = new();
+    private readonly Label cognitionCandidateValue = new();
+    private readonly Label cognitionRequestValue = new();
+    private readonly Label cognitionActivityValue = new();
     private readonly PanelContainer selectedInhabitantCard = new();
     private readonly Label selectedActorNameLabel = new();
     private readonly Label selectedActorSummaryLabel = new();
@@ -822,9 +833,12 @@ public partial class Main : Control
 
     private void BuildLayout()
     {
+        AddThemeColorOverride("font_color", new Color("E5EFEA"));
+        AddThemeFontSizeOverride("font_size", 14);
+
         var backdrop = new ColorRect
         {
-            Color = new Color("101820"),
+            Color = new Color("0D151C"),
             MouseFilter = Control.MouseFilterEnum.Ignore,
         };
         backdrop.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
@@ -839,20 +853,25 @@ public partial class Main : Control
         AddChild(margin);
 
         var root = new VBoxContainer();
-        root.AddThemeConstantOverride("separation", 12);
+        root.AddThemeConstantOverride("separation", 10);
         margin.AddChild(root);
 
         titleBar.AddThemeConstantOverride("h_separation", 10);
         titleBar.AddThemeConstantOverride("v_separation", 6);
-        var title = new Label { Text = "AGENTWORLD  ·  OUTPOST" };
+        var title = new Label { Text = "AGENTWORLD  /  PRIVATE ALPHA" };
         title.AddThemeFontSizeOverride("font_size", 24);
+        title.AddThemeColorOverride("font_color", new Color("F0F4EC"));
         title.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         titleBar.AddChild(title);
         connectionSettingsButton.Text = "Server settings";
+        StyleButton(connectionSettingsButton);
         connectionSettingsButton.Pressed += ToggleConnectionSettings;
         titleBar.AddChild(connectionSettingsButton);
         root.AddChild(titleBar);
-        statusLabel.Text = "initializing Windows owner device…";
+        statusLabel.Text = "initializing owner device…";
+        statusLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        statusLabel.AddThemeFontSizeOverride("font_size", 13);
+        statusLabel.Modulate = new Color("A7B9B7");
         root.AddChild(statusLabel);
 
         BuildConnectionPanel();
@@ -861,10 +880,17 @@ public partial class Main : Control
         root.AddChild(pairingPanel);
 
         mainContent.Columns = 2;
+        mainContent.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         mainContent.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         mainContent.AddThemeConstantOverride("h_separation", 12);
         mainContent.AddThemeConstantOverride("v_separation", 12);
-        root.AddChild(mainContent);
+
+        mainScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        mainScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        mainScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
+        mainScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+        mainScroll.AddChild(mainContent);
+        root.AddChild(mainScroll);
 
         BuildWorldColumn(mainContent);
         var sidebar = new VBoxContainer
@@ -961,7 +987,7 @@ public partial class Main : Control
 
     private void BuildWorldColumn(Control content)
     {
-        mapCanvas.CustomMinimumSize = new Vector2(760, 420);
+        mapCanvas.CustomMinimumSize = new Vector2(680, 430);
         mapCanvas.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         mapCanvas.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
 
@@ -982,7 +1008,14 @@ public partial class Main : Control
         BuildWorldHud();
         BuildSelectedInhabitantCard();
 
-        var panel = NewPanel("THE OUTPOST  ·  click a person to inspect and direct them", mapCanvas);
+        mapScroll.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        mapScroll.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
+        mapScroll.CustomMinimumSize = new Vector2(0, 430);
+        mapScroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Auto;
+        mapScroll.VerticalScrollMode = ScrollContainer.ScrollMode.Auto;
+        mapScroll.AddChild(mapCanvas);
+
+        var panel = NewPanel("WORLD MAP  ·  select a person to inspect them", mapScroll);
         panel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         panel.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
         content.AddChild(panel);
@@ -992,59 +1025,88 @@ public partial class Main : Control
     {
         var body = new VBoxContainer
         {
-            CustomMinimumSize = new Vector2(286, 0),
+            CustomMinimumSize = new Vector2(340, 0),
             SizeFlagsVertical = Control.SizeFlags.ExpandFill,
         };
         body.AddThemeConstantOverride("separation", 8);
 
-        var hint = new Label
-        {
-            Text = "The world is the interface. Click a person on the map; the terrain underneath is only context.",
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-        };
-        hint.Modulate = new Color("B3C2CC");
-        body.AddChild(NewPanel("HOW TO PLAY", hint));
+        var rosterBody = new VBoxContainer();
+        rosterBody.AddThemeConstantOverride("separation", 6);
+        rosterSummaryLabel.Text = "Waiting for the signed world projection…";
+        rosterSummaryLabel.Modulate = new Color("A7B9B7");
+        rosterSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        rosterBody.AddChild(rosterSummaryLabel);
 
-        inhabitantList.CustomMinimumSize = new Vector2(0, 110);
+        inhabitantList.CustomMinimumSize = new Vector2(0, 170);
         inhabitantList.ItemSelected += index => SelectInhabitantFromList(index);
-        rosterToggleButton.Text = "Show inhabitant roster";
-        rosterToggleButton.Pressed += () =>
-        {
-            rosterPanel.Visible = !rosterPanel.Visible;
-            rosterToggleButton.Text = rosterPanel.Visible ? "Hide inhabitant roster" : "Show inhabitant roster";
-        };
-        body.AddChild(rosterToggleButton);
+        inhabitantList.TooltipText = "Select an inhabitant to inspect and compose an instruction.";
+        rosterPanel.AddThemeStyleboxOverride("panel", InnerPanelStyle());
+        rosterPanel.CustomMinimumSize = new Vector2(0, 170);
         rosterPanel.AddChild(inhabitantList);
-        rosterPanel.Hide();
-        body.AddChild(rosterPanel);
-        ConfigureTextPanel(inhabitantDetails, 220);
-        body.AddChild(NewPanel("INHABITANT DETAILS", inhabitantDetails));
-        content.AddChild(NewPanel("PEOPLE", body));
+        rosterBody.AddChild(rosterPanel);
+        body.AddChild(NewPanel("INHABITANTS", rosterBody));
+
+        body.AddChild(selectedInhabitantCard);
+
+        var clockBody = new VBoxContainer();
+        clockBody.AddThemeConstantOverride("separation", 5);
+        clockWorldValue.Text = "No world loaded";
+        clockWorldValue.AddThemeFontSizeOverride("font_size", 17);
+        clockWorldValue.AddThemeColorOverride("font_color", new Color("F0F4EC"));
+        clockBody.AddChild(clockWorldValue);
+        clockBody.AddChild(MetricRow("World tick", clockTickValue));
+        clockBody.AddChild(MetricRow("State", clockStateValue));
+        clockClimateValue.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        clockClimateValue.Modulate = new Color("A7B9B7");
+        clockBody.AddChild(clockClimateValue);
+        var controlRow = new HBoxContainer();
+        controlRow.AddThemeConstantOverride("separation", 6);
+        pauseButton.Text = "Pause";
+        StyleButton(pauseButton, primary: true);
+        pauseButton.Pressed += () => _ = SetPausedAsync(paused: true);
+        controlRow.AddChild(pauseButton);
+        resumeButton.Text = "Resume";
+        StyleButton(resumeButton);
+        resumeButton.Pressed += () => _ = SetPausedAsync(paused: false);
+        controlRow.AddChild(resumeButton);
+        clockBody.AddChild(controlRow);
+        body.AddChild(NewPanel("WORLD CLOCK", clockBody));
+
+        var cognitionBody = new VBoxContainer();
+        cognitionBody.AddThemeConstantOverride("separation", 4);
+        cognitionProviderValue.Text = "Not reported";
+        cognitionCandidateValue.Text = "No current intention";
+        cognitionRequestValue.Text = "No request in flight";
+        cognitionActivityValue.Text = "No cognition activity received yet.";
+        cognitionActivityValue.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        cognitionActivityValue.Modulate = new Color("A7B9B7");
+        cognitionBody.AddChild(MetricRow("Provider", cognitionProviderValue));
+        cognitionBody.AddChild(MetricRow("Current", cognitionCandidateValue));
+        cognitionBody.AddChild(MetricRow("Request", cognitionRequestValue));
+        cognitionBody.AddChild(cognitionActivityValue);
+        body.AddChild(NewPanel("COGNITION / PROVIDER", cognitionBody));
+
+        ConfigureTextPanel(eventLog, 176);
+        body.AddChild(NewPanel("RECENT EVENTS", eventLog));
+
+        content.AddChild(body);
     }
 
     private void BuildOwnerColumn(Control content)
     {
         var body = new VBoxContainer
         {
-            CustomMinimumSize = new Vector2(286, 0),
+            CustomMinimumSize = new Vector2(340, 0),
             SizeFlagsVertical = Control.SizeFlags.ExpandFill,
         };
         body.AddThemeConstantOverride("separation", 8);
 
-        var controlRow = new HBoxContainer();
-        pauseButton.Text = "Pause world";
-        pauseButton.Pressed += () => _ = SetPausedAsync(paused: true);
-        controlRow.AddChild(pauseButton);
-        resumeButton.Text = "Resume world";
-        resumeButton.Pressed += () => _ = SetPausedAsync(paused: false);
-        controlRow.AddChild(resumeButton);
-        body.AddChild(NewPanel("World", controlRow));
-
-        developerToggleButton.Text = "Developer tools";
+        developerToggleButton.Text = "Developer tools  +";
+        StyleButton(developerToggleButton);
         developerToggleButton.Pressed += () =>
         {
             developerScroll.Visible = !developerScroll.Visible;
-            developerToggleButton.Text = developerScroll.Visible ? "Hide developer tools" : "Developer tools";
+            developerToggleButton.Text = developerScroll.Visible ? "Developer tools  −" : "Developer tools  +";
         };
         body.AddChild(developerToggleButton);
 
@@ -1124,8 +1186,6 @@ public partial class Main : Control
 
         ConfigureTextPanel(worldDetails, 180);
         developerBody.AddChild(NewPanel("World projection details", worldDetails));
-        ConfigureTextPanel(eventLog, 210);
-        developerBody.AddChild(NewPanel("Ordered event history", eventLog));
         developerScroll.Hide();
         body.AddChild(developerScroll);
         content.AddChild(body);
@@ -1135,15 +1195,16 @@ public partial class Main : Control
     private void BuildWorldHud()
     {
         var body = new VBoxContainer();
-        body.AddThemeConstantOverride("separation", 2);
+        body.AddThemeConstantOverride("separation", 4);
 
-        hudWorldLabel.Text = "OUTPOST";
-        hudWorldLabel.AddThemeFontSizeOverride("font_size", 17);
+        hudWorldLabel.Text = "WORLD OBSERVATION";
+        hudWorldLabel.AddThemeFontSizeOverride("font_size", 16);
+        hudWorldLabel.AddThemeColorOverride("font_color", new Color("F0F4EC"));
         body.AddChild(hudWorldLabel);
 
         var statusRow = new HBoxContainer();
-        statusRow.AddThemeConstantOverride("separation", 12);
-        hudTickLabel.Text = "Day 1 · tick 0";
+        statusRow.AddThemeConstantOverride("separation", 10);
+        hudTickLabel.Text = "tick —";
         hudStateLabel.Text = "CONNECTING";
         hudSelectionLabel.Text = "No one selected";
         hudSelectionLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -1152,13 +1213,13 @@ public partial class Main : Control
         statusRow.AddChild(hudSelectionLabel);
         body.AddChild(statusRow);
 
-        mapLegendLabel.Text = "terrain · objects · people   /   click a person for their card";
-        mapLegendLabel.Modulate = new Color("B3C2CC");
+        mapLegendLabel.Text = "meadow · water · mountain   /   people are selectable";
+        mapLegendLabel.Modulate = new Color("A7B9B7");
+        mapLegendLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(mapLegendLabel);
 
-        worldHud.AddThemeStyleboxOverride("panel", PanelStyle());
         AddPanelContents(worldHud, body);
-        worldHud.CustomMinimumSize = new Vector2(480, 0);
+        worldHud.CustomMinimumSize = new Vector2(360, 0);
         worldHud.Position = new Vector2(14, 14);
         worldHud.ZIndex = 30;
         worldHud.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -1169,32 +1230,40 @@ public partial class Main : Control
     {
         var body = new VBoxContainer();
         body.AddThemeConstantOverride("separation", 6);
+        selectedActorNameLabel.Text = "No inhabitant selected";
         selectedActorNameLabel.AddThemeFontSizeOverride("font_size", 18);
+        selectedActorNameLabel.AddThemeColorOverride("font_color", new Color("F0F4EC"));
         body.AddChild(selectedActorNameLabel);
         selectedActorSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        selectedActorSummaryLabel.Modulate = new Color("A7B9B7");
         body.AddChild(selectedActorSummaryLabel);
 
+        ConfigureTextPanel(inhabitantDetails, 112);
+        body.AddChild(inhabitantDetails);
+
         clearSelectionButton.Text = "Clear selection";
+        StyleButton(clearSelectionButton);
         clearSelectionButton.Pressed += ClearInhabitantSelection;
         body.AddChild(clearSelectionButton);
 
-        var instructionHeading = new Label { Text = "Give them a direction" };
+        var instructionHeading = new Label { Text = "Compose an instruction" };
         instructionHeading.AddThemeFontSizeOverride("font_size", 13);
+        instructionHeading.AddThemeColorOverride("font_color", new Color("D8C6A5"));
         body.AddChild(instructionHeading);
         instructionKind.AddItem("Suggestion", 0);
         instructionKind.AddItem("Must-do", 1);
+        instructionKind.CustomMinimumSize = new Vector2(0, 32);
         body.AddChild(instructionKind);
         instructionText.PlaceholderText = "What should they do?";
+        instructionText.CustomMinimumSize = new Vector2(0, 34);
         body.AddChild(instructionText);
         submitInstructionButton.Text = "Instruct inhabitant";
+        StyleButton(submitInstructionButton, primary: true);
         submitInstructionButton.Pressed += () => _ = SubmitInstructionAsync();
         body.AddChild(submitInstructionButton);
 
-        AddPanelContents(selectedInhabitantCard, body);
-        selectedInhabitantCard.CustomMinimumSize = new Vector2(250, 0);
-        selectedInhabitantCard.ZIndex = 20;
-        selectedInhabitantCard.Hide();
-        mapCanvas.AddChild(selectedInhabitantCard);
+        AddPanelContents(selectedInhabitantCard, "SELECTED INHABITANT", body);
+        selectedInhabitantCard.CustomMinimumSize = new Vector2(340, 0);
     }
 
     private void AddAuthoringKinds()
@@ -1254,6 +1323,7 @@ public partial class Main : Control
         RenderWorldHud(snapshot);
         RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
+        RenderCognition(snapshot);
         RenderWorldDetails(snapshot);
         RenderEventLog();
         RefreshControlAvailability();
@@ -1279,7 +1349,12 @@ public partial class Main : Control
             return;
         }
 
-        worldGrid.Columns = snapshot.Tiles.Max(tile => tile.X) + 1;
+        var mapWidth = snapshot.Tiles.Max(tile => tile.X) + 1;
+        var mapHeight = snapshot.Tiles.Max(tile => tile.Y) + 1;
+        worldGrid.Columns = mapWidth;
+        mapCanvas.CustomMinimumSize = new Vector2(
+            Math.Max(mapCanvas.CustomMinimumSize.X, mapWidth * TileSize),
+            Math.Max(mapCanvas.CustomMinimumSize.Y, mapHeight * TileSize));
         var drafts = snapshot.Inhabitants
             .Where(inhabitant => inhabitant.IsDraft)
             .ToDictionary(inhabitant => PositionKey(inhabitant.Position));
@@ -1354,7 +1429,6 @@ public partial class Main : Control
             }
         }
 
-        CallDeferred(nameof(PositionSelectedInhabitantCard));
     }
 
     private void AddMapObjectVisual(
@@ -1385,13 +1459,21 @@ public partial class Main : Control
     private void RenderWorldHud(OwnerWorldSnapshot snapshot)
     {
         hudWorldLabel.Text = Pretty(snapshot.WorldId).ToUpperInvariant();
-        hudTickLabel.Text = $"TICK {snapshot.WorldTick}";
+        hudTickLabel.Text = $"TICK {snapshot.WorldTick:N0}";
         var paused = snapshot.Authoring?.IsPaused == true;
         hudStateLabel.Text = paused ? "PAUSED" : "RUNNING";
         hudStateLabel.Modulate = new Color(paused ? "F3C77B" : "B9E8C5");
         hudSelectionLabel.Text = selectedInhabitantId is null
             ? "No one selected"
             : $"Selected: {snapshot.Inhabitants.FirstOrDefault(item => string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal))?.DisplayName ?? "unknown"}";
+
+        clockWorldValue.Text = Pretty(snapshot.WorldId);
+        clockTickValue.Text = snapshot.WorldTick.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+        clockStateValue.Text = paused ? "PAUSED · owner control" : "RUNNING";
+        clockStateValue.Modulate = new Color(paused ? "F3C77B" : "B9E8C5");
+        clockClimateValue.Text = snapshot.Authoring is { } authoring
+            ? $"Weather  {Pretty(authoring.Weather)}   ·   Season  {Pretty(authoring.Season)}"
+            : "Weather and season are not reported by this projection.";
     }
 
     private void RenderInhabitantList(OwnerWorldSnapshot snapshot)
@@ -1399,10 +1481,20 @@ public partial class Main : Control
         var previousSelection = selectedInhabitantId;
         var selectionFound = false;
         inhabitantList.Clear();
-        for (var index = 0; index < snapshot.Inhabitants.Count; index++)
+        var inhabitants = snapshot.Inhabitants
+            .OrderBy(inhabitant => inhabitant.IsDraft ? 1 : 0)
+            .ThenBy(inhabitant => inhabitant.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var activeCount = inhabitants.Count(inhabitant => !inhabitant.IsDraft);
+        rosterSummaryLabel.Text = inhabitants.Length == 0
+            ? "No inhabitants are present in this signed projection."
+            : $"{activeCount} active  ·  {inhabitants.Count(inhabitant => inhabitant.IsDraft)} draft  ·  click a name or map marker";
+
+        for (var index = 0; index < inhabitants.Length; index++)
         {
-            var inhabitant = snapshot.Inhabitants[index];
-            inhabitantList.AddItem($"{inhabitant.DisplayName} · {inhabitant.Lifecycle}");
+            var inhabitant = inhabitants[index];
+            var state = inhabitant.IsDraft ? "draft" : Pretty(inhabitant.Lifecycle);
+            inhabitantList.AddItem($"{inhabitant.DisplayName}   ·   {state}");
             inhabitantList.SetItemMetadata(index, inhabitant.Id);
             if (string.Equals(inhabitant.Id, previousSelection, StringComparison.Ordinal))
             {
@@ -1435,15 +1527,16 @@ public partial class Main : Control
         var currentActivity = string.IsNullOrWhiteSpace(inhabitant.Route.Status)
             ? "wandering"
             : Pretty(inhabitant.Route.Status);
+        var destination = inhabitant.Route.Destination is { } routeDestination
+            ? $" toward {routeDestination.X}, {routeDestination.Y}"
+            : string.Empty;
+        var knowledge = $"{inhabitant.SpatialKnowledge.PerceivedTiles.Count} perceived · {inhabitant.SpatialKnowledge.KnownTiles.Count} known";
         inhabitantDetails.AppendText(
-            $"{inhabitant.DisplayName}\n" +
-            $"{Pretty(inhabitant.Lifecycle)} · {currentActivity}\n\n" +
-            $"Current position\n{inhabitant.Position.X}, {inhabitant.Position.Y}\n\n" +
-            $"Needs\n" +
-            $"Hunger: {NeedPercent(inhabitant.HungerBasisPoints)}%\n" +
-            $"Energy: {NeedPercent(inhabitant.EnergyBasisPoints)}%\n\n" +
-            $"Carrying\n{inventory}\n\n" +
-            $"This is the friendly view. Technical decision traces and map digests live in Developer tools.");
+            $"{Pretty(inhabitant.Lifecycle)}  ·  {currentActivity}{destination}\n" +
+            $"Position  {inhabitant.Position.X}, {inhabitant.Position.Y}\n" +
+            $"Needs  hunger {NeedPercent(inhabitant.HungerBasisPoints)}%  ·  energy {NeedPercent(inhabitant.EnergyBasisPoints)}%\n" +
+            $"Carrying  {inventory}\n" +
+            $"Spatial knowledge  {knowledge}");
     }
 
     private void RenderSelectedInhabitantCard(OwnerWorldSnapshot snapshot)
@@ -1452,34 +1545,42 @@ public partial class Main : Control
             string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal));
         if (inhabitant is null)
         {
-            selectedInhabitantCard.Hide();
+            selectedActorNameLabel.Text = "No inhabitant selected";
+            selectedActorSummaryLabel.Text = "Choose a person from the map or roster to inspect them and compose an instruction.";
+            selectedInhabitantCard.Show();
             return;
         }
 
         selectedActorNameLabel.Text = inhabitant.DisplayName;
         selectedActorSummaryLabel.Text =
-            $"{Pretty(inhabitant.Lifecycle)} · {Pretty(inhabitant.Route.Status)}\n" +
-            $"Hunger {NeedPercent(inhabitant.HungerBasisPoints)}% · Energy {NeedPercent(inhabitant.EnergyBasisPoints)}%";
+            $"{Pretty(inhabitant.Lifecycle)}  ·  {Pretty(inhabitant.Route.Status)}  ·  {inhabitant.Position.X}, {inhabitant.Position.Y}\n" +
+            (inhabitant.IsDraft ? "Draft only · instructions are unavailable until the server reports an active inhabitant." : "Ready for an owner instruction.");
         selectedInhabitantCard.Show();
-        PositionSelectedInhabitantCard();
     }
 
-    private void PositionSelectedInhabitantCard()
+    private void RenderCognition(OwnerWorldSnapshot snapshot)
     {
-        if (observationSession.Current?.Baseline.Snapshot is not { } snapshot ||
-            snapshot.Inhabitants.FirstOrDefault(item => string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal)) is not { } inhabitant)
+        if (snapshot.Cognition is not { } cognition)
         {
-            selectedInhabitantCard.Hide();
+            cognitionProviderValue.Text = "Not reported";
+            cognitionCandidateValue.Text = "No current intention";
+            cognitionRequestValue.Text = "No request in flight";
+            cognitionActivityValue.Text = "The server did not include cognition status in this observation.";
             return;
         }
 
-        var preferred = new Vector2(
-            inhabitant.Position.X * TileSize + TileSize + 12,
-            inhabitant.Position.Y * TileSize + 8);
-        var maximum = mapCanvas.Size - selectedInhabitantCard.Size - new Vector2(8, 8);
-        selectedInhabitantCard.Position = new Vector2(
-            Mathf.Clamp(preferred.X, 8, Mathf.Max(8, maximum.X)),
-            Mathf.Clamp(preferred.Y, 8, Mathf.Max(8, maximum.Y)));
+        cognitionProviderValue.Text = string.IsNullOrWhiteSpace(cognition.Provider)
+            ? "Unnamed provider"
+            : Pretty(cognition.Provider);
+        cognitionCandidateValue.Text = cognition.CurrentCandidateId ?? "No current intention";
+        cognitionRequestValue.Text = cognition.InFlightRequestId ?? "No request in flight";
+        cognitionRequestValue.Modulate = cognition.IsPaused
+            ? new Color("F3C77B")
+            : new Color("E5EFEA");
+        var latest = cognition.Events.OrderBy(worldEvent => worldEvent.EventId).LastOrDefault();
+        cognitionActivityValue.Text = latest is null
+            ? (cognition.IsPaused ? "Cognition is paused." : "No cognition events reported yet.")
+            : $"{Pretty(latest.Kind)}  ·  tick {latest.WorldTick:N0}\n{latest.Detail}";
     }
 
     private void RenderWorldDetails(OwnerWorldSnapshot snapshot)
@@ -1494,6 +1595,16 @@ public partial class Main : Control
             ? "not reported"
             : $"{snapshot.Cognition.Provider} · " +
               $"{snapshot.Cognition.CurrentCandidateId ?? "no current intention"}";
+        var content = snapshot.ContentPackages.Count == 0
+            ? "none"
+            : string.Join(", ", snapshot.ContentPackages.Select(package =>
+                $"{package.PackageId} {package.Version} [{Pretty(package.Lifecycle)}]"));
+        var systems = snapshot.WorldSystems is not { } worldSystems
+            ? "not reported"
+            : $"{Pretty(worldSystems.Season)} / {Pretty(worldSystems.Weather)} · " +
+              $"{worldSystems.EcologyResourceCount} ecology · {worldSystems.FactionCount} factions · " +
+              $"{worldSystems.CurrencyAccountCount} wallets · {worldSystems.CultureCount} cultures · " +
+              $"{worldSystems.ChunkCount} chunks";
         if (authoring is null)
         {
             worldDetails.AppendText($"tick {snapshot.WorldTick}\nworld {snapshot.WorldId}\nNo authoring projection returned.");
@@ -1507,6 +1618,8 @@ public partial class Main : Control
             $"current topology: {authoring.CurrentMapManifestDigest}\n" +
             $"initial fixture topology: {authoring.InitialMapManifestDigest}\n" +
             $"cognition: {cognition}\n" +
+            $"richer systems: {systems}\n" +
+            $"content packages: {content}\n" +
             $"approved assets: {(authoring.ApprovedAssetReferences.Count == 0 ? "none" : string.Join(", ", authoring.ApprovedAssetReferences))}\n\n" +
             $"queued instructions:\n{instructions}");
     }
@@ -1643,9 +1756,16 @@ public partial class Main : Control
         var width = Size.X;
         mainContent.Columns = width < 1_120 ? 1 : 2;
         titleBar.Columns = width < 720 ? 1 : 2;
-        mapCanvas.CustomMinimumSize = width < 900
-            ? new Vector2(0, 320)
-            : new Vector2(760, 420);
+        var mapMinimumWidth = width < 900 ? 480f : 680f;
+        var mapMinimumHeight = width < 900 ? 360f : 430f;
+        if (observationSession.Current?.Baseline.Snapshot is { Tiles.Count: > 0 } snapshot)
+        {
+            mapMinimumWidth = Math.Max(mapMinimumWidth, (snapshot.Tiles.Max(tile => tile.X) + 1) * TileSize);
+            mapMinimumHeight = Math.Max(mapMinimumHeight, (snapshot.Tiles.Max(tile => tile.Y) + 1) * TileSize);
+        }
+
+        mapCanvas.CustomMinimumSize = new Vector2(mapMinimumWidth, mapMinimumHeight);
+        mapScroll.CustomMinimumSize = new Vector2(0, mapMinimumHeight);
     }
 
     private static PanelContainer NewPanel(string title, Control content)
@@ -1660,6 +1780,7 @@ public partial class Main : Control
 
     private static void AddPanelContents(PanelContainer panel, string title, Control content)
     {
+        panel.AddThemeStyleboxOverride("panel", PanelStyle());
         var margin = new MarginContainer();
         margin.AddThemeConstantOverride("margin_left", 10);
         margin.AddThemeConstantOverride("margin_right", 10);
@@ -1678,6 +1799,76 @@ public partial class Main : Control
         margin.AddChild(body);
         panel.AddChild(margin);
     }
+
+    private static HBoxContainer MetricRow(string caption, Label value)
+    {
+        var row = new HBoxContainer();
+        row.AddThemeConstantOverride("separation", 8);
+        var label = new Label
+        {
+            Text = caption,
+            CustomMinimumSize = new Vector2(82, 0),
+        };
+        label.Modulate = new Color("8FA5A7");
+        row.AddChild(label);
+        value.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        value.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        row.AddChild(value);
+        return row;
+    }
+
+    private static void StyleButton(Button button, bool primary = false)
+    {
+        button.CustomMinimumSize = new Vector2(0, 34);
+        button.AddThemeStyleboxOverride("normal", ButtonStyle(
+            primary ? new Color("2C706B") : new Color("20343B"),
+            primary ? new Color("80CDBA") : new Color("49656A")));
+        button.AddThemeStyleboxOverride("hover", ButtonStyle(
+            primary ? new Color("38877E") : new Color("2B464D"),
+            new Color("B0DFCE")));
+        button.AddThemeStyleboxOverride("pressed", ButtonStyle(
+            primary ? new Color("225A58") : new Color("182A31"),
+            new Color("D8C6A5")));
+        button.AddThemeStyleboxOverride("disabled", ButtonStyle(
+            new Color("17232A"),
+            new Color("2A3A40")));
+        button.AddThemeColorOverride("font_color", new Color("E5EFEA"));
+        button.AddThemeColorOverride("font_hover_color", new Color("FFFFFF"));
+        button.AddThemeColorOverride("font_pressed_color", new Color("FFFFFF"));
+        button.AddThemeColorOverride("font_disabled_color", new Color("718486"));
+    }
+
+    private static StyleBoxFlat ButtonStyle(Color background, Color border) => new()
+    {
+        BgColor = background,
+        BorderWidthLeft = 1,
+        BorderWidthTop = 1,
+        BorderWidthRight = 1,
+        BorderWidthBottom = 1,
+        BorderColor = border,
+        CornerRadiusTopLeft = 6,
+        CornerRadiusTopRight = 6,
+        CornerRadiusBottomLeft = 6,
+        CornerRadiusBottomRight = 6,
+        ContentMarginLeft = 12,
+        ContentMarginRight = 12,
+        ContentMarginTop = 7,
+        ContentMarginBottom = 7,
+    };
+
+    private static StyleBoxFlat InnerPanelStyle() => new()
+    {
+        BgColor = new Color("111D24"),
+        BorderWidthLeft = 1,
+        BorderWidthTop = 1,
+        BorderWidthRight = 1,
+        BorderWidthBottom = 1,
+        BorderColor = new Color("263D44"),
+        CornerRadiusTopLeft = 6,
+        CornerRadiusTopRight = 6,
+        CornerRadiusBottomLeft = 6,
+        CornerRadiusBottomRight = 6,
+    };
 
     private static StyleBoxFlat TileStyle(Color color) => new()
     {

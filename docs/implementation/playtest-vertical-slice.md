@@ -23,15 +23,23 @@ of scope.
 The host integration now loads or creates a persistent four-inhabitant
 settlement by default. The private runtime owns one checkpoint containing the
 seeded map, society, cognition scheduler, physical positions/needs, inventory
-transitions, and a replayable world-event stream. The owner observation
-boundary projects all four active inhabitants and their bounded local
-knowledge. `WorldMode=fixture` remains available for the older owner-protocol
-compatibility suite.
+transitions, content governance state, bounded ecology/weather/faction/law/
+currency/culture/chunk state, and a replayable world-event stream. The owner
+observation boundary projects all four active inhabitants, richer-world
+summaries, content package status, and their bounded local knowledge.
+`WorldMode=fixture` remains available for the older owner-protocol
+compatibility suite, and mode-specific services no longer load each other's
+saves.
 
-Still missing from this alpha track are the full owner instruction path for the
-new runtime, the data-only content pipeline, the richer-world systems, and the
-replacement Godot play surface. The implementation is therefore materially
-closer to the requested game, but it is not being called playtest-complete yet.
+The signed owner instruction path is live for the private runtime, including
+idempotency, suggestive bias, legal `must_do` enforcement, and persisted queue
+events. The Godot surface now has a coherent temporary layout for the map,
+roster, selected inhabitant, world controls, cognition status, event history,
+content status, and richer-world summaries. The remaining work is the full
+owner-facing content authoring path, material content definitions, aggregate
+asset/preview isolation, deeper world-system interactions, and final launch
+packaging. It is therefore materially closer to the requested game, but is
+not being called playtest-complete yet.
 
 ## Alpha gate
 
@@ -48,7 +56,8 @@ The alpha is ready for first human playtesting when a fresh checkout can:
 6. run deterministic cognition, Jev, OpenAI, and Ollama Cloud through the same
    bounded structured-decision contract, with model selection in host config;
 7. save, reload, and continue the same world without losing event history;
-8. include the currently decided content/asset proposal and validation path;
+8. include the currently decided content/asset proposal and validation path,
+   with active content and rollback surviving private-world reload;
 9. include the explicitly scoped richer-world systems: ecology and weather,
    factions, law, currency, culture, expressive declarative rules, and a
    modest chunk-capable map boundary;

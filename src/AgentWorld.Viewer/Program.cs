@@ -325,10 +325,7 @@ app.MapPost("/api/v1/owner/reconnect", (
 app.MapPost("/api/v1/owner/control/pause", (
     OwnerSignedHttpRequest<OwnerControlAction> request,
     OwnerRequestAuthorizer authorizer,
-    OwnerWorldRuntime runtime,
-    OwnerWorldStateFile stateFile,
-    PrivateWorldRuntime privateRuntime,
-    PrivateWorldStateFile privateStateFile,
+    IServiceProvider services,
     OwnerWorldObservationStore observations) =>
 {
     if (!IsControl(request, "pause"))
@@ -351,6 +348,8 @@ app.MapPost("/api/v1/owner/control/pause", (
 
     if (isPrivateWorld)
     {
+        var privateRuntime = services.GetRequiredService<PrivateWorldRuntime>();
+        var privateStateFile = services.GetRequiredService<PrivateWorldStateFile>();
         var wasPaused = privateRuntime.Society.IsPaused;
         privateRuntime.Pause();
         var changed = !wasPaused && privateRuntime.Society.IsPaused;
@@ -362,6 +361,8 @@ app.MapPost("/api/v1/owner/control/pause", (
         return Results.Ok(OwnerControlReceipt.From("pause", changed, observations.GetSnapshot()));
     }
 
+    var runtime = services.GetRequiredService<OwnerWorldRuntime>();
+    var stateFile = services.GetRequiredService<OwnerWorldStateFile>();
     var legacyChanged = runtime.Pause($"owner-device:{authorization.Value!.DeviceId}");
     if (legacyChanged)
     {
@@ -374,10 +375,7 @@ app.MapPost("/api/v1/owner/control/pause", (
 app.MapPost("/api/v1/owner/control/resume", (
     OwnerSignedHttpRequest<OwnerControlAction> request,
     OwnerRequestAuthorizer authorizer,
-    OwnerWorldRuntime runtime,
-    OwnerWorldStateFile stateFile,
-    PrivateWorldRuntime privateRuntime,
-    PrivateWorldStateFile privateStateFile,
+    IServiceProvider services,
     OwnerWorldObservationStore observations) =>
 {
     if (!IsControl(request, "resume"))
@@ -400,6 +398,8 @@ app.MapPost("/api/v1/owner/control/resume", (
 
     if (isPrivateWorld)
     {
+        var privateRuntime = services.GetRequiredService<PrivateWorldRuntime>();
+        var privateStateFile = services.GetRequiredService<PrivateWorldStateFile>();
         var wasPaused = privateRuntime.Society.IsPaused;
         privateRuntime.Resume();
         var changed = wasPaused && !privateRuntime.Society.IsPaused;
@@ -411,6 +411,8 @@ app.MapPost("/api/v1/owner/control/resume", (
         return Results.Ok(OwnerControlReceipt.From("resume", changed, observations.GetSnapshot()));
     }
 
+    var runtime = services.GetRequiredService<OwnerWorldRuntime>();
+    var stateFile = services.GetRequiredService<OwnerWorldStateFile>();
     var legacyChanged = runtime.Resume($"owner-device:{authorization.Value!.DeviceId}");
     if (legacyChanged)
     {
@@ -423,10 +425,7 @@ app.MapPost("/api/v1/owner/control/resume", (
 app.MapPost("/api/v1/owner/instructions", (
     OwnerSignedHttpRequest<OwnerInstructionAction> request,
     OwnerRequestAuthorizer authorizer,
-    OwnerWorldRuntime runtime,
-    OwnerWorldStateFile stateFile,
-    PrivateWorldRuntime privateRuntime,
-    PrivateWorldStateFile privateStateFile) =>
+    IServiceProvider services) =>
 {
     if (request?.Action is null || !TryParseInstructionKind(request.Action.Kind, out var kind))
     {
@@ -457,6 +456,8 @@ app.MapPost("/api/v1/owner/instructions", (
 
     if (isPrivateWorld)
     {
+        var privateRuntime = services.GetRequiredService<PrivateWorldRuntime>();
+        var privateStateFile = services.GetRequiredService<PrivateWorldStateFile>();
         try
         {
             var receipt = privateRuntime.SubmitInstruction(new OwnerInstructionRequest(
@@ -483,6 +484,8 @@ app.MapPost("/api/v1/owner/instructions", (
 
     try
     {
+        var runtime = services.GetRequiredService<OwnerWorldRuntime>();
+        var stateFile = services.GetRequiredService<OwnerWorldStateFile>();
         // The transport has no issuer field. This value is minted from the
         // authenticated server-side device identity rather than accepted from
         // a client payload.
@@ -511,8 +514,7 @@ app.MapPost("/api/v1/owner/instructions", (
 app.MapPost("/api/v1/owner/authoring", (
     OwnerSignedHttpRequest<OwnerAuthoringBatchAction> request,
     OwnerRequestAuthorizer authorizer,
-    OwnerWorldRuntime runtime,
-    OwnerWorldStateFile stateFile) =>
+    IServiceProvider services) =>
 {
     if (request?.Action is null)
     {
@@ -556,6 +558,8 @@ app.MapPost("/api/v1/owner/authoring", (
         });
     }
 
+    var runtime = services.GetRequiredService<OwnerWorldRuntime>();
+    var stateFile = services.GetRequiredService<OwnerWorldStateFile>();
     var receipt = runtime.ApplyAuthoringBatch(batch! with
     {
         IssuerId = $"owner-device:{authorization.Value!.DeviceId}",

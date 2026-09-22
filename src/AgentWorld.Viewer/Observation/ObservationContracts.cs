@@ -79,6 +79,32 @@ public sealed record ViewerCognition(
     string? CurrentDecisionProvider,
     IReadOnlyList<ViewerCognitionEvent> Events);
 
+public sealed record ViewerContentPackage(
+    string PackageId,
+    string Version,
+    string PackageDigest,
+    string Lifecycle,
+    string? LockDigest,
+    long? ValidationTick,
+    long? StagedTick,
+    long? ActivationTick);
+
+public sealed record ViewerContentGovernanceEvent(
+    long EventId,
+    long WorldTick,
+    string PackageId,
+    string Kind,
+    string Detail);
+
+public sealed record ViewerWorldSystemsSummary(
+    string Season,
+    string Weather,
+    int EcologyResourceCount,
+    int FactionCount,
+    int CurrencyAccountCount,
+    int CultureCount,
+    int ChunkCount);
+
 public sealed record ViewerAuthoringState(
     bool IsPaused,
     long RunEpoch,
@@ -117,6 +143,12 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerInstruction> Instructions { get; init; } = [];
 
     public ViewerCognition? Cognition { get; init; }
+
+    public IReadOnlyList<ViewerContentPackage> ContentPackages { get; init; } = [];
+
+    public IReadOnlyList<ViewerContentGovernanceEvent> ContentEvents { get; init; } = [];
+
+    public ViewerWorldSystemsSummary? WorldSystems { get; init; }
 }
 
 public sealed record ViewerEventSlice(long SnapshotTick, long AfterEventId, IReadOnlyList<ViewerEvent> Events);

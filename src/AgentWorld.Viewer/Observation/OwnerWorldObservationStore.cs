@@ -24,6 +24,7 @@ public sealed class OwnerWorldObservationStore
         "owner-observation.read.v1",
         "owner-control.request.v1",
         "paused-authoring.request.v1",
+        "content-governance.read.v1",
     ];
 
     private static readonly string[] OwnerClientCapabilities =
@@ -238,8 +239,8 @@ public sealed class OwnerWorldObservationStore
                 0,
                 map.ManifestDigest,
                 map.ManifestDigest,
-                "clear",
-                "spring",
+                state.WorldSystems?.Climate.Weather.ToString().ToLowerInvariant() ?? "clear",
+                state.WorldSystems?.Climate.Season.ToString().ToLowerInvariant() ?? "spring",
                 []),
             Instructions = (state.Instructions ?? [])
                 .Where(instruction => !(state.CompletedInstructionIds ?? []).Contains(instruction.InstructionId, StringComparer.Ordinal))
@@ -255,6 +256,37 @@ public sealed class OwnerWorldObservationStore
                     instruction.SubmissionSequence))
                 .ToArray(),
             Cognition = ToCognition(state),
+            ContentPackages = state.Content?.Packages
+                .OrderBy(package => package.Manifest.PackageId, StringComparer.Ordinal)
+                .Select(package => new ViewerContentPackage(
+                    package.Manifest.PackageId,
+                    package.Manifest.Version.ToString(),
+                    package.Manifest.PackageDigest,
+                    package.Lifecycle.ToString().ToLowerInvariant(),
+                    package.LockDigest,
+                    package.ValidationTick,
+                    package.StagedTick,
+                    package.ActivationTick))
+                .ToArray() ?? [],
+            ContentEvents = state.Content?.Events
+                .OrderBy(item => item.EventId)
+                .Select(item => new ViewerContentGovernanceEvent(
+                    item.EventId,
+                    item.WorldTick,
+                    item.PackageId,
+                    item.Kind,
+                    item.Detail))
+                .ToArray() ?? [],
+            WorldSystems = state.WorldSystems is { } systems
+                ? new ViewerWorldSystemsSummary(
+                    systems.Climate.Season.ToString().ToLowerInvariant(),
+                    systems.Climate.Weather.ToString().ToLowerInvariant(),
+                    systems.Ecology.Resources.Count,
+                    systems.Factions.Factions.Count,
+                    systems.Currency.Accounts.Count,
+                    systems.Culture.Cultures.Count,
+                    systems.Chunks.Count)
+                : null,
         };
     }
 

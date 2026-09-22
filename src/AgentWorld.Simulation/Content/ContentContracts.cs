@@ -183,7 +183,8 @@ public sealed record ContentPackageRecord(
     ContentPackageLifecycle Lifecycle,
     string? LockDigest,
     long? ValidationTick,
-    long? ActivationTick);
+    long? ActivationTick,
+    long? StagedTick = null);
 
 public sealed record ContentGovernanceEvent(
     long EventId,
@@ -433,6 +434,56 @@ public sealed class ContentPackageRegistry
         packages.Values.OrderBy(item => item.Manifest.PackageId, StringComparer.Ordinal).ToArray(),
         events.ToArray());
 
+    public static ContentPackageRegistry Restore(ContentRegistryState? state)
+    {
+        var registry = new ContentPackageRegistry();
+        if (state is null)
+        {
+            return registry;
+        }
+
+        ArgumentNullException.ThrowIfNull(state.Packages);
+        ArgumentNullException.ThrowIfNull(state.Events);
+        foreach (var package in state.Packages)
+        {
+            ArgumentNullException.ThrowIfNull(package);
+            package.Manifest.Validate();
+            RejectForbiddenCapabilities(package.Manifest);
+            if (!string.Equals(package.Manifest.PackageId, package.Manifest.PackageId.Trim(), StringComparison.Ordinal) ||
+                !registry.packages.TryAdd(package.Manifest.PackageId, package))
+            {
+                throw new InvalidDataException("The content registry contains duplicate or non-canonical package records.");
+            }
+
+            ValidateRecord(package);
+        }
+
+        var expectedEventId = 1L;
+        var previousTick = 0L;
+        foreach (var governanceEvent in state.Events)
+        {
+            ArgumentNullException.ThrowIfNull(governanceEvent);
+            if (governanceEvent.EventId != expectedEventId ||
+                governanceEvent.WorldTick < previousTick ||
+                !registry.packages.ContainsKey(governanceEvent.PackageId))
+            {
+                throw new InvalidDataException("The content governance event stream is not ordered or references an unknown package.");
+            }
+
+            expectedEventId = checked(expectedEventId + 1);
+            previousTick = governanceEvent.WorldTick;
+        }
+
+        registry.events.AddRange(state.Events);
+        registry.nextEventId = expectedEventId;
+        return registry;
+    }
+
+    public void Validate()
+    {
+        _ = Restore(ExportState());
+    }
+
     public ContentPackageRecord Propose(ContentPackageManifest manifest)
     {
         ArgumentNullException.ThrowIfNull(manifest);
@@ -486,7 +537,7 @@ public sealed class ContentPackageRegistry
     {
         var record = Get(packageId);
         RequireState(record, ContentPackageLifecycle.Approved);
-        record = record with { Lifecycle = ContentPackageLifecycle.Staged };
+        record = record with { Lifecycle = ContentPackageLifecycle.Staged, StagedTick = worldTick };
         packages[packageId] = record;
         AppendEvent(worldTick, packageId, "package_staged", record.LockDigest ?? string.Empty);
         return record;
@@ -496,9 +547,43 @@ public sealed class ContentPackageRegistry
     {
         var record = Get(packageId);
         RequireState(record, ContentPackageLifecycle.Staged);
+        if (record.StagedTick is { } stagedTick && worldTick <= stagedTick)
+        {
+            throw new InvalidOperationException(
+                $"Package '{packageId}' can activate only after its staging tick {stagedTick}.");
+        }
+
         record = record with { Lifecycle = ContentPackageLifecycle.Active, ActivationTick = worldTick };
         packages[packageId] = record;
         AppendEvent(worldTick, packageId, "package_activated", record.LockDigest ?? string.Empty);
+        return record;
+    }
+
+    public IReadOnlyList<ContentPackageRecord> ActivateReady(long worldTick)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(worldTick);
+        var ready = packages.Values
+            .Where(item => item.Lifecycle == ContentPackageLifecycle.Staged &&
+                item.StagedTick is { } stagedTick && worldTick > stagedTick)
+            .OrderBy(item => item.Manifest.PackageId, StringComparer.Ordinal)
+            .Select(item => Activate(item.Manifest.PackageId, worldTick))
+            .ToArray();
+        return ready;
+    }
+
+    public ContentPackageRecord Rollback(string packageId, long worldTick, string reason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        var record = Get(packageId);
+        if (record.Lifecycle is not (ContentPackageLifecycle.Active or ContentPackageLifecycle.Staged))
+        {
+            throw new InvalidOperationException(
+                $"Package '{packageId}' is {record.Lifecycle}, and only active or staged packages can be rolled back.");
+        }
+
+        record = record with { Lifecycle = ContentPackageLifecycle.Quarantined };
+        packages[packageId] = record;
+        AppendEvent(worldTick, packageId, "package_rolled_back", reason.Trim());
         return record;
     }
 
@@ -519,6 +604,26 @@ public sealed class ContentPackageRegistry
         {
             throw new InvalidOperationException(
                 $"Package '{record.Manifest.PackageId}' is {record.Lifecycle}, expected {expected}.");
+        }
+    }
+
+    private static void ValidateRecord(ContentPackageRecord record)
+    {
+        if (record.Lifecycle == ContentPackageLifecycle.Validated &&
+            (record.LockDigest is null || record.ValidationTick is null))
+        {
+            throw new InvalidDataException("A validated content package must retain its lock digest and validation tick.");
+        }
+
+        if ((record.Lifecycle is ContentPackageLifecycle.Staged or ContentPackageLifecycle.Active) &&
+            record.StagedTick is null)
+        {
+            throw new InvalidDataException("A staged or active content package must retain its staging tick.");
+        }
+
+        if (record.Lifecycle == ContentPackageLifecycle.Active && record.ActivationTick is null)
+        {
+            throw new InvalidDataException("An active content package must retain its activation tick.");
         }
     }
 
