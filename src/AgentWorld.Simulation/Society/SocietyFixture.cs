@@ -394,6 +394,39 @@ public static class SocietyFixture
         return Commit(checkpoint with { Inventory = inventory }, "inventory_transfer_committed", transferId, transferId);
     }
 
+    public static SocietyOperationResult ConsumeInventory(
+        SocietyCheckpoint checkpoint,
+        string ownerId,
+        string lotId,
+        int quantity,
+        string purpose = "direct_consumption")
+    {
+        Validate(checkpoint);
+        var owner = NormalizeRequiredText(ownerId, nameof(ownerId));
+        EnsureLivingParty(checkpoint, owner);
+        var lot = checkpoint.Inventory.GetLot(lotId);
+        if (quantity <= 0 || lot.OwnerId != owner || lot.Quantity < quantity)
+        {
+            throw new InvalidOperationException("Consumption requires an owned lot with sufficient quantity.");
+        }
+
+        var reservationId = $"consume:{owner}:{lotId}:{checkpoint.Inventory.Events.Count + 1}";
+        var reserved = InventoryFixture.Reserve(
+            checkpoint.Inventory,
+            reservationId,
+            owner,
+            lotId,
+            quantity,
+            purpose,
+            checkpoint.WorldTick);
+        var consumed = InventoryFixture.ConsumeReservation(reserved, reservationId);
+        return Commit(
+            checkpoint with { Inventory = consumed },
+            "inventory_consumed",
+            $"{owner}:{lotId}:{quantity}:{purpose}",
+            owner);
+    }
+
     public static SocietyOperationResult CreateBarterOffer(
         SocietyCheckpoint checkpoint,
         DirectBarterProposal proposal)
