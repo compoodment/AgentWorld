@@ -18,7 +18,8 @@ public sealed class ProviderConfigurationStoreTests
             var path = System.IO.Path.Combine(directory, "providers.json");
             var store = new ProviderConfigurationStore(path, EmptySeed());
             var handler = new ProviderResponseHandler();
-            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            var logger = new RecordingLogger<ConfigurableDecisionProvider>();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler), logger);
 
             Assert.Equal("deterministic", store.CaptureStatus().RoutineProvider);
             Assert.Equal("deterministic", store.CaptureStatus().PlanningProvider);
@@ -63,6 +64,15 @@ public sealed class ProviderConfigurationStoreTests
             Assert.Equal(DecisionProviderKind.LargeLanguageModel, ollamaResponse.Provider);
             Assert.Equal(new Uri("https://ollama.com/v1/chat/completions"), handler.LastUri);
             Assert.Equal("Bearer ollama-secret-123", handler.LastAuthorization);
+            Assert.Contains(logger.Messages, message =>
+                message.Contains("cognition_provider_call status=completed", StringComparison.Ordinal) &&
+                message.Contains("provider=ollama-cloud", StringComparison.Ordinal) &&
+                message.Contains("role=planning", StringComparison.Ordinal) &&
+                message.Contains("candidate=safe_idle", StringComparison.Ordinal));
+            Assert.DoesNotContain(logger.Messages, message =>
+                message.Contains("jev-secret-123", StringComparison.Ordinal) ||
+                message.Contains("openai-secret-123", StringComparison.Ordinal) ||
+                message.Contains("ollama-secret-123", StringComparison.Ordinal));
 
             var forgotten = store.Configure(new OwnerProviderConfigurationAction(
                 "planning",
@@ -137,6 +147,51 @@ public sealed class ProviderConfigurationStoreTests
         }
     }
 
+    [Fact]
+    public async Task ProviderFailureLogKeepsExceptionAndCredentialDetailsOut()
+    {
+        var directory = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(),
+            $"agentworld-provider-log-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var store = new ProviderConfigurationStore(
+                System.IO.Path.Combine(directory, "providers.json"),
+                EmptySeed());
+            const string apiKey = "failure-path-api-secret";
+            const string providerBody = "failure-path-provider-body-secret";
+            _ = store.Configure(new OwnerProviderConfigurationAction(
+                "routine",
+                "jev",
+                "jev-test",
+                apiKey,
+                false));
+            var logger = new RecordingLogger<ConfigurableDecisionProvider>();
+            var router = new ConfigurableDecisionProvider(
+                store,
+                new FixedHttpClientFactory(new ThrowingProviderHandler(providerBody)),
+                logger);
+
+            _ = await Assert.ThrowsAsync<HttpRequestException>(async () =>
+                await router.DecideAsync(Request(store.CaptureRuntimeConfiguration().Revision)));
+
+            Assert.Contains(logger.Messages, message =>
+                message.Contains("cognition_provider_call status=failed", StringComparison.Ordinal) &&
+                message.Contains("error_type=HttpRequestException", StringComparison.Ordinal));
+            Assert.DoesNotContain(logger.Messages, message =>
+                message.Contains(apiKey, StringComparison.Ordinal) ||
+                message.Contains(providerBody, StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
     private static ProviderConfigurationSeed EmptySeed() => new(
         "deterministic",
         null,
@@ -198,5 +253,13 @@ public sealed class ProviderConfigurationStoreTests
                 Content = new StringContent(body),
             });
         }
+    }
+
+    private sealed class ThrowingProviderHandler(string message) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) =>
+            throw new HttpRequestException(message);
     }
 }

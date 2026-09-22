@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Text.Json;
 using AgentWorld.Simulation.Cognition;
 
@@ -443,9 +444,10 @@ public sealed class ProviderConfigurationStore
 /// its kind and epoch dynamically; requests already issued against an older
 /// configuration are rejected and fall back locally at the cognition boundary.
 /// </summary>
-public sealed class ConfigurableDecisionProvider(
+public sealed partial class ConfigurableDecisionProvider(
     ProviderConfigurationStore configuration,
-    IHttpClientFactory httpClientFactory) : IDecisionProvider
+    IHttpClientFactory httpClientFactory,
+    ILogger<ConfigurableDecisionProvider>? logger = null) : IDecisionProvider
 {
     private static readonly HashSet<string> RoutineCandidateIds = new(StringComparer.Ordinal)
     {
@@ -488,7 +490,9 @@ public sealed class ConfigurableDecisionProvider(
             throw new InvalidOperationException("The cognition provider changed after this request was issued.");
         }
 
-        var providerId = ProviderFor(selected, request.Observation);
+        var isRoutine = IsRoutine(request.Observation);
+        var role = isRoutine ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole;
+        var providerId = isRoutine ? selected.RoutineProvider : selected.PlanningProvider;
         var credential = CredentialFor(selected, providerId);
         IDecisionProvider provider = providerId switch
         {
@@ -514,21 +518,76 @@ public sealed class ConfigurableDecisionProvider(
             _ => throw new InvalidOperationException("Unsupported cognition provider configuration."),
         };
 
-        var response = await provider.DecideAsync(request, cancellationToken).ConfigureAwait(false);
-        return response with
+        var stopwatch = Stopwatch.StartNew();
+        try
         {
-            Provider = MapKind(providerId),
-            ProviderEpoch = selected.Revision,
-        };
+            var response = await provider.DecideAsync(request, cancellationToken).ConfigureAwait(false);
+            stopwatch.Stop();
+            if (logger is not null)
+            {
+                LogProviderCallCompleted(
+                    logger,
+                    providerId,
+                    role,
+                    string.IsNullOrWhiteSpace(credential.Model) ? "local" : credential.Model,
+                    request.Observation.InhabitantId,
+                    request.Observation.WorldTick,
+                    response.SelectedCandidateId,
+                    response.Confidence,
+                    response.Usage?.InputTokens ?? 0,
+                    response.Usage?.OutputTokens ?? 0,
+                    stopwatch.ElapsedMilliseconds);
+            }
+            return response with
+            {
+                Provider = MapKind(providerId),
+                ProviderEpoch = selected.Revision,
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            stopwatch.Stop();
+            if (logger is not null)
+            {
+                LogProviderCallCancelled(
+                    logger,
+                    providerId,
+                    role,
+                    string.IsNullOrWhiteSpace(credential.Model) ? "local" : credential.Model,
+                    request.Observation.InhabitantId,
+                    request.Observation.WorldTick,
+                    stopwatch.ElapsedMilliseconds);
+            }
+            throw;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            stopwatch.Stop();
+            if (logger is not null)
+            {
+                LogProviderCallFailed(
+                    logger,
+                    providerId,
+                    role,
+                    string.IsNullOrWhiteSpace(credential.Model) ? "local" : credential.Model,
+                    request.Observation.InhabitantId,
+                    request.Observation.WorldTick,
+                    exception.GetType().Name,
+                    stopwatch.ElapsedMilliseconds);
+            }
+            throw;
+        }
     }
 
     private static string ProviderFor(
         RuntimeProviderConfiguration configuration,
         InhabitantObservation observation)
     {
-        var isRoutine = observation.Candidates.All(candidate => RoutineCandidateIds.Contains(candidate.Id));
-        return isRoutine ? configuration.RoutineProvider : configuration.PlanningProvider;
+        return IsRoutine(observation) ? configuration.RoutineProvider : configuration.PlanningProvider;
     }
+
+    private static bool IsRoutine(InhabitantObservation observation) =>
+        observation.Candidates.All(candidate => RoutineCandidateIds.Contains(candidate.Id));
 
     private static StoredProviderCredential CredentialFor(
         RuntimeProviderConfiguration configuration,
@@ -548,4 +607,48 @@ public sealed class ConfigurableDecisionProvider(
         PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud => DecisionProviderKind.LargeLanguageModel,
         _ => throw new InvalidOperationException("Unsupported cognition provider configuration."),
     };
+
+    [LoggerMessage(
+        EventId = 2101,
+        Level = LogLevel.Information,
+        Message = "cognition_provider_call status=completed provider={Provider} role={Role} model={Model} inhabitant={InhabitantId} tick={WorldTick} candidate={CandidateId} confidence={Confidence} input_tokens={InputTokens} output_tokens={OutputTokens} latency_ms={LatencyMilliseconds}")]
+    private static partial void LogProviderCallCompleted(
+        ILogger logger,
+        string provider,
+        string role,
+        string model,
+        string inhabitantId,
+        long worldTick,
+        string candidateId,
+        double confidence,
+        int inputTokens,
+        int outputTokens,
+        long latencyMilliseconds);
+
+    [LoggerMessage(
+        EventId = 2102,
+        Level = LogLevel.Information,
+        Message = "cognition_provider_call status=cancelled provider={Provider} role={Role} model={Model} inhabitant={InhabitantId} tick={WorldTick} latency_ms={LatencyMilliseconds}")]
+    private static partial void LogProviderCallCancelled(
+        ILogger logger,
+        string provider,
+        string role,
+        string model,
+        string inhabitantId,
+        long worldTick,
+        long latencyMilliseconds);
+
+    [LoggerMessage(
+        EventId = 2103,
+        Level = LogLevel.Warning,
+        Message = "cognition_provider_call status=failed provider={Provider} role={Role} model={Model} inhabitant={InhabitantId} tick={WorldTick} error_type={ErrorType} latency_ms={LatencyMilliseconds}")]
+    private static partial void LogProviderCallFailed(
+        ILogger logger,
+        string provider,
+        string role,
+        string model,
+        string inhabitantId,
+        long worldTick,
+        string errorType,
+        long latencyMilliseconds);
 }

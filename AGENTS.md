@@ -31,3 +31,20 @@ Do not add changelog noise for refactors, test-only changes, or documentation
 edits unless they change supported behavior or an explicit compatibility or
 operational promise. Before pushing, compare the intended diff with the
 `Unreleased` section and confirm the relevant capability is represented.
+
+## Operational observability
+
+Treat live diagnosis as part of every server-owned gameplay loop, provider
+adapter, persistence boundary, and lifecycle gate. New or changed runtime work
+must leave low-noise, structured logs at meaningful outcome boundaries so an
+operator can tell what the world attempted, what was accepted, what fell back,
+and why. Prefer stable event names and named fields such as world tick, entity
+or request ID, provider role/model, legal intention, outcome, latency, and
+bounded usage. Log state transitions and decisions, not render frames or idle
+polls.
+
+Never log API keys, authorization headers, signatures, credential-bearing
+URLs, prompts, raw provider request/response bodies, hidden reasoning, or
+unbounded player/model text. Operational logs are derived telemetry, never
+simulation authority or required save state. Tests for observability changes
+must prove both the useful signal and the absence of representative secrets.

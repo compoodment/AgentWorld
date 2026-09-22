@@ -8,6 +8,9 @@ release yet.
 
 ### Added
 
+- Added structured, secret-safe live observability for cognition provider
+  calls, authoritative intention outcomes, usage, latency, and world lifecycle
+  gates so private-world behavior can be diagnosed from host logs.
 - Added a deterministic .NET 10 headless simulation with an integer world
   clock, atomic ticks, durable pause/resume epochs, bounded recovery, and a
   pinned PCG32 random stream.
