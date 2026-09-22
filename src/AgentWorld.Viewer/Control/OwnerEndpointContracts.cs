@@ -1,5 +1,6 @@
 using System.Net;
 using AgentWorld.Simulation.Harness;
+using AgentWorld.Viewer.Observation;
 using Microsoft.AspNetCore.Http;
 
 namespace AgentWorld.Viewer.Control;
@@ -23,6 +24,18 @@ public sealed record OwnerControlReceipt(
         snapshot.RunEpoch,
         snapshot.Revision,
         snapshot.LatestGlobalEventId);
+
+    public static OwnerControlReceipt From(string operation, bool changed, ViewerWorldSnapshot snapshot)
+    {
+        var authoring = snapshot.Authoring;
+        return new OwnerControlReceipt(
+            operation,
+            changed,
+            authoring?.IsPaused ?? snapshot.Cognition?.IsPaused ?? false,
+            authoring?.RunEpoch ?? 0,
+            authoring?.Revision ?? snapshot.WorldTick,
+            snapshot.LatestEventId);
+    }
 }
 
 public sealed record OwnerControlFailure(string Code, string Detail);

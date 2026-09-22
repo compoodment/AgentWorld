@@ -665,6 +665,10 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         Directory.CreateDirectory(stateDirectory);
+        // The protocol suite exercises the legacy owner-control contract. The
+        // real host defaults to the integrated private world; pin these tests
+        // to fixture mode so they continue to verify that compatibility path.
+        builder.UseSetting("AgentWorld:Runtime:WorldMode", "fixture");
         builder.UseSetting("AgentWorld:Pairing:StatePath", System.IO.Path.Combine(stateDirectory, "authority.json"));
         builder.UseSetting("AgentWorld:Runtime:StatePath", System.IO.Path.Combine(stateDirectory, "runtime.json"));
         builder.UseSetting("AgentWorld:Pairing:ServerAuthorityId", "authority-http-tests");

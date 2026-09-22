@@ -1,12 +1,25 @@
 using System.Net;
 using AgentWorld.Simulation.Cognition;
 using AgentWorld.Simulation.Harness;
+using AgentWorld.Simulation.Playtest;
 using AgentWorld.Viewer.Control;
 using AgentWorld.Viewer.Observation;
 
 var builder = WebApplication.CreateBuilder(args);
 var runtimeSeed = builder.Configuration["AgentWorld:Runtime:Seed"] ?? SeededWorldObservationStore.SampleSeed;
+var configuredWorldMode = builder.Configuration["AgentWorld:Runtime:WorldMode"] ?? "private";
+if (!string.Equals(configuredWorldMode, "private", StringComparison.OrdinalIgnoreCase) &&
+    !string.Equals(configuredWorldMode, "fixture", StringComparison.OrdinalIgnoreCase))
+{
+    throw new InvalidOperationException(
+        $"Unsupported AgentWorld:Runtime:WorldMode '{configuredWorldMode}'. Expected private or fixture.");
+}
+
+var isPrivateWorld = string.Equals(configuredWorldMode, "private", StringComparison.OrdinalIgnoreCase);
 var advanceFixture = builder.Configuration.GetValue<bool>("AgentWorld:Runtime:AdvanceScript");
+var advanceRuntime = isPrivateWorld
+    ? builder.Configuration.GetValue("AgentWorld:Runtime:AdvanceScript", true)
+    : advanceFixture;
 var configuredDecisionProvider = builder.Configuration["AgentWorld:Runtime:DecisionProvider"] ?? "deterministic";
 var configuredJevModel = builder.Configuration["AgentWorld:Runtime:JevModel"] ?? "jev-1.13.0";
 var configuredModel = builder.Configuration["AgentWorld:Runtime:Model"];
@@ -30,8 +43,18 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var authorityStatePath = builder.Configuration["AgentWorld:Pairing:StatePath"] ??
     Path.Combine(builder.Environment.ContentRootPath, "saves", "owner-authority.json");
-var runtimeStatePath = builder.Configuration["AgentWorld:Runtime:StatePath"] ??
-    Path.Combine(builder.Environment.ContentRootPath, "saves", "phase-two-runtime.json");
+var configuredRuntimeStatePath = builder.Configuration["AgentWorld:Runtime:StatePath"];
+var runtimeStatePath = configuredRuntimeStatePath ??
+    Path.Combine(
+        builder.Environment.ContentRootPath,
+        "saves",
+        isPrivateWorld ? "private-world.json" : "fixture-runtime.json");
+var legacyRuntimeStatePath = builder.Configuration["AgentWorld:Runtime:LegacyStatePath"] ??
+    Path.Combine(builder.Environment.ContentRootPath, "saves", "fixture-runtime.json");
+var privateRuntimeStatePath = isPrivateWorld
+    ? runtimeStatePath
+    : builder.Configuration["AgentWorld:Runtime:PrivateStatePath"] ??
+        Path.Combine(builder.Environment.ContentRootPath, "saves", "private-world.json");
 var approvedAssetCatalogPath = builder.Configuration["AgentWorld:Assets:CatalogPath"] ??
     Path.Combine(builder.Environment.ContentRootPath, "approved-assets.json");
 var configuredAuthorityId = builder.Configuration["AgentWorld:Pairing:ServerAuthorityId"] ??
@@ -94,27 +117,43 @@ builder.Services.AddSingleton<IDecisionProvider>(services =>
         model);
 });
 builder.Services.AddSingleton<OwnerWorldStateFile>(services => new OwnerWorldStateFile(
-    runtimeStatePath,
+    isPrivateWorld ? legacyRuntimeStatePath : runtimeStatePath,
     approvedAssetCatalog,
     services.GetRequiredService<IDecisionProvider>()));
 builder.Services.AddSingleton<OwnerWorldRuntime>(services => services
     .GetRequiredService<OwnerWorldStateFile>()
     .LoadOrCreate(runtimeSeed));
-builder.Services.AddSingleton<OwnerWorldObservationStore>();
+builder.Services.AddSingleton<PrivateWorldStateFile>(services => new PrivateWorldStateFile(
+    privateRuntimeStatePath,
+    _ => services.GetRequiredService<IDecisionProvider>()));
+builder.Services.AddSingleton<PrivateWorldRuntime>(services => services
+    .GetRequiredService<PrivateWorldStateFile>()
+    .LoadOrCreate(runtimeSeed));
+builder.Services.AddSingleton<OwnerWorldObservationStore>(services => isPrivateWorld
+    ? new OwnerWorldObservationStore(services.GetRequiredService<PrivateWorldRuntime>())
+    : new OwnerWorldObservationStore(services.GetRequiredService<OwnerWorldRuntime>()));
 builder.Services.AddSingleton(new OwnerAuthorityStateFile(authorityStatePath));
 var pairingHostOptions = new OwnerPairingHostOptions(localApprovalPort);
 builder.Services.AddSingleton(pairingHostOptions);
 builder.Services.AddSingleton<OwnerAuthorityStore>(services =>
 {
-    var runtime = services.GetRequiredService<OwnerWorldRuntime>();
-    var worldId = runtime.Capture().Snapshot.World.Identity.WorldId;
+    var worldId = isPrivateWorld
+        ? services.GetRequiredService<PrivateWorldRuntime>().Society.WorldId
+        : services.GetRequiredService<OwnerWorldRuntime>().Capture().Snapshot.World.Identity.WorldId;
     return services.GetRequiredService<OwnerAuthorityStateFile>().LoadOrCreate(
         new OwnerAuthorityIdentity(configuredAuthorityId, worldId));
 });
 builder.Services.AddSingleton<OwnerRequestAuthorizer>();
-if (advanceFixture)
+if (advanceRuntime)
 {
-    builder.Services.AddHostedService<OwnerWorldRuntimeService>();
+    if (isPrivateWorld)
+    {
+        builder.Services.AddHostedService<PrivateWorldRuntimeService>();
+    }
+    else
+    {
+        builder.Services.AddHostedService<OwnerWorldRuntimeService>();
+    }
 }
 
 var app = builder.Build();
@@ -287,7 +326,10 @@ app.MapPost("/api/v1/owner/control/pause", (
     OwnerSignedHttpRequest<OwnerControlAction> request,
     OwnerRequestAuthorizer authorizer,
     OwnerWorldRuntime runtime,
-    OwnerWorldStateFile stateFile) =>
+    OwnerWorldStateFile stateFile,
+    PrivateWorldRuntime privateRuntime,
+    PrivateWorldStateFile privateStateFile,
+    OwnerWorldObservationStore observations) =>
 {
     if (!IsControl(request, "pause"))
     {
@@ -307,20 +349,36 @@ app.MapPost("/api/v1/owner/control/pause", (
         return OwnerFailures.ToHttpResult(authorization.Failure);
     }
 
-    var changed = runtime.Pause($"owner-device:{authorization.Value!.DeviceId}");
-    if (changed)
+    if (isPrivateWorld)
+    {
+        var wasPaused = privateRuntime.Society.IsPaused;
+        privateRuntime.Pause();
+        var changed = !wasPaused && privateRuntime.Society.IsPaused;
+        if (changed)
+        {
+            privateStateFile.Save(privateRuntime);
+        }
+
+        return Results.Ok(OwnerControlReceipt.From("pause", changed, observations.GetSnapshot()));
+    }
+
+    var legacyChanged = runtime.Pause($"owner-device:{authorization.Value!.DeviceId}");
+    if (legacyChanged)
     {
         stateFile.Save(runtime);
     }
 
-    return Results.Ok(OwnerControlReceipt.From("pause", changed, runtime.Capture().Snapshot));
+    return Results.Ok(OwnerControlReceipt.From("pause", legacyChanged, runtime.Capture().Snapshot));
 });
 
 app.MapPost("/api/v1/owner/control/resume", (
     OwnerSignedHttpRequest<OwnerControlAction> request,
     OwnerRequestAuthorizer authorizer,
     OwnerWorldRuntime runtime,
-    OwnerWorldStateFile stateFile) =>
+    OwnerWorldStateFile stateFile,
+    PrivateWorldRuntime privateRuntime,
+    PrivateWorldStateFile privateStateFile,
+    OwnerWorldObservationStore observations) =>
 {
     if (!IsControl(request, "resume"))
     {
@@ -340,13 +398,26 @@ app.MapPost("/api/v1/owner/control/resume", (
         return OwnerFailures.ToHttpResult(authorization.Failure);
     }
 
-    var changed = runtime.Resume($"owner-device:{authorization.Value!.DeviceId}");
-    if (changed)
+    if (isPrivateWorld)
+    {
+        var wasPaused = privateRuntime.Society.IsPaused;
+        privateRuntime.Resume();
+        var changed = wasPaused && !privateRuntime.Society.IsPaused;
+        if (changed)
+        {
+            privateStateFile.Save(privateRuntime);
+        }
+
+        return Results.Ok(OwnerControlReceipt.From("resume", changed, observations.GetSnapshot()));
+    }
+
+    var legacyChanged = runtime.Resume($"owner-device:{authorization.Value!.DeviceId}");
+    if (legacyChanged)
     {
         stateFile.Save(runtime);
     }
 
-    return Results.Ok(OwnerControlReceipt.From("resume", changed, runtime.Capture().Snapshot));
+    return Results.Ok(OwnerControlReceipt.From("resume", legacyChanged, runtime.Capture().Snapshot));
 });
 
 app.MapPost("/api/v1/owner/instructions", (
@@ -361,6 +432,13 @@ app.MapPost("/api/v1/owner/instructions", (
         {
             ["action.kind"] = ["Instruction kind must be suggestive or must_do."],
         });
+    }
+
+    if (isPrivateWorld)
+    {
+        return Results.Conflict(new OwnerControlFailure(
+            "private_world_instructions_pending",
+            "Private-world owner instructions are not migrated yet; use the deterministic world loop until that control surface is integrated."));
     }
 
     string payload;
@@ -421,6 +499,13 @@ app.MapPost("/api/v1/owner/authoring", (
         {
             ["action"] = ["An authoring batch is required."],
         });
+    }
+
+    if (isPrivateWorld)
+    {
+        return Results.Conflict(new OwnerControlFailure(
+            "private_world_authoring_pending",
+            "Private-world authoring is not migrated yet; content activation remains disabled in the alpha runtime."));
     }
 
     string payload;

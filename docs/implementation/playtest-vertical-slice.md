@@ -18,6 +18,21 @@ This work is an integration and completion track across the existing roadmap,
 not a new roadmap phase. Multiplayer/public-world work remains explicitly out
 of scope.
 
+## Current implementation checkpoint
+
+The host integration now loads or creates a persistent four-inhabitant
+settlement by default. The private runtime owns one checkpoint containing the
+seeded map, society, cognition scheduler, physical positions/needs, inventory
+transitions, and a replayable world-event stream. The owner observation
+boundary projects all four active inhabitants and their bounded local
+knowledge. `WorldMode=fixture` remains available for the older owner-protocol
+compatibility suite.
+
+Still missing from this alpha track are the full owner instruction path for the
+new runtime, the data-only content pipeline, the richer-world systems, and the
+replacement Godot play surface. The implementation is therefore materially
+closer to the requested game, but it is not being called playtest-complete yet.
+
 ## Alpha gate
 
 The alpha is ready for first human playtesting when a fresh checkout can:

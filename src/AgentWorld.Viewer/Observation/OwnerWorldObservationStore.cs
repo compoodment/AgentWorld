@@ -1,4 +1,6 @@
 using AgentWorld.Simulation.Harness;
+using AgentWorld.Simulation.Playtest;
+using AgentWorld.Simulation.Society;
 
 namespace AgentWorld.Viewer.Observation;
 
@@ -32,11 +34,17 @@ public sealed class OwnerWorldObservationStore
         "owner-device-pairing.v1",
     ];
 
-    private readonly OwnerWorldRuntime runtime;
+    private readonly OwnerWorldRuntime? ownerRuntime;
+    private readonly PrivateWorldRuntime? privateRuntime;
 
     public OwnerWorldObservationStore(OwnerWorldRuntime runtime)
     {
-        this.runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+        ownerRuntime = runtime ?? throw new ArgumentNullException(nameof(runtime));
+    }
+
+    public OwnerWorldObservationStore(PrivateWorldRuntime runtime)
+    {
+        privateRuntime = runtime ?? throw new ArgumentNullException(nameof(runtime));
     }
 
     public ViewerHandshake GetOwnerHandshake() => new(
@@ -44,11 +52,25 @@ public sealed class OwnerWorldObservationStore
         OwnerServerCapabilities.ToArray(),
         OwnerClientCapabilities.ToArray());
 
-    public ViewerWorldSnapshot GetSnapshot() => ToSnapshot(runtime.Capture(0).Snapshot);
+    public ViewerWorldSnapshot GetSnapshot() => privateRuntime is not null
+        ? ToSnapshot(privateRuntime.ExportState())
+        : ToSnapshot(ownerRuntime!.Capture(0).Snapshot);
 
     public ViewerEventSlice GetEventsAfter(long afterEventId)
     {
-        var capture = runtime.Capture(afterEventId);
+        if (privateRuntime is not null)
+        {
+            var state = privateRuntime.ExportState();
+            return new ViewerEventSlice(
+                state.Society.Society.WorldTick,
+                afterEventId,
+                state.Events
+                    .Where(worldEvent => worldEvent.EventId > afterEventId)
+                    .Select(ToEvent)
+                    .ToArray());
+        }
+
+        var capture = ownerRuntime!.Capture(afterEventId);
         return new ViewerEventSlice(
             capture.Snapshot.World.Identity.WorldTick,
             capture.AfterEventId,
@@ -57,7 +79,22 @@ public sealed class OwnerWorldObservationStore
 
     public ViewerReconnectBaseline GetReconnectBaseline(long afterEventId)
     {
-        var capture = runtime.Capture(afterEventId);
+        if (privateRuntime is not null)
+        {
+            var state = privateRuntime.ExportState();
+            var privateSnapshot = ToSnapshot(state);
+            return new ViewerReconnectBaseline(
+                privateSnapshot,
+                new ViewerEventSlice(
+                    privateSnapshot.WorldTick,
+                    afterEventId,
+                    state.Events
+                        .Where(worldEvent => worldEvent.EventId > afterEventId)
+                        .Select(ToEvent)
+                        .ToArray()));
+        }
+
+        var capture = ownerRuntime!.Capture(afterEventId);
         var snapshot = ToSnapshot(capture.Snapshot);
         return new ViewerReconnectBaseline(
             snapshot,
@@ -145,6 +182,69 @@ public sealed class OwnerWorldObservationStore
         };
     }
 
+    private static ViewerWorldSnapshot ToSnapshot(PrivateWorldRuntimeState state)
+    {
+        var map = state.Map;
+        var activeInhabitants = state.Society.Society.Inhabitants
+            .Where(item => item.Status == SocietyInhabitantStatus.Active)
+            .OrderBy(item => item.Id, StringComparer.Ordinal)
+            .ToArray();
+        var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
+        var resourceStates = state.Resources.ToDictionary(item => item.ResourceId, item => item.State, StringComparer.Ordinal);
+        var first = activeInhabitants.First();
+        var firstPhysical = physicalById[first.Id];
+        var firstInventory = InventoryFor(state, first.Id);
+        var latestEventId = state.Events.Count == 0 ? 0 : state.Events[^1].EventId;
+        return new ViewerWorldSnapshot(
+            state.Society.Society.WorldId,
+            state.Society.Society.WorldTick,
+            map.ManifestDigest,
+            map.Tiles
+                .OrderBy(tile => tile.Position.Y)
+                .ThenBy(tile => tile.Position.X)
+                .Select(tile => new ViewerTile(tile.Position.X, tile.Position.Y, ToWireValue(tile.Terrain)))
+                .ToArray(),
+            map.CampObjects
+                .OrderBy(mapObject => mapObject.Id, StringComparer.Ordinal)
+                .Select(mapObject => new ViewerMapObject(mapObject.Id, mapObject.Kind, ToPosition(mapObject.Position)))
+                .ToArray(),
+            map.Resources
+                .OrderBy(resource => resource.Id, StringComparer.Ordinal)
+                .Select(resource => new ViewerResource(
+                    resource.Id,
+                    resource.Kind,
+                    ToPosition(resource.Position),
+                    resource.IsRenewable,
+                    resourceStates.TryGetValue(resource.Id, out var resourceState)
+                        ? ToWireValue(resourceState)
+                        : "available"))
+                .ToArray(),
+            new ViewerActor(
+                first.Id,
+                ToPosition(firstPhysical.Position),
+                firstPhysical.HungerBasisPoints,
+                firstPhysical.EnergyBasisPoints,
+                firstInventory.Where(item => item.Kind == "food").Sum(item => item.Quantity),
+                firstInventory.Where(item => item.Kind == "wood").Sum(item => item.Quantity)),
+            latestEventId)
+        {
+            Inhabitants = activeInhabitants
+                .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]))
+                .ToArray(),
+            Authoring = new ViewerAuthoringState(
+                state.Society.Society.IsPaused,
+                state.Society.Society.RunEpoch,
+                state.Events.Count,
+                0,
+                map.ManifestDigest,
+                map.ManifestDigest,
+                "clear",
+                "spring",
+                []),
+            Cognition = ToCognition(state),
+        };
+    }
+
     private static List<ViewerInhabitant> CreateInhabitants(OwnerWorldSnapshot state)
     {
         var inhabitants = new List<ViewerInhabitant>
@@ -214,6 +314,91 @@ public sealed class OwnerWorldObservationStore
         new ViewerRoute("not_active", null, null, [], string.Empty),
         new ViewerSpatialKnowledge(ToPosition(draft.Position), [ToPosition(draft.Position)], [ToPosition(draft.Position)]),
         IsDraft: true);
+
+    private static ViewerInhabitant ToPlaytestInhabitant(
+        PrivateWorldRuntimeState state,
+        SocietyInhabitant inhabitant,
+        PlaytestInhabitantState physical)
+    {
+        var inventory = InventoryFor(state, inhabitant.Id);
+        var route = DeterminePlaytestRoute(state, physical, inventory);
+        var perceived = KnownNearby(state.Map, physical.Position).ToArray();
+        var known = KnownFixtureTopology(physical.Position, perceived, route);
+        var household = state.Society.Society.Households
+            .FirstOrDefault(item => item.Id == inhabitant.HouseholdId);
+        var decisionFactors = new List<ViewerDecisionFactor>
+        {
+            new("personality", physical.Personality),
+            new("aspiration", physical.Aspiration),
+            new("role", inhabitant.CurrentRole.ToString().ToLowerInvariant()),
+            new("household", household?.Name ?? "unhoused"),
+            new("hunger", $"{physical.HungerBasisPoints} basis points"),
+            new("energy", $"{physical.EnergyBasisPoints} basis points"),
+        };
+        var runtime = state.Society.Cognition.Runtimes
+            .FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
+        if (runtime?.CurrentIntention is { } intention)
+        {
+            decisionFactors.Add(new ViewerDecisionFactor("current-intention", intention.CandidateId));
+            decisionFactors.Add(new ViewerDecisionFactor("intention-provider", intention.Provider.ToString().ToLowerInvariant()));
+        }
+
+        return new ViewerInhabitant(
+            inhabitant.Id,
+            inhabitant.Name,
+            inhabitant.Status.ToString().ToLowerInvariant(),
+            ToPosition(physical.Position),
+            physical.HungerBasisPoints,
+            physical.EnergyBasisPoints,
+            inventory,
+            decisionFactors,
+            route,
+            new ViewerSpatialKnowledge(ToPosition(physical.Position), perceived, known),
+            IsDraft: false);
+    }
+
+    private static ViewerInventoryEntry[] InventoryFor(
+        PrivateWorldRuntimeState state,
+        string ownerId) => state.Society.Society.Inventory.Lots
+        .Where(lot => lot.OwnerId == ownerId && lot.Quantity > 0)
+        .GroupBy(lot => lot.ItemKind, StringComparer.Ordinal)
+        .OrderBy(group => group.Key, StringComparer.Ordinal)
+        .Select(group => new ViewerInventoryEntry(group.Key, group.Sum(lot => lot.Quantity)))
+        .ToArray();
+
+    private static ViewerRoute DeterminePlaytestRoute(
+        PrivateWorldRuntimeState state,
+        PlaytestInhabitantState physical,
+        IReadOnlyList<ViewerInventoryEntry> inventory)
+    {
+        var food = inventory.FirstOrDefault(item => item.Kind == "food");
+        if (food is { Quantity: > 0 } && physical.HungerBasisPoints < 8_500)
+        {
+            return new ViewerRoute("consume", null, null, [], state.Map.ManifestDigest);
+        }
+
+        var berry = state.Map.GetResource("berry-patch");
+        var berryState = state.Resources.FirstOrDefault(item => item.ResourceId == berry.Id)?.State;
+        if (berryState == ResourceState.Available && physical.Position == berry.Position)
+        {
+            return new ViewerRoute("harvest", berry.Id, ToPosition(berry.Position), [], state.Map.ManifestDigest);
+        }
+
+        if (berryState == ResourceState.Available && physical.HungerBasisPoints < 7_000)
+        {
+            return RouteTo(state.Map, physical.Position, berry.Position, "seek_food", berry.Id);
+        }
+
+        var bedroll = state.Map.GetObject("bedroll");
+        if (physical.EnergyBasisPoints < 3_500)
+        {
+            return physical.Position == bedroll.Position
+                ? new ViewerRoute("sleep", bedroll.Id, ToPosition(bedroll.Position), [], state.Map.ManifestDigest)
+                : RouteTo(state.Map, physical.Position, bedroll.Position, "sleep", bedroll.Id);
+        }
+
+        return new ViewerRoute("idle", null, null, [], state.Map.ManifestDigest);
+    }
 
     private static ViewerRoute DetermineFixtureRoute(HarnessWorld world)
     {
@@ -298,6 +483,39 @@ public sealed class OwnerWorldObservationStore
         worldEvent.WorldTick,
         worldEvent.Kind,
         worldEvent.Detail);
+
+    private static ViewerEvent ToEvent(PlaytestWorldEvent worldEvent) => new(
+        worldEvent.EventId,
+        worldEvent.WorldTick,
+        worldEvent.Kind,
+        worldEvent.Detail);
+
+    private static ViewerCognition ToCognition(PrivateWorldRuntimeState state)
+    {
+        var runtimes = state.Society.Cognition.Runtimes
+            .OrderBy(runtime => runtime.InhabitantId, StringComparer.Ordinal)
+            .ToArray();
+        var current = runtimes
+            .Select(runtime => runtime.CurrentIntention)
+            .FirstOrDefault(intention => intention is not null);
+        var provider = current?.Provider.ToString().ToLowerInvariant() ??
+            (state.Society.Society.WorldDefaultProviderBindingId is null ? "deterministic" : "configured");
+        return new ViewerCognition(
+            provider,
+            state.Society.Society.IsPaused,
+            null,
+            current?.CandidateId,
+            current?.Provider.ToString().ToLowerInvariant(),
+            state.Society.Cognition.Events
+                .OrderBy(worldEvent => worldEvent.EventId)
+                .TakeLast(12)
+                .Select(worldEvent => new ViewerCognitionEvent(
+                    worldEvent.EventId,
+                    worldEvent.WorldTick,
+                    worldEvent.Kind,
+                    worldEvent.Detail))
+                .ToArray());
+    }
 
     private static ViewerPosition ToPosition(GridPoint point) => new(point.X, point.Y);
 

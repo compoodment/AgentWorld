@@ -1,4 +1,5 @@
 using AgentWorld.Simulation.Harness;
+using AgentWorld.Simulation.Playtest;
 using AgentWorld.Viewer.Observation;
 
 namespace AgentWorld.Simulation.Tests;
@@ -126,5 +127,43 @@ public sealed class ViewerObservationTests
         Assert.True(
             knowledge.KnownTiles.Count < snapshot.Tiles.Count,
             "The fixture must not project the complete server map as inhabitant knowledge.");
+    }
+
+    [Fact]
+    public void PrivateWorldObservationProjectsTheActiveSettlementAndNeeds()
+    {
+        using var runtime = new PrivateWorldRuntime("playtest-alpha");
+        var store = new OwnerWorldObservationStore(runtime);
+
+        var snapshot = store.GetSnapshot();
+
+        Assert.Equal("playtest-alpha", snapshot.WorldId);
+        Assert.Equal(4, snapshot.Inhabitants.Count);
+        Assert.All(snapshot.Inhabitants, inhabitant =>
+        {
+            Assert.False(inhabitant.IsDraft);
+            Assert.Equal("active", inhabitant.Lifecycle);
+            Assert.Contains(inhabitant.DecisionFactors, factor => factor.Key == "personality");
+            Assert.Contains(inhabitant.DecisionFactors, factor => factor.Key == "household");
+            Assert.NotEmpty(inhabitant.SpatialKnowledge.PerceivedTiles);
+        });
+        Assert.NotNull(snapshot.Cognition);
+        Assert.Equal(4, snapshot.Inhabitants.Select(inhabitant => inhabitant.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task PrivateWorldObservationReplaysItsOwnEventCursor()
+    {
+        using var runtime = new PrivateWorldRuntime("playtest-alpha");
+        _ = await runtime.AdvanceOneTickAsync();
+        var store = new OwnerWorldObservationStore(runtime);
+
+        var snapshot = store.GetSnapshot();
+        var suffix = store.GetEventsAfter(1);
+
+        Assert.Equal(1, snapshot.WorldTick);
+        Assert.Equal(snapshot.WorldTick, suffix.SnapshotTick);
+        Assert.All(suffix.Events, worldEvent => Assert.True(worldEvent.EventId > 1));
+        Assert.Contains(suffix.Events, worldEvent => worldEvent.Kind == "tick_advanced");
     }
 }

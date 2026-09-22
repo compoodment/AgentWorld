@@ -10,14 +10,12 @@ systems for the world itself.
 The long-term idea is a world that can become more complex because its
 inhabitants choose to make it so.
 
-> **Status: Phase 4 is complete; Phase 5 is the next gated implementation
-> target.**
-> The repository has a headless live-fixture host, durable world and
-> paired-device authority state, a browser protocol-discovery page, and a
-> Godot owner client. The browser deliberately receives no world projection;
-> a paired device makes signed requests for observation and for server-validated
-> control requests. Neither client owns or directly mutates authoritative
-> state. The Godot UI and Windows export path are prototype infrastructure,
+> **Status: private single-world alpha integration is in progress.**
+> The protected kernel, society/cognition runtime, paired-device authority,
+> hosted model boundary, and a persistent four-inhabitant private world are in
+> the repository. The normal viewer host now projects that private world; the
+> older one-actor fixture remains available only as an explicit compatibility
+> mode. The Godot UI and Windows export path are still prototype infrastructure,
 > not the final game UI or a released desktop build.
 
 This repository deliberately captured the concept before implementation. The
@@ -123,10 +121,13 @@ See the
 [pairing policy](docs/planning/device-pairing.md) for the bootstrap and recovery
 boundary rather than treating the browser page as an owner console.
 
-By default the host serves the completed deterministic `camp-alpha` fixture.
-Set `AgentWorld__Runtime__AdvanceScript=true` to start from genesis and advance
-the cognition-aware one-inhabitant path on the server clock. Deterministic
-decisions are the default. Set
+By default the host loads or creates the persistent four-inhabitant private
+world and advances it once per second. Its state is stored at
+`saves/private-world.json`; set `AgentWorld__Runtime__AdvanceScript=false` to
+start paused. The older owner fixture can be selected explicitly with
+`AgentWorld__Runtime__WorldMode=fixture`, which is useful for protocol
+compatibility tests and diagnostics. Deterministic decisions are the default.
+Set
 `AgentWorld__Runtime__DecisionProvider=jev` to opt into the TypeSafe Jev
 micro-decision adapter and provide `TYPESAFE_API_KEY` through the host
 environment; the key is read at request time and never enters world state.
@@ -143,8 +144,9 @@ to the host environment. Both use the same bounded OpenAI-compatible adapter;
 the endpoint can be overridden with
 `AgentWorld__Runtime__ModelEndpoint`. Credentials are read at request time and
 never enter world state. See the
-[playtest vertical-slice plan](docs/implementation/playtest-vertical-slice.md)
-for the larger path from the current inspector to an actual playable world.
+[private single-world alpha plan](docs/implementation/playtest-vertical-slice.md)
+for the remaining path from the current owner inspector to a substantially
+complete playable world.
 
 Paused authoring can attach an asset reference only when its exact `assetId`
 and lowercase `sha256:<64-hex>` digest appear in the host-owned approved-asset
