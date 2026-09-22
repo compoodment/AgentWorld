@@ -22,6 +22,8 @@ project happened to ask questions.
 9. [Phase 4 implementation ledger](implementation/phase-4.md) — completed
    society, multi-inhabitant scheduling, family, exchange, mortality, and
    lifecycle evidence.
+10. [Phase 5 implementation ledger](implementation/phase-5.md) — in-progress
+    data-only content identity, dependency locks, and package lifecycle.
 
 ## Concept
 
@@ -66,6 +68,8 @@ project happened to ask questions.
   one-inhabitant cognition, provider, fallback, and owner-projection evidence.
 - [Phase 4 implementation ledger](implementation/phase-4.md) — completed
   society implementation scope, gate, and accepted mortality model.
+- [Phase 5 implementation ledger](implementation/phase-5.md) — in-progress
+  data-only content governance evidence.
 - [Persistence spike evidence](implementation/persistence-spike.md) — the
   bounded save/replay/migration feasibility result, not a database commitment.
 - [Seeded harness evidence](implementation/seeded-harness.md) — the first

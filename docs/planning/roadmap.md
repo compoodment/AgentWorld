@@ -148,12 +148,13 @@ atomic exchange, family lifecycle, terminal death, and estate settlement.
 Provider/account billing remains the external boundary and runtime fallback and
 backpressure remain observable per inhabitant.
 
-## Phase 5 — Agent-created content and assets (next)
+## Phase 5 — Agent-created content and assets (in progress)
 
 The activation, package, asset, quarantine, and constitutional semantics are
 defined in the [content-governance contract](content-governance-contract.md).
 
-- content declaration format
+- content declaration format and immutable package identities
+- deterministic dependency resolution and lifecycle locks
 - asset proposal, normalization, provenance, and preview pipeline
 - proposal validation and capability manifests
 - isolated test-world execution
