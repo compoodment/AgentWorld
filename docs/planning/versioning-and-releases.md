@@ -2,7 +2,7 @@
 title: AgentWorld Versioning and Releases
 type: release-policy
 status: active
-updated: 2026-09-19
+updated: 2026-09-22
 ---
 
 # Versioning and Releases
@@ -92,3 +92,16 @@ Before creating a public release:
 
 `CHANGELOG.md` begins with the first executable scaffold, not as a substitute
 for Git history while the project remains documentation-only.
+
+## Changelog maintenance
+
+The changelog is maintained continuously, not reconstructed only when a release
+is being prepared. Every commit that changes player-visible gameplay or UI,
+world-runtime behavior, save compatibility, deployment or packaging behavior,
+or a security boundary must update the `Unreleased` section in the same commit.
+
+Entries describe what changed for a player or operator. Internal refactors,
+test-only changes, and documentation-only edits do not need entries unless they
+change a supported behavior or an explicit compatibility or operational
+promise. When a release is cut, move the applicable entries beneath the dated
+release heading and leave a fresh `Unreleased` section in place.

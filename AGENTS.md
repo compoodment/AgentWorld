@@ -18,3 +18,16 @@ Before a release, update the authoritative runtime/package version and
 `CHANGELOG.md`, run the applicable acceptance gate, check migration and replay
 coverage for compatibility changes, push the release commit, then push and
 verify the annotated tag on GitHub.
+
+## Changelog discipline
+
+Update `CHANGELOG.md` in the same commit as every user-visible gameplay, UI,
+world-runtime, save-compatibility, deployment, packaging, or security change.
+Keep new entries under `Unreleased` until a release is cut, and describe the
+effect in player or operator language rather than commit or implementation
+jargon.
+
+Do not add changelog noise for refactors, test-only changes, or documentation
+edits unless they change supported behavior or an explicit compatibility or
+operational promise. Before pushing, compare the intended diff with the
+`Unreleased` section and confirm the relevant capability is represented.
