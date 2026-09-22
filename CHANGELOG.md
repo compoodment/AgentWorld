@@ -8,6 +8,13 @@ release yet.
 
 ### Added
 
+- Added pause-only, signed **Life pace** settings: original calendar aging or
+  opt-in generational aging. Changes preserve current ages, birth dates and the
+  365-day world calendar; they affect future biological aging, not tick or model
+  cadence. Faster modes bring adulthood, elderhood and mortality sooner.
+- Persist biological clock anchors and newborn life dates in schema 10, show
+  biological ages on inhabitant cards, and keep adult work/social choices
+  unavailable to minors. Old saves remain unchanged until the owner opts in.
 - Connected separate parenthood proposals and consent to delayed, atomic births
   when food, shelter and caregivers remain available. Withdrawal, separation or
   loss of a parent cancels preparation; partnership alone never creates a child.

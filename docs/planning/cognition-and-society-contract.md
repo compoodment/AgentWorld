@@ -537,16 +537,24 @@ duplicate retry. Same-tick competing births must produce the same accepted or
 rejected set, reservation ledger, child IDs, provider assignment events, and
 population/state digests in every replay.
 
-Age is calculated solely from birth tick and the versioned calendar. The
-first-world protected bands are half-open intervals in world years: infant
+Default age is calculated from birth tick and the versioned calendar. Lifecycle
+contract 2 additionally permits an explicit pause-only owner choice of biological
+pace: 1, 365 or 1460 biological ticks per world tick. A persisted world/life
+anchor makes a change prospective: current ages and historical birth ticks never
+jump. Newborns record their biological birth tick when this clock is active.
+Weather, seasons, inventory deadlines, simulation cadence and model polling are
+not accelerated. Switching back to rate 1 retains accumulated biological age.
+The first-world protected bands are half-open intervals in biological years: infant
 `[0,2)`, child `[2,12)`, adolescent `[12,18)`, and adult `[18,∞)`, with an
 optional `elder` social band `[65,∞)` layered on adult. At exactly the first
 tick whose calendar age reaches a boundary, the lifecycle phase emits one
 `age_band_transition` before cognition and validated decisions for that tick;
 the new band is used by those later phases. Pausing freezes the boundary rather
 than skipping it, and resuming emits any one due transition in calendar/tick
-order. A save/replay or migration recalculates from the preserved birth tick
-and calendar version; it cannot advance age from wall-clock elapsed time.
+order. A save/replay or migration recalculates from preserved birth dates,
+biological anchors when enabled, and calendar version; it cannot advance age
+from wall-clock elapsed time. Without an opt-in anchor, old saves retain their
+original aging semantics and serialized representation.
 
 The first-world natural mortality policy is explicit: there is no hard maximum
 age. Natural-death risk is zero before elderhood and rises gradually from the

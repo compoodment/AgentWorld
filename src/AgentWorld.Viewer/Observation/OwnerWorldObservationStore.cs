@@ -55,7 +55,7 @@ public sealed class OwnerWorldObservationStore
 
     public ViewerHandshake GetOwnerHandshake() => new(
         new ProtocolVersion(Major: 1, Minor: 1),
-        OwnerServerCapabilities.ToArray(),
+        privateRuntime is null ? OwnerServerCapabilities.ToArray() : [.. OwnerServerCapabilities, "owner-life-pace.v1"],
         OwnerClientCapabilities.ToArray());
 
     public ViewerWorldSnapshot GetSnapshot() => privateRuntime is not null
@@ -245,6 +245,7 @@ public sealed class OwnerWorldObservationStore
                 state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == council.StewardId)?.Name,
                 council.FoodPolicy, council.Ballot?.Policy, council.Ballot?.Approvals.Count ?? 0,
                 council.Ballot?.Rejections.Count ?? 0, council.Ballot?.Electorate.Count ?? 0) : null,
+            LifePaceRate = state.Society.Society.LifeClock?.Rate ?? 1,
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,
                 state.Society.Society.RunEpoch,
@@ -438,6 +439,7 @@ public sealed class OwnerWorldObservationStore
             new("personality", physical.Personality),
             new("aspiration", physical.Aspiration),
             new("age-band", inhabitant.AgeBand.ToString().ToLowerInvariant()),
+            new("age-years", state.Society.Society.AgeAt(inhabitant, state.Society.Society.WorldTick).ToString(System.Globalization.CultureInfo.InvariantCulture)),
             new("role", inhabitant.CurrentRole.ToString().ToLowerInvariant()),
             new("household", household?.Name ?? "unhoused"),
             new("hunger", $"{physical.HungerBasisPoints} basis points"),

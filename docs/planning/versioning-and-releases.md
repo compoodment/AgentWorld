@@ -75,6 +75,19 @@ different build revision cannot falsely appear as a simulation change.
 
 ## Release checklist
 
+### Private-world save schema 10
+
+Schema 10 adds a nullable society biological-clock anchor/rate and nullable
+newborn biological birth ticks. They are omitted from unmodified older saves.
+The default remains calendar aging; only a signed owner setting while paused
+creates an anchor and upgrades the checkpoint. Society lifecycle contract 2
+uses that clock for age boundaries and mortality, while world dates, seasons,
+inventory expiry and simulation cadence keep using ordinary world ticks.
+Rate changes preserve accumulated age, and newborns always start at age zero.
+Schemas 1–9 remain readable; schema-3-and-later paused checkpoints retain their
+representation until an explicit mutation. Rollback requires the matching
+pre-upgrade application, save and adjacent history.
+
 ### Private-world save schema 9
 
 Schema 9 adds optional per-inhabitant parenthood proposals, preparation and child

@@ -69,7 +69,7 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 9;
+    public const int StateSchemaVersion = 10;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
@@ -868,6 +868,24 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             assetReservations.ReleasePackage(packageId, WorldTick);
             AppendEvent("content_rolled_back", $"{packageId}:{reason.Trim()}");
             return record;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public bool SetLifePace(int rate)
+    {
+        gate.Wait();
+        try
+        {
+            var before = society.Checkpoint.LifeClock;
+            society.Apply(checkpoint => SocietyFixture.SetLifePace(checkpoint, rate));
+            if (before == society.Checkpoint.LifeClock) return false;
+            checkpointSchemaVersion = StateSchemaVersion;
+            AppendEvent("life_pace_changed", rate.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            return true;
         }
         finally
         {
@@ -2287,7 +2305,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         }
 
         AddSurvivalCandidates(candidates, inhabitantId, state);
-        if (state.HungerBasisPoints >= 2_500 && state.EnergyBasisPoints >= 1_500)
+        if (state.HungerBasisPoints >= 2_500 && state.EnergyBasisPoints >= 1_500 && AdultResident(inhabitantId))
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
             AddBuildCandidates(candidates, inhabitant, state);
@@ -2439,6 +2457,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
         ArgumentNullException.ThrowIfNull(state);
+        if (state.SchemaVersion < 10 && (state.Society.Society.LifeClock is not null ||
+            state.Society.Society.Inhabitants.Any(person => person.BirthLifeTick is not null)))
+        {
+            throw new InvalidDataException("Biological life pacing requires private-world schema 10.");
+        }
         if (state.SchemaVersion is < 1 or > StateSchemaVersion || string.IsNullOrWhiteSpace(state.WorldSeed) || state.EventHistoryFloor < 0)
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");

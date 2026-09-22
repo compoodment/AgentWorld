@@ -729,3 +729,12 @@ The owner also confirmed that inhabitants need independent provider choices.
 World defaults remain useful, but each inhabitant may override either cognition
 role and its model, or explicitly inherit. Credentials remain shared private
 host configuration, never embedded in inhabitants or distributed with saves.
+
+## 2026-09-22 — Optional biological life pacing
+
+The single-player roadmap implementation adds an optional biological life
+clock to make generations playable without changing the default calendar or
+rewriting existing ages. See the current [decision register](decision-register.md)
+and [lifecycle contract](../planning/cognition-and-society-contract.md).
+The owner must explicitly select a different pace while paused; this does not
+enable accelerated aging in an existing world automatically.

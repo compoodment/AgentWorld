@@ -22,6 +22,56 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
         "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     [Fact]
+    public async Task LifePaceRequiresBoundSignedRequestAndPauseAndPersistsWithoutAgingAnyone()
+    {
+        var directory = Directory.CreateTempSubdirectory("agentworld-life-http-");
+        try
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            using (var host = new ViewerWebApplicationFactory(directory.FullName, null, privateWorld: true))
+            using (var client = host.CreateClient())
+            {
+                var device = await StartAndActivateAsync(host, client, key);
+                var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+                var births = runtime.Society.Inhabitants.Select(person => person.BirthTick).ToArray();
+                var action = new OwnerLifePaceAction(1_460);
+                const string path = "/api/v1/owner/control/life-pace";
+                using var running = await SendSignedAsync(host, client, key, device.DeviceId, path, action, OwnerHttpBinding.LifePacePayload(action));
+                Assert.Equal(HttpStatusCode.Conflict, running.StatusCode);
+                Assert.Null(runtime.Society.LifeClock);
+                using var pause = await SendSignedAsync(host, client, key, device.DeviceId, "/api/v1/owner/control/pause",
+                    new OwnerControlAction("pause"), OwnerHttpBinding.EmptyPayload("pause"));
+                Assert.Equal(HttpStatusCode.OK, pause.StatusCode);
+                var envelope = await CreateSignedRequestAsync(host, client, key, device.DeviceId, path, action, OwnerHttpBinding.LifePacePayload(action));
+                using var tampered = await client.PostAsJsonAsync(path, envelope with { Action = new OwnerLifePaceAction(365) });
+                Assert.False(tampered.IsSuccessStatusCode);
+                Assert.Null(runtime.Society.LifeClock);
+                using var configured = await SendSignedAsync(host, client, key, device.DeviceId, path, action, OwnerHttpBinding.LifePacePayload(action));
+                Assert.Equal(HttpStatusCode.OK, configured.StatusCode);
+                Assert.True((await configured.Content.ReadFromJsonAsync<OwnerControlReceipt>())!.Changed);
+                using var repeated = await SendSignedAsync(host, client, key, device.DeviceId, path, action, OwnerHttpBinding.LifePacePayload(action));
+                Assert.False((await repeated.Content.ReadFromJsonAsync<OwnerControlReceipt>())!.Changed);
+                Assert.Equal(births, runtime.Society.Inhabitants.Select(person => person.BirthTick));
+                Assert.Equal(0, runtime.WorldTick);
+                Assert.True(runtime.Society.IsPaused);
+                var observation = host.Services.GetRequiredService<OwnerWorldObservationStore>();
+                Assert.Equal(1_460, observation.GetSnapshot().LifePaceRate);
+                Assert.Contains("owner-life-pace.v1", observation.GetOwnerHandshake().ServerCapabilities);
+            }
+            using var restarted = new ViewerWebApplicationFactory(directory.FullName, null, privateWorld: true);
+            using var restartedClient = restarted.CreateClient();
+            var restored = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
+            Assert.Equal(1_460, restored.Society.LifeClock!.Rate);
+            Assert.Equal(0, restored.WorldTick);
+            Assert.True(restored.Society.IsPaused);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task UnpairedClientsCanDiscoverPairingButCannotReadTheWorld()
     {
         using var client = factory.CreateClient();

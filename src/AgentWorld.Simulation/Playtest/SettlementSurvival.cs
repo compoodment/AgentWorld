@@ -107,7 +107,7 @@ public sealed partial class PrivateWorldRuntime
         {
             candidates.Add(new CognitionCandidate("wear_clothing", "Collect woven clothing from camp to reduce exposure.", 3));
         }
-        if (WeatherExposure > 0 && HeatingBuildings().Any(building => !IsFireLit(building)) &&
+        if (AdultResident(actor) && WeatherExposure > 0 && HeatingBuildings().Any(building => !IsFireLit(building)) &&
             (SharedItem("wood") is not null || HasCarriedItem(actor, "wood") || MaterialSource("wood") is not null))
         {
             candidates.Add(new CognitionCandidate("tend_fire", "Carry household wood to a hearth and keep the camp warm.", condition.WarmthBasisPoints < 6_000 ? 2 : 4));

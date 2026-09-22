@@ -85,6 +85,10 @@ public partial class Main : Control
     private readonly Button menuResumeButton = new();
     private readonly CheckBox fullscreenToggle = new();
     private readonly OptionButton resolutionChoice = new();
+    private readonly OptionButton lifePaceChoice = new();
+    private readonly Button applyLifePaceButton = new();
+    private int? lastObservedLifePace;
+    private string? lastLifePaceWorldId;
 
     private readonly Button pauseButton = new();
     private readonly OptionButton instructionKind = new();
@@ -695,6 +699,17 @@ public partial class Main : Control
             pairedDeviceList.AddItem($"{device.State.ToString().ToLowerInvariant()} · {device.DeviceId}{self}");
             pairedDeviceList.SetItemMetadata(pairedDeviceList.ItemCount - 1, device.DeviceId);
         }
+    }
+
+    private async Task SaveLifePaceAsync()
+    {
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        var rate = lifePaceChoice.GetSelectedId();
+        await RunOwnerActionAsync(async () =>
+        {
+            _ = await ownerApi.SetLifePaceAsync(ResolveWorldUri(), authority, deviceId, rate, signer, CancellationToken.None);
+            return "life pace saved; current ages preserved, future aging changed";
+        });
     }
 
     private async Task RefreshProviderConfigurationAsync()
@@ -1542,6 +1557,23 @@ public partial class Main : Control
         resolutionChoice.ItemSelected += SetWindowResolution;
         settingsBody.AddChild(resolutionChoice);
 
+        var lifePaceRow = new HBoxContainer();
+        lifePaceRow.AddChild(new Label { Text = "Life pace" });
+        lifePaceChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        lifePaceChoice.AddItem("Calendar", 1);
+        lifePaceChoice.AddItem("Generations", 365);
+        lifePaceChoice.AddItem("Fast generations", 1_460);
+        lifePaceChoice.SetItemTooltip(0, "Original aging: one biological year per 365 world days.");
+        lifePaceChoice.SetItemTooltip(1, "One biological year per world day (about 24 active minutes).");
+        lifePaceChoice.SetItemTooltip(2, "One biological year per quarter-day (about 6 active minutes).");
+        lifePaceChoice.TooltipText = "Changes future biological aging only. Current ages, birth dates, seasons and model-call speed stay unchanged. Faster aging brings elderhood and mortality sooner.";
+        lifePaceRow.AddChild(lifePaceChoice);
+        applyLifePaceButton.Text = "Apply";
+        StyleButton(applyLifePaceButton);
+        applyLifePaceButton.Pressed += () => _ = SaveLifePaceAsync();
+        lifePaceRow.AddChild(applyLifePaceButton);
+        settingsBody.AddChild(lifePaceRow);
+
         BuildCognitionSettingsPanel();
         settingsBody.AddChild(cognitionSettingsPanel);
 
@@ -2110,7 +2142,9 @@ public partial class Main : Control
 
         selectedActorNameLabel.Text = inhabitant.DisplayName;
         var ageBand = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail;
-        selectedActorSummaryLabel.Text = Pretty(inhabitant.Lifecycle) + (ageBand is null ? "" : " · " + Pretty(ageBand));
+        var ageYears = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-years")?.Detail;
+        selectedActorSummaryLabel.Text = Pretty(inhabitant.Lifecycle) + (ageBand is null ? "" : " · " + Pretty(ageBand)) +
+            (ageYears is null ? "" : " · " + ageYears + " years");
         var intention = inhabitant.PublicIntention is { } publicIntention
             ? $"Wants to {GameUiText.HumanizeIdentifier(publicIntention.Summary).ToLowerInvariant()}."
             : "Taking in their surroundings.";
@@ -2299,6 +2333,17 @@ public partial class Main : Control
         var selected = snapshot?.Inhabitants.FirstOrDefault(item =>
             string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal));
         var actionDisabled = !paired || isOwnerAction || pendingSubmission is not null;
+        var supportsLifePace = snapshot?.LifePaceRate is not null;
+        applyLifePaceButton.Disabled = actionDisabled || !paused || !supportsLifePace;
+        lifePaceChoice.Disabled = actionDisabled || !paused || !supportsLifePace;
+        applyLifePaceButton.TooltipText = !supportsLifePace ? "This host does not support life pacing." :
+            !paused ? "Pause the world before changing life pace." : "Apply future aging speed; existing ages are preserved.";
+        if (snapshot?.LifePaceRate is { } rate && (lastObservedLifePace != rate || lastLifePaceWorldId != snapshot.WorldId))
+        {
+            lifePaceChoice.Select(lifePaceChoice.GetItemIndex(rate));
+            lastObservedLifePace = rate;
+            lastLifePaceWorldId = snapshot.WorldId;
+        }
         worldUrlInput.Editable = registration is null && pendingPairing is null && !isPairingOperation && !isOwnerAction && !isRefreshing;
         connectButton.Disabled = registeredEndpointInvalid || pendingPairing is not null || isPairingOperation || isOwnerAction || isRefreshing;
         pairAgainButton.Visible = registration is not null;

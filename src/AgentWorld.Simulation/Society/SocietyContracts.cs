@@ -134,7 +134,7 @@ public sealed record SocietyConfig(
         if (TicksPerWorldDay <= 0 || DaysPerWorldYear <= 0 || InfantYears <= 0 ||
             ChildYears <= InfantYears || AdultYears <= ChildYears || ElderYears <= AdultYears ||
             EstateEscrowDays <= 0 || BaseNaturalMortalityBasisPoints < 0 ||
-            NaturalMortalitySlopeBasisPoints < 0 || ContractVersion <= 0)
+            NaturalMortalitySlopeBasisPoints < 0 || ContractVersion is < 1 or > 2)
         {
             throw new ArgumentOutOfRangeException(nameof(SocietyConfig));
         }
@@ -153,7 +153,8 @@ public sealed record SocietyInhabitant(
     SocietyWorkRole CurrentRole,
     long LastLifecycleYearChecked,
     long? DeathTick = null,
-    SocietyDeathCause? DeathCause = null);
+    SocietyDeathCause? DeathCause = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? BirthLifeTick = null);
 
 public sealed record SocietyHousehold(
     string Id,
@@ -255,8 +256,14 @@ public sealed record SocietyCheckpoint(
     IReadOnlyList<SocietyBirthRecord> Births,
     InventoryCheckpoint Inventory,
     IReadOnlyList<SocietyEvent> Events,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long EventHistoryFloor = 0)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long EventHistoryFloor = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SocietyLifeClock? LifeClock = null)
 {
+    public long LifeTickAt(long worldTick) => LifeClock?.At(worldTick) ?? worldTick;
+
+    public int AgeAt(SocietyInhabitant inhabitant, long worldTick) =>
+        Config.AgeAt(inhabitant.BirthLifeTick ?? inhabitant.BirthTick, LifeTickAt(worldTick));
+
     public SocietyInhabitant GetInhabitant(string id) =>
         Inhabitants.Single(item => string.Equals(item.Id, id, StringComparison.Ordinal));
 
@@ -274,3 +281,15 @@ public sealed record SocietyOperationResult(
     SocietyCheckpoint Checkpoint,
     string? CreatedId = null,
     IReadOnlyList<SocietyEvent>? NewEvents = null);
+
+/// <summary>A prospective biological clock; world dates and seasons are unchanged.</summary>
+public sealed record SocietyLifeClock(int Rate, long WorldAnchorTick, long LifeAnchorTick)
+{
+    public long At(long worldTick) => checked(LifeAnchorTick + (worldTick - WorldAnchorTick) * Rate);
+
+    public long WorldTickFor(long lifeTick)
+    {
+        var difference = checked(lifeTick - LifeAnchorTick);
+        return checked(WorldAnchorTick + (difference >= 0 ? checked(difference + Rate - 1) / Rate : difference / Rate));
+    }
+}

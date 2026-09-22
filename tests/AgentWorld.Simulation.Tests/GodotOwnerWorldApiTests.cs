@@ -9,6 +9,16 @@ namespace AgentWorld.Simulation.Tests;
 
 public sealed class GodotOwnerWorldApiTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(365)]
+    [InlineData(1_460)]
+    public void LifePacePayloadMatchesTheHostExactly(int rate)
+    {
+        Assert.Equal(OwnerHttpBinding.LifePacePayload(new AgentWorld.Viewer.Control.OwnerLifePaceAction(rate)),
+            OwnerWorldActionPayload.LifePace(new OwnerLifePaceAction(rate)));
+    }
+
     [Fact]
     public void AcceptsExplicitHistoryResetButRejectsSilentOrFalseReset()
     {

@@ -304,6 +304,36 @@ app.MapPost("/api/v1/owner/reconnect", (
         observations.GetReconnectBaseline(request.Action.AfterEventId)));
 });
 
+app.MapPost("/api/v1/owner/control/life-pace", (
+    OwnerSignedHttpRequest<OwnerLifePaceAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services,
+    OwnerWorldObservationStore observations,
+    ILogger<PrivateWorldRuntimeService> logger) =>
+{
+    if (request.Action is null || request.Action.Rate is not (1 or 365 or 1_460))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["action.rate"] = ["Life pace must be 1, 365 or 1460."] });
+    }
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/control/life-pace", OwnerHttpBinding.LifePacePayload(request.Action));
+    if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (!isPrivateWorld) return Results.Conflict(new { error = "Life pacing requires a private world." });
+    var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+    bool changed;
+    try
+    {
+        changed = runtime.SetLifePace(request.Action.Rate);
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.Conflict(new { error = "Pause the world before changing life pace." });
+    }
+    // A retry must also persist a prior in-memory change whose first save failed.
+    services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+    if (changed) OwnerLifePaceTelemetry.Changed(logger, runtime.WorldTick, request.Action.Rate);
+    return Results.Ok(OwnerControlReceipt.From("life_pace", changed, observations.GetSnapshot()));
+});
+
 app.MapPost("/api/v1/owner/control/pause", (
     OwnerSignedHttpRequest<OwnerControlAction> request,
     OwnerRequestAuthorizer authorizer,

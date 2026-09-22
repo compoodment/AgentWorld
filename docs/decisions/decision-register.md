@@ -511,8 +511,11 @@ baseline for later settlement work:
   inhabitant from cognition scheduling, and settles surviving beneficiaries
   after the configured escrow period. Resurrection is not part of the first
   world.
-- There is no hard maximum age. Age is derived from birth tick and the
-  versioned calendar. Natural mortality is zero before elderhood and rises
+- There is no hard maximum age. Default age is derived from birth tick and the
+  versioned calendar. The owner may opt into prospective biological life pacing
+  while paused; it preserves existing ages, birth history and the world calendar,
+  and never enables offline aging. See the [lifecycle contract](../planning/cognition-and-society-contract.md).
+  Natural mortality is zero before elderhood and rises
   gradually from the elder band; hazards, illness, and accidents may happen
   earlier. Elderhood at 65 is a social/lifecycle marker, not an automatic
   death trigger. The finite-age risk curve remains below 100%.

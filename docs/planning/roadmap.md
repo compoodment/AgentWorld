@@ -142,7 +142,10 @@ cooperation; either person can withdraw and unanswered proposals expire.
 Separate parenthood choices now require both adults' consent, preparation and
 rechecked material readiness. Runtime tests cover one atomic birth across
 restart, refusal/expiry, separation, actual feeding and zero infant provider
-calls. General skills, guardian reassignment and playable life pacing remain open.
+calls. Opt-in life pacing now advances biological age without changing world
+dates or model cadence; replay and signed HTTP tests cover preserved ages,
+newborn age zero, age-band transitions and pause-only configuration. General
+skills, guardian reassignment and long-run intergenerational balance remain open.
 
 ## Later — Creation and richer worlds
 

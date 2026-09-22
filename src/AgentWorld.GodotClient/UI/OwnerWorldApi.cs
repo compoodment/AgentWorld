@@ -196,6 +196,7 @@ public sealed record OwnerWorldSnapshot(
 {
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
     public OwnerWorldCouncil? Council { get; init; }
+    public int? LifePaceRate { get; init; }
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
 
     public OwnerWorldAuthoringState? Authoring { get; init; }
@@ -233,6 +234,7 @@ public sealed record OwnerWorldReconnect(OwnerWorldHandshake Handshake, OwnerWor
 public sealed record OwnerReconnectAction(long AfterEventId);
 
 public sealed record OwnerControlAction(string Operation);
+public sealed record OwnerLifePaceAction(int Rate);
 
 public sealed record OwnerPairingApprovalAction(string PairingId, string PairingCode);
 
@@ -484,6 +486,9 @@ public static class OwnerWorldActionPayload
         '\n',
         "agentworld.owner-control.v1",
         $"operation={EncodeRequired(operation, nameof(operation))}");
+
+    public static string LifePace(OwnerLifePaceAction action) =>
+        "agentworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
 
     public static string PairingApproval(OwnerPairingApprovalAction action) => string.Join(
         '\n',
@@ -748,6 +753,15 @@ public sealed class OwnerWorldApi
             action,
             deviceKey,
             cancellationToken);
+    }
+
+    public Task<OwnerControlReceipt> SetLifePaceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        int rate, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerLifePaceAction(rate);
+        return pairing.SendSignedActionAsync<OwnerLifePaceAction, OwnerControlReceipt>(serverUri, authority, deviceId,
+            OwnerPairingEndpoints.OwnerLifePace, OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.LifePace(action),
+            action, deviceKey, cancellationToken);
     }
 
     public Task<OwnerInstructionReceipt> SubmitInstructionAsync(

@@ -10,7 +10,7 @@ namespace AgentWorld.Simulation.Society;
 /// against a checkpoint and returns a replacement checkpoint with durable
 /// events; callers never receive a partially-mutated world.
 /// </summary>
-public static class SocietyFixture
+public static partial class SocietyFixture
 {
     public static SocietyInhabitant CreateFounder(
         string id,
@@ -521,7 +521,8 @@ public static class SocietyFixture
             household.Id,
             ResolveNewbornProvider(checkpoint, firstParent, secondParent, request),
             SocietyWorkRole.Unassigned,
-            0);
+            0,
+            BirthLifeTick: checkpoint.LifeClock is null ? null : checkpoint.LifeTickAt(checkpoint.WorldTick));
         var relationships = checkpoint.Relationships.ToList();
         relationships.AddRange(
         [
@@ -569,12 +570,13 @@ public static class SocietyFixture
         var boundaryEvents = new List<(long Tick, string InhabitantId, int AgeYears)>();
         foreach (var inhabitant in checkpoint.Inhabitants.Where(item => item.Status == SocietyInhabitantStatus.Active))
         {
-            var oldAge = checkpoint.Config.AgeAt(inhabitant.BirthTick, checkpoint.WorldTick);
-            var newAge = checkpoint.Config.AgeAt(inhabitant.BirthTick, targetTick);
+            var oldAge = checkpoint.AgeAt(inhabitant, checkpoint.WorldTick);
+            var newAge = checkpoint.AgeAt(inhabitant, targetTick);
             for (var age = Math.Max(oldAge + 1, inhabitant.LastLifecycleYearChecked + 1); age <= newAge; age++)
             {
                 boundaryEvents.Add((
-                    checked(inhabitant.BirthTick + age * checkpoint.Config.TicksPerWorldYear),
+                    checkpoint.LifeClock?.WorldTickFor(checked((inhabitant.BirthLifeTick ?? inhabitant.BirthTick) + age * checkpoint.Config.TicksPerWorldYear))
+                        ?? checked(inhabitant.BirthTick + age * checkpoint.Config.TicksPerWorldYear),
                     inhabitant.Id,
                     checked((int)age)));
             }
@@ -704,7 +706,13 @@ public static class SocietyFixture
             throw new InvalidDataException("Society and inventory clocks must agree.");
         }
 
-        ValidateInhabitants(checkpoint.Inhabitants, checkpoint.Config, checkpoint.WorldTick);
+        if (checkpoint.LifeClock is { } clock && (clock.Rate is not (1 or 365 or 1_460) ||
+            clock.WorldAnchorTick < 0 || clock.WorldAnchorTick > checkpoint.WorldTick || clock.LifeAnchorTick < clock.WorldAnchorTick ||
+            checkpoint.Config.ContractVersion < 2))
+        {
+            throw new InvalidDataException("The biological life clock is invalid.");
+        }
+        ValidateInhabitants(checkpoint.Inhabitants, checkpoint.Config, checkpoint.WorldTick, checkpoint.LifeClock);
         EnsureCanonicalIds(checkpoint.Households.Select(item => item.Id), "households");
         EnsureCanonicalIds(checkpoint.Relationships.Select(item => item.Id), "relationships");
         EnsureCanonicalIds(checkpoint.Organizations.Select(item => item.Id), "organizations");
@@ -1152,13 +1160,15 @@ public static class SocietyFixture
     private static void ValidateInhabitants(
         IReadOnlyList<SocietyInhabitant> inhabitants,
         SocietyConfig config,
-        long worldTick)
+        long worldTick,
+        SocietyLifeClock? lifeClock = null)
     {
         EnsureCanonicalIds(inhabitants.Select(item => item.Id), "inhabitants");
         foreach (var inhabitant in inhabitants)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(inhabitant.Name);
             if (inhabitant.BirthTick > worldTick ||
+                inhabitant.BirthLifeTick is { } birthLife && (lifeClock is null || birthLife > lifeClock.At(worldTick)) ||
                 inhabitant.HealthBasisPoints is < 0 or > 10_000 ||
                 inhabitant.LastLifecycleYearChecked < 0 ||
                 inhabitant.Status == SocietyInhabitantStatus.Active && inhabitant.DeathTick is not null ||
@@ -1167,11 +1177,12 @@ public static class SocietyFixture
                 throw new InvalidDataException("An inhabitant lifecycle record is malformed.");
             }
 
-            var expectedBand = config.AgeBandAt(inhabitant.BirthTick, worldTick);
+            var birth = inhabitant.BirthLifeTick ?? inhabitant.BirthTick;
+            var lifeTick = lifeClock?.At(worldTick) ?? worldTick;
+            var expectedBand = config.AgeBandAt(birth, lifeTick);
             if (inhabitant.Status == SocietyInhabitantStatus.Active &&
                 inhabitant.AgeBand != expectedBand &&
-                inhabitant.BirthTick +
-                    config.TicksPerWorldYear * inhabitant.LastLifecycleYearChecked <= worldTick)
+                birth + config.TicksPerWorldYear * inhabitant.LastLifecycleYearChecked <= lifeTick)
             {
                 throw new InvalidDataException(
                     $"An active inhabitant has a stale age band: {inhabitant.Id}:{inhabitant.AgeBand}:{expectedBand}:" +
