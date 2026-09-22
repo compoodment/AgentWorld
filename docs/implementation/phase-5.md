@@ -68,6 +68,11 @@ capabilities remain disabled until a separate sandbox contract exists.
     decoded-cache/GPU ceilings, deterministic least-recently-used eviction,
     current-frame pinning, and atomic failure without opening files or touching
     a renderer.
+14. **Portable asset provenance manifests:** normalized inert assets can be
+    exported as strict canonical metadata containing identity, rights,
+    provenance, preview references, PNG bounds, and byte reservations. Decode
+    rejects non-canonical or tampered bytes and never carries asset payloads,
+    paths, URLs, or executable content.
 
 ## Evidence
 
@@ -101,10 +106,13 @@ capabilities remain disabled until a separate sandbox contract exists.
 - `WorldAssetCacheTests` covers deterministic eviction, current-frame pins,
   atomic over-budget rejection, expired-pin cleanup, and checkpoint-shaped
   cache-state round-trips.
+- `AssetProvenanceManifestCodecTests` covers order-independent canonical bytes,
+  normalized-asset round-trips, strict formatting/tamper rejection, and
+  local-only unknown-rights manifests.
 
 ## Still required for the alpha gate
 
-- package artifact transport/export and complete asset provenance manifests;
+- package artifact transport/export;
 - isolated process preview/test-world execution and actual renderer/decode
   binding on top of the value-only cache ledger;
 - the remaining economy/world rules that consume declarative definitions.
