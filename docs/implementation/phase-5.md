@@ -42,6 +42,9 @@ capabilities remain disabled until a separate sandbox contract exists.
    and `recipe/v1` payloads enter the live declarative world only on next-tick
    activation, persist through checkpoints, appear in owner observations, and
    are removed from the live projection when quarantined.
+8. **Mutation-free preview:** `ContentPackagePreview` resolves the same
+   dependency lock and materializes typed definitions against an immutable base
+   projection, returning the base unchanged on malformed or conflicting data.
 
 ## Evidence
 
@@ -64,12 +67,14 @@ capabilities remain disabled until a separate sandbox contract exists.
   diagnostics.
 - `PrivateWorldRuntimeTests` and `ViewerHttpTests` cover typed building/recipe
   activation, checkpoint round-trip, signed lifecycle routing, and rollback.
+- `ContentDefinitionTests` covers mutation-free preview success and failure
+  isolation.
 
 ## Still required for the alpha gate
 
 - package serialization/provenance and exact manifest-byte digests;
-- isolated preview/test-world execution and world-wide asset reservation/cache
-  accounting;
+- isolated process preview/test-world execution and world-wide asset
+  reservation/cache accounting;
 - material interactions for building placement, recipe production, and the
   remaining economy/world rules that consume declarative definitions.
 

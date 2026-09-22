@@ -357,6 +357,12 @@ public sealed class PrivateWorldRuntime : IDisposable
         IEnumerable<string> rootPackageIds) =>
         ContentPackageResolver.Resolve(availablePackages, rootPackageIds);
 
+    public static ContentPreviewResult PreviewWorldContent(
+        IEnumerable<ContentPackageManifest> availablePackages,
+        IEnumerable<string> rootPackageIds,
+        DeclarativeWorldContentState? baseWorldContent = null) =>
+        ContentPackagePreview.Run(availablePackages, rootPackageIds, baseWorldContent);
+
     public ContentResolutionResult ResolveContent(string packageId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packageId);

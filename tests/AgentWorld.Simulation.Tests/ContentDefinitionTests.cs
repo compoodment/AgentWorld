@@ -140,6 +140,57 @@ public sealed class ContentDefinitionTests
         Assert.Throws<InvalidDataException>(() => ContentDefinitionApplicator.Apply([], [dangling]));
     }
 
+    [Fact]
+    public void ContentPreviewResolvesAndMaterializesWithoutMutatingTheBaseProjection()
+    {
+        var building = Building("preview-kitchen", displayName: "Preview kitchen");
+        var package = new ContentPackageManifest(
+            "preview-content",
+            ContentVersion.Parse("1.0.0"),
+            PackageDigest,
+            [],
+            [new ContentDefinition(
+                BuildingDefinition.SchemaKind,
+                building.LocalId,
+                building.Version,
+                building.DisplayName,
+                building.PayloadDigest,
+                """{"schema":"building/v1","width":2,"height":2,"capacity":4,"buildCosts":[{"resourceId":"wood","amount":1}],"tags":["camp"]}""")],
+            []);
+        var baseContent = new DeclarativeWorldContentState([], []);
+
+        var preview = ContentPackagePreview.Run([package], [package.PackageId], baseContent);
+
+        Assert.True(preview.IsValid, preview.Diagnostic);
+        Assert.Equal(building.CanonicalId, Assert.Single(preview.WorldContent.Buildings).CanonicalId);
+        Assert.Empty(baseContent.Buildings);
+        Assert.Empty(baseContent.Recipes);
+    }
+
+    [Fact]
+    public void ContentPreviewReturnsTheBaseProjectionWhenTypedMaterializationFails()
+    {
+        var package = new ContentPackageManifest(
+            "bad-content",
+            ContentVersion.Parse("1.0.0"),
+            "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            [],
+            [new ContentDefinition(
+                BuildingDefinition.SchemaKind,
+                "bad-building",
+                ContentVersion.Parse("1.0.0"),
+                "Bad building",
+                "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                """{"schema":"building/v1","width":0,"height":1,"capacity":1,"buildCosts":[],"tags":[]}""")],
+            []);
+
+        var preview = ContentPackagePreview.Run([package], [package.PackageId]);
+
+        Assert.False(preview.IsValid);
+        Assert.Equal("typed_content_invalid", preview.FailureCode);
+        Assert.Empty(preview.WorldContent.Buildings);
+    }
+
     private static BuildingDefinition Building(
         string localId,
         IEnumerable<string>? tags = null,
