@@ -424,7 +424,9 @@ app.MapPost("/api/v1/owner/instructions", (
     OwnerSignedHttpRequest<OwnerInstructionAction> request,
     OwnerRequestAuthorizer authorizer,
     OwnerWorldRuntime runtime,
-    OwnerWorldStateFile stateFile) =>
+    OwnerWorldStateFile stateFile,
+    PrivateWorldRuntime privateRuntime,
+    PrivateWorldStateFile privateStateFile) =>
 {
     if (request?.Action is null || !TryParseInstructionKind(request.Action.Kind, out var kind))
     {
@@ -432,13 +434,6 @@ app.MapPost("/api/v1/owner/instructions", (
         {
             ["action.kind"] = ["Instruction kind must be suggestive or must_do."],
         });
-    }
-
-    if (isPrivateWorld)
-    {
-        return Results.Conflict(new OwnerControlFailure(
-            "private_world_instructions_pending",
-            "Private-world owner instructions are not migrated yet; use the deterministic world loop until that control surface is integrated."));
     }
 
     string payload;
@@ -458,6 +453,32 @@ app.MapPost("/api/v1/owner/instructions", (
     if (!authorization.IsSuccess)
     {
         return OwnerFailures.ToHttpResult(authorization.Failure);
+    }
+
+    if (isPrivateWorld)
+    {
+        try
+        {
+            var receipt = privateRuntime.SubmitInstruction(new OwnerInstructionRequest(
+                request.Action.IdempotencyKey,
+                $"owner-device:{authorization.Value!.DeviceId}",
+                request.Action.TargetInhabitantId,
+                kind,
+                request.Action.Text));
+            privateStateFile.Save(privateRuntime);
+            return Results.Ok(receipt);
+        }
+        catch (ArgumentException exception)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["action"] = [exception.Message],
+            });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Results.Conflict(new OwnerControlFailure("idempotency_conflict", exception.Message));
+        }
     }
 
     try

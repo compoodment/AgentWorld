@@ -32,7 +32,9 @@ public sealed record PrivateWorldRuntimeState(
     SocietyWorldRuntimeState Society,
     IReadOnlyList<PlaytestInhabitantState> Inhabitants,
     IReadOnlyList<PlaytestResourceState> Resources,
-    IReadOnlyList<PlaytestWorldEvent> Events);
+    IReadOnlyList<PlaytestWorldEvent> Events,
+    IReadOnlyList<OwnerQueuedInstruction>? Instructions = null,
+    IReadOnlyList<string>? CompletedInstructionIds = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,
@@ -63,8 +65,14 @@ public sealed class PrivateWorldRuntime : IDisposable
     private SocietyWorldRuntime society;
     private readonly Dictionary<string, PlaytestInhabitantState> inhabitants = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ResourceState> resources = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
+        new(StringComparer.Ordinal);
+    private readonly Dictionary<string, OwnerInstructionReceipt> instructionReceipts =
+        new(StringComparer.Ordinal);
+    private readonly HashSet<string> completedInstructionIds = new(StringComparer.Ordinal);
     private readonly List<PlaytestWorldEvent> events = [];
     private long nextEventId = 1;
+    private long nextInstructionSequence = 1;
 
     public PrivateWorldRuntime(
         string worldSeed,
@@ -162,6 +170,36 @@ public sealed class PrivateWorldRuntime : IDisposable
             runtime.resources.Add(resource.ResourceId, resource.State);
         }
 
+        runtime.instructionsByIdempotency.Clear();
+        runtime.instructionReceipts.Clear();
+        runtime.completedInstructionIds.Clear();
+        foreach (var instruction in state.Instructions ?? [])
+        {
+            if (!runtime.instructionsByIdempotency.TryAdd(instruction.IdempotencyKey, instruction))
+            {
+                runtime.Dispose();
+                throw new InvalidDataException("The private-world instruction idempotency keys are duplicated.");
+            }
+
+            runtime.instructionReceipts.Add(
+                instruction.IdempotencyKey,
+                new OwnerInstructionReceipt(
+                    instruction.InstructionId,
+                    instruction.IdempotencyKey,
+                    instruction.SubmittedTick,
+                    instruction.RunEpoch,
+                    instruction.SubmissionSequence));
+        }
+
+        foreach (var completedInstructionId in state.CompletedInstructionIds ?? [])
+        {
+            runtime.completedInstructionIds.Add(completedInstructionId);
+        }
+
+        runtime.nextInstructionSequence = runtime.instructionsByIdempotency.Count == 0
+            ? 1
+            : checked(runtime.instructionsByIdempotency.Values.Max(item => item.SubmissionSequence) + 1);
+
         runtime.events.Clear();
         runtime.events.AddRange(state.Events);
         runtime.nextEventId = runtime.events.Count == 0 ? 1 : checked(runtime.events[^1].EventId + 1);
@@ -195,6 +233,60 @@ public sealed class PrivateWorldRuntime : IDisposable
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();
             return new PrivateWorldStepResult(true, "advanced", targetTick, dispatch.Decisions, newEvents);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public OwnerInstructionReceipt SubmitInstruction(OwnerInstructionRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateInstructionRequest(request);
+        gate.Wait();
+        try
+        {
+            var targetId = request.TargetInhabitantId.Trim();
+            var target = society.Checkpoint.Inhabitants.SingleOrDefault(item => item.Id == targetId);
+            if (target is null || target.Status != SocietyInhabitantStatus.Active)
+            {
+                throw new ArgumentException($"No active inhabitant with ID '{targetId}' exists.", nameof(request));
+            }
+
+            if (instructionsByIdempotency.TryGetValue(request.IdempotencyKey, out var existing))
+            {
+                if (!Matches(existing, request))
+                {
+                    throw new InvalidOperationException(
+                        "An idempotency key cannot be reused for a different instruction request.");
+                }
+
+                return instructionReceipts[request.IdempotencyKey];
+            }
+
+            var sequence = nextInstructionSequence++;
+            var instruction = new OwnerQueuedInstruction(
+                $"private-instruction-{sequence.ToString("D10", System.Globalization.CultureInfo.InvariantCulture)}",
+                request.IdempotencyKey.Trim(),
+                request.IssuerId.Trim(),
+                targetId,
+                request.Kind,
+                request.Text.Trim(),
+                WorldTick,
+                society.Checkpoint.RunEpoch,
+                sequence,
+                OwnerInstructionState.Queued);
+            instructionsByIdempotency.Add(instruction.IdempotencyKey, instruction);
+            var receipt = new OwnerInstructionReceipt(
+                instruction.InstructionId,
+                instruction.IdempotencyKey,
+                instruction.SubmittedTick,
+                instruction.RunEpoch,
+                sequence);
+            instructionReceipts.Add(instruction.IdempotencyKey, receipt);
+            AppendEvent("instruction_queued", $"{instruction.InstructionId}:{ToWireValue(instruction.Kind)}");
+            return receipt;
         }
         finally
         {
@@ -299,7 +391,11 @@ public sealed class PrivateWorldRuntime : IDisposable
         inhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray(),
         resources.OrderBy(item => item.Key, StringComparer.Ordinal)
             .Select(item => new PlaytestResourceState(item.Key, item.Value)).ToArray(),
-        events.ToArray());
+        events.ToArray(),
+        instructionsByIdempotency.Values
+            .OrderBy(item => item.SubmissionSequence)
+            .ToArray(),
+        completedInstructionIds.OrderBy(item => item, StringComparer.Ordinal).ToArray());
 
     private static SocietyWorldRuntime CreateSociety(
         string worldSeed,
@@ -442,7 +538,17 @@ public sealed class PrivateWorldRuntime : IDisposable
             return;
         }
 
+        var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
+        var forcedCandidate = pendingInstruction?.Kind == OwnerInstructionKind.MustDo
+            ? InstructionCandidate(pendingInstruction.Text)
+            : null;
+        if (forcedCandidate is not null && CreateCandidates(decision.InhabitantId, state)
+            .Any(candidate => candidate.Id == forcedCandidate))
+        {
+            candidateId = forcedCandidate;
+        }
+
         switch (candidateId)
         {
             case "seek_food":
@@ -460,6 +566,13 @@ public sealed class PrivateWorldRuntime : IDisposable
             default:
                 AppendEvent("inhabitant_idle", decision.InhabitantId);
                 break;
+        }
+
+        if (pendingInstruction is not null &&
+            (pendingInstruction.Kind == OwnerInstructionKind.Suggestive || forcedCandidate is not null))
+        {
+            completedInstructionIds.Add(pendingInstruction.InstructionId);
+            AppendEvent("instruction_applied", $"{pendingInstruction.InstructionId}:{candidateId}");
         }
     }
 
@@ -552,11 +665,23 @@ public sealed class PrivateWorldRuntime : IDisposable
         PlaytestInhabitantState state)
     {
         var candidates = new List<CognitionCandidate>();
+        var instruction = PendingInstructionFor(inhabitantId);
+        var instructionCandidate = instruction is null ? null : InstructionCandidate(instruction.Text);
+        if (instructionCandidate == "sleep")
+        {
+            candidates.Add(new CognitionCandidate("sleep", "Follow the owner's rest instruction.", 0, "bedroll"));
+        }
+
         var hasFood = society.Checkpoint.Inventory.Lots.Any(item =>
             item.OwnerId == inhabitantId && item.ItemKind == "food" && item.Quantity > 0);
         if (hasFood && state.HungerBasisPoints < 8_500)
         {
             candidates.Add(new CognitionCandidate("consume_food", "Eat one carried food item.", 0));
+        }
+
+        if (instructionCandidate == "consume_food" && hasFood && !candidates.Any(item => item.Id == "consume_food"))
+        {
+            candidates.Add(new CognitionCandidate("consume_food", "Follow the owner's food instruction.", 0));
         }
 
         var berry = map.GetResource(BerryResourceId);
@@ -569,7 +694,21 @@ public sealed class PrivateWorldRuntime : IDisposable
             candidates.Add(new CognitionCandidate("seek_food", "Travel to the available berry patch.", 5, BerryResourceId));
         }
 
-        if (state.EnergyBasisPoints < 3_500)
+        if (instructionCandidate == "seek_food" && resources[BerryResourceId] == ResourceState.Available &&
+            !candidates.Any(item => item.Id == "seek_food"))
+        {
+            candidates.Add(new CognitionCandidate("seek_food", "Follow the owner's travel instruction.", 0, BerryResourceId));
+        }
+
+        if (instructionCandidate == "harvest_food" &&
+            resources[BerryResourceId] == ResourceState.Available &&
+            state.Position == berry.Position &&
+            !candidates.Any(item => item.Id == "harvest_food"))
+        {
+            candidates.Add(new CognitionCandidate("harvest_food", "Follow the owner's harvest instruction.", 0, BerryResourceId));
+        }
+
+        if (state.EnergyBasisPoints < 3_500 && !candidates.Any(item => item.Id == "sleep"))
         {
             candidates.Add(new CognitionCandidate("sleep", "Sleep to recover energy.", 10, "bedroll"));
         }
@@ -580,6 +719,62 @@ public sealed class PrivateWorldRuntime : IDisposable
 
     private static int PriorityFor(PlaytestInhabitantState state) =>
         state.HungerBasisPoints < 2_500 || state.EnergyBasisPoints < 1_500 ? 20 : 0;
+
+    private OwnerQueuedInstruction? PendingInstructionFor(string inhabitantId) =>
+        instructionsByIdempotency.Values
+            .Where(item => item.TargetInhabitantId == inhabitantId &&
+                !completedInstructionIds.Contains(item.InstructionId))
+            .OrderBy(item => item.SubmissionSequence)
+            .FirstOrDefault();
+
+    private static string? InstructionCandidate(string text)
+    {
+        var normalized = text.Trim().ToLowerInvariant();
+        if (normalized.Contains("sleep") || normalized.Contains("rest"))
+        {
+            return "sleep";
+        }
+
+        if (normalized.Contains("harvest") || normalized.Contains("gather") || normalized.Contains("berry"))
+        {
+            return normalized.Contains("harvest") || normalized.Contains("gather")
+                ? "harvest_food"
+                : "seek_food";
+        }
+
+        if (normalized.Contains("eat") || normalized.Contains("food") || normalized.Contains("hungry"))
+        {
+            return "consume_food";
+        }
+
+        if (normalized.Contains("go") || normalized.Contains("travel") || normalized.Contains("move"))
+        {
+            return "seek_food";
+        }
+
+        return null;
+    }
+
+    private static bool Matches(OwnerQueuedInstruction existing, OwnerInstructionRequest request) =>
+        existing.IssuerId == request.IssuerId.Trim() &&
+        existing.TargetInhabitantId == request.TargetInhabitantId.Trim() &&
+        existing.Kind == request.Kind &&
+        existing.Text == request.Text.Trim();
+
+    private static void ValidateInstructionRequest(OwnerInstructionRequest request)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.IdempotencyKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.IssuerId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.TargetInhabitantId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.Text);
+    }
+
+    private static string ToWireValue(OwnerInstructionKind kind) => kind switch
+    {
+        OwnerInstructionKind.Suggestive => "suggestive",
+        OwnerInstructionKind.MustDo => "must_do",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind)),
+    };
 
     private static string ObservationDigest(
         string inhabitantId,

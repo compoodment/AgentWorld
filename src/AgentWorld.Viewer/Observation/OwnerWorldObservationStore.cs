@@ -241,6 +241,19 @@ public sealed class OwnerWorldObservationStore
                 "clear",
                 "spring",
                 []),
+            Instructions = (state.Instructions ?? [])
+                .Where(instruction => !(state.CompletedInstructionIds ?? []).Contains(instruction.InstructionId, StringComparer.Ordinal))
+                .OrderBy(instruction => instruction.SubmissionSequence)
+                .Select(instruction => new ViewerInstruction(
+                    instruction.InstructionId,
+                    instruction.TargetInhabitantId,
+                    ToWireValue(instruction.Kind),
+                    instruction.Text,
+                    ToWireValue(instruction.State),
+                    instruction.SubmittedTick,
+                    instruction.RunEpoch,
+                    instruction.SubmissionSequence))
+                .ToArray(),
             Cognition = ToCognition(state),
         };
     }

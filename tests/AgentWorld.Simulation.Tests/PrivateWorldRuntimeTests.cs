@@ -1,4 +1,5 @@
 using AgentWorld.Simulation.Playtest;
+using AgentWorld.Simulation.Harness;
 
 namespace AgentWorld.Simulation.Tests;
 
@@ -65,5 +66,27 @@ public sealed class PrivateWorldRuntimeTests
         Assert.False(paused.Advanced);
         Assert.Equal("paused", paused.Outcome);
         Assert.Single(runtime.ExportState().Events, worldEvent => worldEvent.Kind == "paused");
+    }
+
+    [Fact]
+    public async Task PrivateWorldInstructionsAreIdempotentAndReachCognition()
+    {
+        using var runtime = new PrivateWorldRuntime("playtest-alpha");
+        var request = new OwnerInstructionRequest(
+            "instruction-key-1",
+            "owner-device:test",
+            "founder-rowan",
+            OwnerInstructionKind.MustDo,
+            "sleep at the bedroll");
+
+        var first = runtime.SubmitInstruction(request);
+        var replay = runtime.SubmitInstruction(request);
+        _ = await runtime.AdvanceOneTickAsync();
+
+        Assert.Equal(first, replay);
+        Assert.Contains(runtime.ExportState().CompletedInstructionIds!, id => id == first.InstructionId);
+        Assert.Contains(
+            runtime.ExportState().Events,
+            worldEvent => worldEvent.Kind == "instruction_applied" && worldEvent.Detail.Contains(first.InstructionId, StringComparison.Ordinal));
     }
 }
