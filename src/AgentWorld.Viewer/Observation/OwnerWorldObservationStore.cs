@@ -437,6 +437,7 @@ public sealed class OwnerWorldObservationStore
         {
             new("personality", physical.Personality),
             new("aspiration", physical.Aspiration),
+            new("age-band", inhabitant.AgeBand.ToString().ToLowerInvariant()),
             new("role", inhabitant.CurrentRole.ToString().ToLowerInvariant()),
             new("household", household?.Name ?? "unhoused"),
             new("hunger", $"{physical.HungerBasisPoints} basis points"),
@@ -482,6 +483,11 @@ public sealed class OwnerWorldObservationStore
                 .Select(offer => offer.AcceptedBy.Contains(inhabitant.Id, StringComparer.Ordinal)
                     ? "Waiting for the other inhabitant to accept or decline an exchange."
                     : "An exchange is offered; acceptance or refusal is still undecided.")
+                .Concat(state.Inhabitants.Where(person => person.Parenthood is { } plan &&
+                    (person.InhabitantId == inhabitant.Id || plan.PartnerId == inhabitant.Id)).Select(person =>
+                    person.Parenthood!.Stage == "preparing" ? "Preparing for parenthood; food, shelter and both parents' consent are still required."
+                    : person.Parenthood.Stage == "requested" ? "Parenthood proposed; waiting for a separate decision."
+                    : person.Parenthood.Stage == "completed" ? "Caring for a child in the household." : "Parenthood plan withdrawn."))
                 .Concat(state.Society.Society.Memories.Where(memory => memory.OwnerId == inhabitant.Id && memory.Visibility == "public")
                     .OrderByDescending(memory => memory.SourceTick).Take(3).Select(memory => memory.Summary)).ToArray(),
         };

@@ -513,7 +513,7 @@ public static class SocietyFixture
         var childId = $"{checkpoint.WorldId}:inhabitant:{request.Id}";
         var child = new SocietyInhabitant(
             childId,
-            $"Child {childId}",
+            request.ChildName is null ? $"Child {childId}" : NormalizeRequiredText(request.ChildName, nameof(request.ChildName)),
             checkpoint.WorldTick,
             SocietyInhabitantStatus.Active,
             SocietyAgeBand.Infant,
@@ -1136,6 +1136,10 @@ public static class SocietyFixture
         NormalizeRequiredText(request.FirstParentId, nameof(request.FirstParentId));
         NormalizeRequiredText(request.SecondParentId, nameof(request.SecondParentId));
         NormalizeRequiredText(request.HouseholdId, nameof(request.HouseholdId));
+        if (request.ChildName is not null && (string.IsNullOrWhiteSpace(request.ChildName) || request.ChildName.Length > 80))
+        {
+            throw new ArgumentException("A child name must contain between 1 and 80 characters.", nameof(request));
+        }
         if (request.Revision <= 0 || request.FirstParentId == request.SecondParentId ||
             request.FoodQuantity <= 0 || request.RequestedTick < 0 ||
             request.RequestedTick > worldTick || request.CaregiverIds.Count == 0 ||

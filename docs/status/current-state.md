@@ -44,7 +44,7 @@ Provider work runs against an isolated proposed tick, so owner observations and
 pause remain responsive. Cancellation or intervening owner changes discard the
 proposal without partial world mutations. In-flight provider work is cancelled
 on manual pause or client lease expiry.
-Save schema 8 preserves practical lessons and council policy/ballots alongside survival conditions,
+Save schema 9 preserves parenthood preparation, practical lessons and council policy/ballots alongside survival conditions,
 fuel deadlines, work projects and additive settlement resources;
 the schema-4 history mechanism bounds hot histories
 and archives older events with verified hashes; reconnect explicitly resets
@@ -65,8 +65,8 @@ the authority file; old challenges fail closed after restart.
 | Inventory and ownership | **Playable** | Carried items and shared stores, gathering wood/stone/fiber/seeds, material requests, household sharing and food pickup | Negotiated barter and a broader economy remain incomplete |
 | Buildings and production | **Playable** | Persistent acquisition/work projects; hearth fuel, shelter insulation, storehouse preservation, bedding rest, clothing insulation and tool work-speed benefits | Equipment durability, repair and sophisticated logistics remain incomplete |
 | Trade and economy | **Integrated but thin** | Inhabitants offer personal surplus for needed items; each party independently accepts or refuses through planning cognition. Expiry/cancellation releases reservations; exchanges leave visible public memories | One-for-one barter, not negotiated pricing or an autonomous currency economy; opportunities depend on actual personal surplus |
-| Relationships and households | **Integrated but thin** | Households, cooperation memories, majority-voted food access, steward succession, practical apprenticeships and independently accepted/refused adult partnerships with unilateral withdrawal | Rich conflict, quantified trust and parenthood choices remain incomplete; learning currently grants basic builder/farmer roles |
-| Family, aging and death | **Integrated but thin** | Lifecycle, caregiving, birth, aging, death, estates and inheritance exist in society runtime/tests | Timescale and default play do not yet make this a practical player experience |
+| Relationships and households | **Integrated but thin** | Households, cooperation memories, majority-voted food access, steward succession, practical apprenticeships and independently accepted/refused adult partnerships with unilateral withdrawal | Rich conflict and quantified trust remain incomplete; learning currently grants basic builder/farmer roles |
+| Family, aging and death | **Integrated but thin** | Separate parental consent and preparation can create dependent infants when food/shelter/care remain available. Caregivers deliver actual food/warmth; infants have no paid cognition or adult work. Lifecycle, estates and inheritance remain in the society runtime | Aging still uses the long default calendar; guardian reassignment and intergenerational play need further work |
 | Ecology and weather | **Integrated but thin** | Renewable resources, seasons and weather affect warmth, fuel demand, illness, crop food yields and travel fatigue | Broader ecosystems, drought/flood damage and long-run tuning remain incomplete |
 | Factions, law, currency and culture | **Integrated but thin** | A household council can change shared-food access by majority vote; persistent faction/currency/culture contracts exist | Broader institutions, currency circulation and contested law remain incomplete |
 | Content governance | **Integrated but thin** | Canonical data-only packages and bundled starter content; validation, approval, staging, activation, rollback and quarantine | No friendly player proposal/approval workflow |

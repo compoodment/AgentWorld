@@ -531,6 +531,11 @@ public partial class Main : Control
             SetStatus("select an active inhabitant before sending an instruction", good: false);
             return;
         }
+        if (selected.DecisionFactors.Any(factor => factor.Key == "age-band" && factor.Detail == "infant"))
+        {
+            SetStatus("infants need care from an adult caregiver, not work instructions", good: false);
+            return;
+        }
 
         var text = instructionText.Text.Trim();
         if (string.IsNullOrWhiteSpace(text))
@@ -2104,7 +2109,8 @@ public partial class Main : Control
         }
 
         selectedActorNameLabel.Text = inhabitant.DisplayName;
-        selectedActorSummaryLabel.Text = Pretty(inhabitant.Lifecycle);
+        var ageBand = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail;
+        selectedActorSummaryLabel.Text = Pretty(inhabitant.Lifecycle) + (ageBand is null ? "" : " · " + Pretty(ageBand));
         var intention = inhabitant.PublicIntention is { } publicIntention
             ? $"Wants to {GameUiText.HumanizeIdentifier(publicIntention.Summary).ToLowerInvariant()}."
             : "Taking in their surroundings.";
@@ -2298,7 +2304,9 @@ public partial class Main : Control
         pairAgainButton.Visible = registration is not null;
         pairAgainButton.Disabled = isPairingOperation || isOwnerAction || isRefreshing;
         pauseButton.Disabled = actionDisabled || snapshot is null;
-        submitInstructionButton.Disabled = actionDisabled || selected is null || selected.IsDraft;
+        var infantSelected = selected?.DecisionFactors.Any(factor => factor.Key == "age-band" && factor.Detail == "infant") == true;
+        submitInstructionButton.Disabled = actionDisabled || selected is null || selected.IsDraft || infantSelected;
+        submitInstructionButton.TooltipText = infantSelected ? "Direct care through an adult caregiver." : "Send an instruction to this inhabitant.";
         submitAuthoringButton.Disabled = actionDisabled || !paused;
         authoringKind.Disabled = actionDisabled || !paused;
         authoringId.Editable = !actionDisabled && paused;

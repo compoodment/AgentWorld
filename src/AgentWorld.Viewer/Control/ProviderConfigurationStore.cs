@@ -681,7 +681,7 @@ public sealed partial class ConfigurableDecisionProvider(
             item.Role == (IsRoutine(observation) ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole));
 
     private static bool IsRoutine(InhabitantObservation observation) =>
-        observation.Candidates.All(candidate => RoutineCandidateIds.Contains(candidate.Id));
+        observation.Candidates.All(candidate => RoutineCandidateIds.Contains(candidate.Id) || candidate.Id.StartsWith("care:", StringComparison.Ordinal));
 
     private static StoredProviderCredential CredentialFor(
         RuntimeProviderConfiguration configuration,

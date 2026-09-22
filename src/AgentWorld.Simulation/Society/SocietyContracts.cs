@@ -216,7 +216,8 @@ public sealed record SocietyBirthRequest(
     int FoodQuantity,
     long RequestedTick,
     NewbornProviderPolicy ProviderPolicy = NewbornProviderPolicy.Hybrid,
-    string? RequestedProviderBindingId = null);
+    string? RequestedProviderBindingId = null,
+    string? ChildName = null);
 
 public sealed record SocietyEstate(
     string Id,

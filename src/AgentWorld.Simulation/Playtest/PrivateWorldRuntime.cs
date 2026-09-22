@@ -22,7 +22,8 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? LastDecisionContext = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementProject? Project = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SurvivalCondition? Survival = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementLesson? Lesson = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementLesson? Lesson = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementParenthood? Parenthood = null);
 
 public sealed record PlaytestResourceState(string ResourceId, ResourceState State);
 
@@ -68,7 +69,7 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 8;
+    public const int StateSchemaVersion = 9;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
@@ -431,6 +432,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             AdvanceSettlementCouncil();
             MaintainLessons();
             MaintainPartnerships();
+            MaintainParenthood();
             EnqueueDueCognition();
             var dispatch = await society.DispatchCognitionAsync(cancellationToken).ConfigureAwait(false);
             foreach (var decision in dispatch.Decisions.OrderBy(item => item.InhabitantId, StringComparer.Ordinal))
@@ -461,6 +463,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             if (target is null || target.Status != SocietyInhabitantStatus.Active)
             {
                 throw new ArgumentException($"No active inhabitant with ID '{targetId}' exists.", nameof(request));
+            }
+            if (target.AgeBand == SocietyAgeBand.Infant)
+            {
+                throw new ArgumentException("Infants cannot carry out owner instructions; direct care through an adult caregiver.", nameof(request));
             }
 
             if (instructionsByIdempotency.TryGetValue(request.IdempotencyKey, out var existing))
@@ -1704,6 +1710,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                      .Where(item => item.Status == SocietyInhabitantStatus.Active)
                      .OrderBy(item => item.Id, StringComparer.Ordinal))
         {
+            if (inhabitant.AgeBand == SocietyAgeBand.Infant)
+            {
+                continue;
+            }
             var physical = inhabitants[inhabitant.Id];
             if (physical.Project is { Stage: not ("completed" or "cancelled") } project &&
                 (physical.HungerBasisPoints < 3_500 || physical.EnergyBasisPoints < 2_500 || HasUrgentExposure(physical) && !IsProtectiveProject(project)))
@@ -1811,6 +1821,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             {
                 continue;
             }
+            if (inhabitant.AgeBand == SocietyAgeBand.Infant)
+            {
+                inhabitants[inhabitant.Id] = state with { EnergyBasisPoints = Math.Min(10_000, state.EnergyBasisPoints + 10) };
+                continue;
+            }
             if (CanContinueLesson(inhabitant.Id))
             {
                 ContinueLesson(inhabitant.Id);
@@ -1867,6 +1882,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         string candidateId,
         bool reportIdle)
     {
+        if (candidateId.StartsWith("parent_", StringComparison.Ordinal) || candidateId.StartsWith("care:", StringComparison.Ordinal))
+        {
+            ApplyParenthoodCandidate(inhabitantId, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("partner_", StringComparison.Ordinal))
         {
             ApplyFamilyCandidate(inhabitantId, candidateId);
@@ -2276,6 +2296,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             AddCouncilCandidates(candidates, inhabitantId);
             AddLearningCandidates(candidates, inhabitantId);
             AddFamilyCandidates(candidates, inhabitantId);
+            AddParenthoodCandidates(candidates, inhabitantId);
         }
 
         candidates.Add(new CognitionCandidate("safe_idle", "Continue safely without starting a new task.", 100));
@@ -2418,7 +2439,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        if (state.SchemaVersion is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or StateSchemaVersion) || string.IsNullOrWhiteSpace(state.WorldSeed) || state.EventHistoryFloor < 0)
+        if (state.SchemaVersion is < 1 or > StateSchemaVersion || string.IsNullOrWhiteSpace(state.WorldSeed) || state.EventHistoryFloor < 0)
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");
         }
@@ -2441,6 +2462,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         ValidateSurvival(state);
         ValidateCouncil(state);
         ValidateLessons(state);
+        ValidateParenthood(state);
         ContentPackageRegistry.Restore(state.Content);
         if (state.SchemaVersion >= 3 && state.Content is null)
         {

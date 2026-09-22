@@ -137,6 +137,7 @@ public sealed partial class PrivateWorldRuntime
         !HasTradeResponse(state.InhabitantId) &&
         !HasCouncilDecision(state.InhabitantId) &&
         !HasFamilyDecision(state.InhabitantId) &&
+        !HasParenthoodDecision(state.InhabitantId) &&
         !inhabitants.Keys.Any(other => TradeOpportunity(state.InhabitantId, other) is not null) &&
         (!HasUrgentExposure(state) || IsProtectiveProject(state.Project)) &&
         PendingInstructionFor(state.InhabitantId) is null;

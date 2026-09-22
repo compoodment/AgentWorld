@@ -495,6 +495,10 @@ epochs, and a stable result reference. The kernel processes same-tick requests
 by `(requested_tick, submission_sequence, birth_request_id)` and never validates
 two requests against the same unreserved input.
 
+The concrete society request may carry an optional nonblank display name of at
+most 80 characters. It never replaces the world/request-derived child identity
+or idempotency key; omitting it retains the legacy generated display name.
+
 The transaction has these boundaries:
 
 1. **Readiness:** validate the affected participants are alive and eligible,

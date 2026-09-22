@@ -75,6 +75,16 @@ different build revision cannot falsely appear as a simulation change.
 
 ## Release checklist
 
+### Private-world save schema 9
+
+Schema 9 adds optional per-inhabitant parenthood proposals, preparation and child
+references. Schemas 1–8 remain readable; schema-3-and-later paused checkpoints
+are preserved until a resumed mutation needs the current schema. Starting a
+parenthood plan upgrades the checkpoint. Birth commits identity, relationships,
+food consumption and physical state in the same proposed tick. Malformed stages,
+participant IDs, duplicate active plans and future ticks fail closed. Preserve
+the pre-upgrade application, save and history for rollback.
+
 ### Private-world save schema 8
 
 Schema 8 adds optional per-inhabitant apprenticeship state: mentor, requested
@@ -82,8 +92,8 @@ role, stage, progress and tick bounds. Schemas 1–7 remain readable; paused sav
 from schema 3 onward retain their checkpoint representation on restore. Schemas
 1–2 normalize to the baseline schema-3 composition. Beginning training upgrades
 the save; invalid mentors, stages,
-progress or duplicate active mentor assignments fail closed. New saves use
-schema 8. Preserve the pre-upgrade save/history and application for rollback.
+progress or duplicate active mentor assignments fail closed. This migration
+introduced schema 8. Preserve the pre-upgrade save/history and application for rollback.
 
 ### Private-world save schema 7
 

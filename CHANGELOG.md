@@ -8,6 +8,13 @@ release yet.
 
 ### Added
 
+- Connected separate parenthood proposals and consent to delayed, atomic births
+  when food, shelter and caregivers remain available. Withdrawal, separation or
+  loss of a parent cancels preparation; partnership alone never creates a child.
+- Added dependent infants with physical needs and actual caregiver food/warmth
+  delivery. Infants make no hosted-model calls or adult work decisions; the UI
+  shows age bands and family-plan status. Schema 9 preserves preparation across
+  restart without changing an older paused save.
 - Connected adult partnership proposals to independent acceptance/refusal and
   unilateral withdrawal. Prior cooperation opens a choice, not automatic
   consent; unanswered proposals expire and rejected pairs have a cooldown.

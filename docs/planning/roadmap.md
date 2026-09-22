@@ -139,7 +139,10 @@ learner's request and mentor acceptance, persists joint work and grants actual
 builder/farmer permissions; tests cover refusal, pause/restart, exhaustion and
 mentor death. Adult partnerships now require an independent response after
 cooperation; either person can withdraw and unanswered proposals expire.
-General skills, separate parenthood choices and intergenerational continuity remain open.
+Separate parenthood choices now require both adults' consent, preparation and
+rechecked material readiness. Runtime tests cover one atomic birth across
+restart, refusal/expiry, separation, actual feeding and zero infant provider
+calls. General skills, guardian reassignment and playable life pacing remain open.
 
 ## Later — Creation and richer worlds
 

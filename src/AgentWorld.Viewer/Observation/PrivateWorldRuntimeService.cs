@@ -103,7 +103,9 @@ public sealed partial class PrivateWorldRuntimeService(
                     LogSettlementLesson(logger, result.WorldTick, worldEvent.Kind);
                 }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "partnership_proposed" or "partnership_accepted" or
-                             "partnership_refused" or "partnership_ended" or "partnership_expired"))
+                             "partnership_refused" or "partnership_ended" or "partnership_expired" or
+                             "parenthood_requested" or "parenthood_preparing" or "parenthood_cancelled" or "parenthood_completed" or
+                             "child_born" or "child_cared_for"))
                 {
                     LogSettlementFamily(logger, result.WorldTick, worldEvent.Kind);
                 }
