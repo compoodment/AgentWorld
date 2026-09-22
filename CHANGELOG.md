@@ -8,6 +8,20 @@ release yet.
 
 ### Added
 
+- Added per-inhabitant routine/planning provider and model overrides, with
+  explicit inheritance from world defaults and shared host-only credentials.
+- Added automatic, versioned starter content activation on the first resumed
+  client-present tick: shelter, storage, cooking fire, workshop, crops, meals
+  and tools. Existing paused worlds remain unchanged until resumed.
+- Connected household food pickup to movement, inventory ownership and eating.
+- Added per-inhabitant accepted decision, fallback, model, token and latency
+  telemetry to the selection card without showing prompts or keys.
+- Reused unchanged idle decisions across ticks and reloads, with a bounded
+  reevaluation deadline and immediate reconsideration when legal choices change.
+- Compacted cognition settings and centered the game menu independently of
+  inhabitant selection, with engine-level layout regression checks.
+- Limited the product roadmap to single-player; multiplayer is out of scope.
+
 - Added structured, secret-safe live observability for cognition provider
   calls, authoritative intention outcomes, usage, latency, and world lifecycle
   gates so private-world behavior can be diagnosed from host logs.

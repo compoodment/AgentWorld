@@ -24,6 +24,7 @@ public sealed class OwnerWorldObservationStore
         "owner-observation.read.v1",
         "owner-control.request.v1",
         "owner-provider-configuration.v1",
+        "owner-inhabitant-provider-configuration.v1",
         "paused-authoring.request.v1",
         "content-governance.read.v1",
         "content-governance.write.v1",
@@ -683,7 +684,19 @@ public sealed class OwnerWorldObservationStore
                     worldEvent.WorldTick,
                     worldEvent.Kind,
                     worldEvent.Detail))
-                .ToArray());
+                .ToArray(),
+            runtimes.Where(runtime => runtime.CurrentIntention is not null)
+                .Select(runtime =>
+                {
+                    var intention = runtime.CurrentIntention!;
+                    return new ViewerInhabitantDecision(
+                        runtime.InhabitantId, intention.Usage?.ProviderId ?? intention.Provider.ToString().ToLowerInvariant(),
+                        intention.CandidateId, intention.WorldTick, intention.Confidence,
+                        intention.Usage?.ModelId, intention.Usage?.InputTokens, intention.Usage?.OutputTokens,
+                        intention.Usage?.Role, intention.Usage?.LatencyMilliseconds,
+                        runtime.Events.LastOrDefault(item => item.WorldTick == intention.WorldTick &&
+                            item.Kind is "cognition_fallback_applied" or "cognition_decision_applied")?.Kind == "cognition_fallback_applied");
+                }).ToArray());
     }
 
     private static ViewerPosition ToPosition(GridPoint point) => new(point.X, point.Y);

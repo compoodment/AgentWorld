@@ -88,7 +88,8 @@ public sealed record ProviderConfigurationState(
     string PlanningProvider,
     StoredProviderCredential Jev,
     StoredProviderCredential OpenAi,
-    StoredProviderCredential OllamaCloud);
+    StoredProviderCredential OllamaCloud,
+    IReadOnlyList<InhabitantProviderAssignment>? Assignments = null);
 
 public sealed record RuntimeProviderConfiguration(
     string RoutineProvider,
@@ -96,7 +97,8 @@ public sealed record RuntimeProviderConfiguration(
     StoredProviderCredential Jev,
     StoredProviderCredential OpenAi,
     StoredProviderCredential OllamaCloud,
-    long Revision);
+    long Revision,
+    IReadOnlyList<InhabitantProviderAssignment>? Assignments = null);
 
 /// <summary>
 /// Keeps player-supplied hosted-provider credentials outside world saves and
@@ -137,7 +139,8 @@ public sealed class ProviderConfigurationStore
                 state.Jev,
                 state.OpenAi,
                 state.OllamaCloud,
-                state.Revision);
+                state.Revision,
+                state.Assignments);
         }
     }
 
@@ -155,6 +158,10 @@ public sealed class ProviderConfigurationStore
         lock (gate)
         {
             var role = PlayerDecisionProviders.NormalizeRole(action.Role);
+            if (action.InhabitantId is not null)
+            {
+                return ConfigureInhabitant(action, role);
+            }
             var provider = PlayerDecisionProviders.Normalize(action.Provider);
             PlayerDecisionProviders.ValidateRoleProvider(role, provider);
             var current = state;
@@ -172,6 +179,55 @@ public sealed class ProviderConfigurationStore
             state = next;
             return ToStatus(next);
         }
+    }
+
+    private OwnerProviderConfigurationStatus ConfigureInhabitant(OwnerProviderConfigurationAction action, string role)
+    {
+        var id = action.InhabitantId!;
+        if (string.IsNullOrWhiteSpace(id) || id.Length > 128 || id != id.Trim())
+        {
+            throw new ArgumentException("An assignment requires a valid inhabitant ID.", nameof(action));
+        }
+        if (action.ForgetCredential)
+        {
+            throw new ArgumentException("Remove shared keys from world settings, not an individual assignment.", nameof(action));
+        }
+
+        var assignments = (state.Assignments ?? [])
+            .Where(item => item.InhabitantId != id || item.Role != role).ToList();
+        var next = state;
+        if (action.Provider == "inherit")
+        {
+            if (action.Model is not null || action.ApiKey is not null)
+            {
+                throw new ArgumentException("Inheritance does not accept a model or key.", nameof(action));
+            }
+        }
+        else
+        {
+            var provider = PlayerDecisionProviders.Normalize(action.Provider);
+            PlayerDecisionProviders.ValidateRoleProvider(role, provider);
+            next = SelectProvider(state, role, provider, action);
+            var model = provider == PlayerDecisionProviders.Deterministic ? null : CredentialFor(next, provider)!.Model;
+            // Selection validates credentials, but a personal model must not change the world model.
+            if (provider != PlayerDecisionProviders.Deterministic)
+            {
+                next = WithCredential(next, provider, CredentialFor(next, provider)! with { Model = CredentialFor(state, provider)!.Model });
+            }
+            assignments.Add(new InhabitantProviderAssignment(id, role, provider, model));
+        }
+
+        next = next with
+        {
+            RoutineProvider = state.RoutineProvider,
+            PlanningProvider = state.PlanningProvider,
+            Assignments = assignments.OrderBy(item => item.InhabitantId, StringComparer.Ordinal)
+                .ThenBy(item => item.Role, StringComparer.Ordinal).ToArray(),
+            Revision = checked(state.Revision + 1),
+        };
+        SaveUnsafe(next);
+        state = next;
+        return ToStatus(next);
     }
 
     private ProviderConfigurationState LoadOrCreate(ProviderConfigurationSeed seed)
@@ -281,6 +337,7 @@ public sealed class ProviderConfigurationStore
         var oldCredential = CredentialFor(current, provider)!;
         var model = NormalizeModel(action.Model, oldCredential.Model);
         var next = WithCredential(current, provider, new StoredProviderCredential(model, null));
+        next = next with { Assignments = (next.Assignments ?? []).Where(item => item.Provider != provider).ToArray() };
         return string.Equals(ActiveProviderFor(current, role), provider, StringComparison.Ordinal)
             ? WithActiveProvider(next, role, PlayerDecisionProviders.Deterministic)
             : next;
@@ -340,7 +397,7 @@ public sealed class ProviderConfigurationStore
             new(PlayerDecisionProviders.Jev, state.Jev.Model, !string.IsNullOrWhiteSpace(state.Jev.ApiKey)),
             new(PlayerDecisionProviders.OpenAi, state.OpenAi.Model, !string.IsNullOrWhiteSpace(state.OpenAi.ApiKey)),
             new(PlayerDecisionProviders.OllamaCloud, state.OllamaCloud.Model, !string.IsNullOrWhiteSpace(state.OllamaCloud.ApiKey)),
-        ]));
+        ]), state.Assignments ?? []);
 
     private static void ValidateState(ProviderConfigurationState state)
     {
@@ -356,6 +413,25 @@ public sealed class ProviderConfigurationStore
         ValidateCredential(state.Jev, PlayerDecisionProviders.DefaultJevModel);
         ValidateCredential(state.OpenAi, PlayerDecisionProviders.DefaultOpenAiModel);
         ValidateCredential(state.OllamaCloud, PlayerDecisionProviders.DefaultOllamaCloudModel);
+        var assignmentKeys = new HashSet<(string, string)>();
+        foreach (var assignment in state.Assignments ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(assignment.InhabitantId) ||
+                !assignmentKeys.Add((assignment.InhabitantId, assignment.Role)))
+            {
+                throw new InvalidDataException("Provider assignments must have unique inhabitant/role identities.");
+            }
+            PlayerDecisionProviders.ValidateRoleProvider(assignment.Role, assignment.Provider);
+            if (assignment.Provider != PlayerDecisionProviders.Deterministic &&
+                string.IsNullOrWhiteSpace(CredentialFor(state, assignment.Provider)?.ApiKey))
+            {
+                throw new InvalidDataException("An assigned provider has no stored credential.");
+            }
+            if (assignment.Model is not null)
+            {
+                _ = NormalizeModel(assignment.Model, string.Empty);
+            }
+        }
         if ((routine != PlayerDecisionProviders.Deterministic &&
                 string.IsNullOrWhiteSpace(CredentialFor(state, routine)?.ApiKey)) ||
             (planning != PlayerDecisionProviders.Deterministic &&
@@ -452,6 +528,7 @@ public sealed partial class ConfigurableDecisionProvider(
     private static readonly HashSet<string> RoutineCandidateIds = new(StringComparer.Ordinal)
     {
         "consume_food",
+        "collect_shared_food",
         "harvest_food",
         "seek_food",
         "sleep",
@@ -492,8 +569,13 @@ public sealed partial class ConfigurableDecisionProvider(
 
         var isRoutine = IsRoutine(request.Observation);
         var role = isRoutine ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole;
-        var providerId = isRoutine ? selected.RoutineProvider : selected.PlanningProvider;
+        var providerId = ProviderFor(selected, request.Observation);
         var credential = CredentialFor(selected, providerId);
+        var assignment = AssignmentFor(selected, request.Observation);
+        if (assignment?.Model is { } model)
+        {
+            credential = credential with { Model = model };
+        }
         IDecisionProvider provider = providerId switch
         {
             PlayerDecisionProviders.Deterministic => new DeterministicDecisionProvider(),
@@ -542,6 +624,10 @@ public sealed partial class ConfigurableDecisionProvider(
             {
                 Provider = MapKind(providerId),
                 ProviderEpoch = selected.Revision,
+                Usage = new CognitionUsage(
+                    response.Usage?.ModelId ?? (string.IsNullOrWhiteSpace(credential.Model) ? null : credential.Model),
+                    response.Usage?.InputTokens ?? 0, response.Usage?.OutputTokens ?? 0,
+                    stopwatch.ElapsedMilliseconds, providerId, role),
             };
         }
         catch (OperationCanceledException)
@@ -583,8 +669,13 @@ public sealed partial class ConfigurableDecisionProvider(
         RuntimeProviderConfiguration configuration,
         InhabitantObservation observation)
     {
-        return IsRoutine(observation) ? configuration.RoutineProvider : configuration.PlanningProvider;
+        return AssignmentFor(configuration, observation)?.Provider ??
+            (IsRoutine(observation) ? configuration.RoutineProvider : configuration.PlanningProvider);
     }
+
+    private static InhabitantProviderAssignment? AssignmentFor(RuntimeProviderConfiguration configuration, InhabitantObservation observation) =>
+        configuration.Assignments?.FirstOrDefault(item => item.InhabitantId == observation.InhabitantId &&
+            item.Role == (IsRoutine(observation) ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole));
 
     private static bool IsRoutine(InhabitantObservation observation) =>
         observation.Candidates.All(candidate => RoutineCandidateIds.Contains(candidate.Id));

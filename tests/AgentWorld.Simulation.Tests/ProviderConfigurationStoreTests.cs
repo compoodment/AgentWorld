@@ -7,6 +7,63 @@ namespace AgentWorld.Simulation.Tests;
 public sealed class ProviderConfigurationStoreTests
 {
     [Fact]
+    public async Task PersonalAssignmentsRouteIndependentlySurviveRestartAndCanInheritAgain()
+    {
+        var directory = Directory.CreateTempSubdirectory("agentworld-assignment-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "providers.json");
+            var store = new ProviderConfigurationStore(path, EmptySeed());
+            _ = store.Configure(new("planning", "ollama-cloud", "world-model", "cloud-test-secret", false));
+            _ = store.Configure(new("planning", "openai", "personal-model", "openai-test-secret", false, "inhabitant-test"));
+            Assert.Equal("ollama-cloud", store.CaptureStatus().PlanningProvider);
+            Assert.Single(store.CaptureStatus().Assignments!);
+            Assert.DoesNotContain("test-secret", System.Text.Json.JsonSerializer.Serialize(store.CaptureStatus()), StringComparison.Ordinal);
+
+            store = new ProviderConfigurationStore(path, EmptySeed());
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            var response = await router.DecideAsync(Request(router.ProviderEpoch, strategic: true));
+            Assert.Equal("api.openai.com", handler.LastUri!.Host);
+            Assert.Equal("personal-model", handler.LastModel);
+            Assert.Equal("openai", response.Usage!.ProviderId);
+            Assert.Equal("planning", response.Usage.Role);
+            Assert.True(response.Usage.LatencyMilliseconds >= 0);
+            var other = Request(router.ProviderEpoch, strategic: true);
+            _ = await router.DecideAsync(other with { Observation = other.Observation with { InhabitantId = "other" } });
+            Assert.Equal("ollama.com", handler.LastUri!.Host);
+            Assert.Equal("world-model", handler.LastModel);
+
+            _ = store.Configure(new("planning", "inherit", null, null, false, "inhabitant-test"));
+            Assert.Empty(store.CaptureStatus().Assignments!);
+            _ = await router.DecideAsync(Request(router.ProviderEpoch, strategic: true));
+            Assert.Equal("ollama.com", handler.LastUri!.Host);
+
+            _ = store.Configure(new("planning", "openai", "personal-model", null, false, "inhabitant-test"));
+            _ = store.Configure(new("planning", "openai", null, null, true));
+            Assert.Empty(store.CaptureStatus().Assignments!);
+            Assert.Equal("ollama-cloud", store.CaptureStatus().PlanningProvider);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AssignmentTargetIsBoundByBothClientAndServerSignatures()
+    {
+        var action = new OwnerProviderConfigurationAction("planning", "deterministic", null, null, false, "mira");
+        var clientAction = new AgentWorld.GodotClient.UI.OwnerProviderConfigurationAction("planning", "deterministic", null, null, false, "mira");
+        Assert.Equal(OwnerHttpBinding.ProviderConfigurationPayload(action),
+            AgentWorld.GodotClient.UI.OwnerWorldActionPayload.ProviderConfiguration(clientAction));
+        Assert.NotEqual(OwnerHttpBinding.ProviderConfigurationPayload(action),
+            OwnerHttpBinding.ProviderConfigurationPayload(action with { InhabitantId = "rowan" }));
+        Assert.NotEqual(OwnerHttpBinding.ProviderConfigurationPayload(action),
+            OwnerHttpBinding.ProviderConfigurationPayload(action with { InhabitantId = null }));
+    }
+
+    [Fact]
     public async Task PlayerCanSwitchAmongEverySupportedProviderAndForgettingAnActiveKeyFallsBack()
     {
         var directory = System.IO.Path.Combine(
@@ -233,13 +290,16 @@ public sealed class ProviderConfigurationStoreTests
         public Uri? LastUri { get; private set; }
 
         public string? LastAuthorization { get; private set; }
+        public string? LastModel { get; private set; }
 
-        protected override Task<HttpResponseMessage> SendAsync(
+        protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             LastUri = request.RequestUri;
             LastAuthorization = request.Headers.Authorization?.ToString();
+            using var payload = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+            LastModel = payload.RootElement.TryGetProperty("model", out var model) ? model.GetString() : null;
             var isJev = string.Equals(request.RequestUri?.Host, "api.typesafe.ai", StringComparison.Ordinal);
             var body = isJev
                 ? """
@@ -248,10 +308,10 @@ public sealed class ProviderConfigurationStoreTests
                 : """
                   {"model":"hosted-test","choices":[{"message":{"role":"assistant","content":"{\"selected_candidate_id\":\"safe_idle\",\"confidence\":1.0,\"probabilities\":{\"safe_idle\":1.0}}"}}]}
                   """;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(body),
-            });
+            };
         }
     }
 

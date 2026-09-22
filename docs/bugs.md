@@ -20,7 +20,28 @@ path.
 | AW-B004 | Medium | Menu layout | With no inhabitant selected, the pause/menu content drops toward the bottom of the screen. | Menu position and layout remain stable regardless of world selection state and supported window size. |
 | AW-B005 | Medium | Player observability | Provider decisions, fallback and usage are visible in safe server logs but not clearly in the game. | A compact in-game activity view shows provider role/model, accepted/fallback outcome and bounded usage/latency without exposing prompts, raw responses or secrets. |
 
-## Rules
+## First repair increment
+
+- **AW-B001 — partially addressed:** normal host ticks now stage a validated,
+  versioned starter package for both fresh and old saves. Four buildings and
+  three recipes lead to construction, production and household food pickup.
+  Three-input gathering and richer material/project loops remain roadmap work.
+- **AW-B002 — implemented:** persisted idle observation keys prevent repeated
+  calls for unchanged choices; a 300-tick deadline bounds reuse. A regression
+  test proves four calls remain four through 61 ticks and a reload.
+- **AW-B003 — implemented:** compact controls, progressive help, and explicit
+  world/inhabitant target selection retain both cognition roles.
+- **AW-B004 — implemented:** container-owned centering replaces cached-height
+  placement. Godot checks selection and settings toggles at three window sizes.
+- **AW-B005 — implemented:** selected-inhabitant cards show accepted provider,
+  action and fallback; tooltips show model, role and available usage/latency.
+  Existing server logs remain the detailed operator diagnosis path.
+
+These are implementation evidence, not a claim that Living Settlement's whole
+acceptance gate is complete. Live migration remains deferred while the owner
+keeps the existing world manually paused.
+
+## Maintenance rules
 
 - Record only reproduced defects or demonstrated product gaps.
 - Put speculative features on the [roadmap](planning/roadmap.md), not here.

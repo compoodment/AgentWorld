@@ -141,6 +141,7 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
         Assert.Contains("owner-observation.read.v1", reconnect.Handshake.ServerCapabilities);
         Assert.Contains("owner-control.request.v1", reconnect.Handshake.ServerCapabilities);
         Assert.Contains("owner-provider-configuration.v1", reconnect.Handshake.ServerCapabilities);
+        Assert.Contains("owner-inhabitant-provider-configuration.v1", reconnect.Handshake.ServerCapabilities);
         Assert.True(factory.Services.GetRequiredService<OwnerClientPresenceLease>().HasActiveClient);
         Assert.Single(reconnect.Baseline.Snapshot.Inhabitants);
         Assert.NotNull(reconnect.Baseline.Snapshot.Authoring);
@@ -645,6 +646,26 @@ public sealed class ViewerHttpTests(ViewerWebApplicationFactory factory) : IClas
                 Assert.Equal("openai", status.PlanningProvider);
                 Assert.True(status.Providers.Single(item => item.Provider == "openai").HasCredential);
                 Assert.DoesNotContain(secret, responseText, StringComparison.Ordinal);
+
+                var personal = new OwnerProviderConfigurationAction("planning", "deterministic", null, null, false, "founder-scout");
+                using var personalResponse = await SendSignedAsync(host, client, key, pairedDevice.DeviceId,
+                    "/api/v1/owner/providers/configure", personal, OwnerHttpBinding.ProviderConfigurationPayload(personal));
+                Assert.Equal(HttpStatusCode.OK, personalResponse.StatusCode);
+                var personalStatus = await personalResponse.Content.ReadFromJsonAsync<OwnerProviderConfigurationStatus>();
+                Assert.Equal("founder-scout", Assert.Single(personalStatus!.Assignments!).InhabitantId);
+                Assert.Equal("openai", personalStatus.PlanningProvider);
+
+                var tampered = personal with { InhabitantId = "founder-rowan" };
+                using var tamperedResponse = await SendSignedAsync(host, client, key, pairedDevice.DeviceId,
+                    "/api/v1/owner/providers/configure", tampered, OwnerHttpBinding.ProviderConfigurationPayload(personal));
+                Assert.False(tamperedResponse.IsSuccessStatusCode);
+                Assert.Equal(personalStatus.Revision, host.Services.GetRequiredService<ProviderConfigurationStore>().CaptureStatus().Revision);
+
+                var missing = personal with { InhabitantId = "not-an-inhabitant" };
+                using var missingResponse = await SendSignedAsync(host, client, key, pairedDevice.DeviceId,
+                    "/api/v1/owner/providers/configure", missing, OwnerHttpBinding.ProviderConfigurationPayload(missing));
+                Assert.Equal(HttpStatusCode.BadRequest, missingResponse.StatusCode);
+                Assert.Equal(personalStatus.Revision, host.Services.GetRequiredService<ProviderConfigurationStore>().CaptureStatus().Revision);
 
                 var providerPath = host.Services.GetRequiredService<ProviderConfigurationStore>().Path;
                 Assert.Contains(secret, File.ReadAllText(providerPath), StringComparison.Ordinal);

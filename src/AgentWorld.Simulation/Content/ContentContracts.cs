@@ -514,7 +514,7 @@ public sealed class ContentPackageRegistry
         _ = Restore(ExportState());
     }
 
-    public ContentPackageRecord Propose(ContentPackageManifest manifest)
+    public ContentPackageRecord Propose(ContentPackageManifest manifest, long worldTick = 0)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         manifest.Validate();
@@ -533,7 +533,7 @@ public sealed class ContentPackageRegistry
             null,
             ContentPackageManifestCodec.ComputeManifestDigest(manifest));
         packages.Add(manifest.PackageId, record);
-        AppendEvent(0, manifest.PackageId, "package_proposed", manifest.PackageDigest);
+        AppendEvent(worldTick, manifest.PackageId, "package_proposed", manifest.PackageDigest);
         return record;
     }
 

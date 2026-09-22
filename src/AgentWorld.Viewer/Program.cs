@@ -1115,7 +1115,8 @@ app.MapPost("/api/v1/owner/providers/status", (
 app.MapPost("/api/v1/owner/providers/configure", (
     OwnerSignedHttpRequest<OwnerProviderConfigurationAction> request,
     OwnerRequestAuthorizer authorizer,
-    ProviderConfigurationStore providers) =>
+    ProviderConfigurationStore providers,
+    OwnerWorldObservationStore observations) =>
 {
     if (request?.Action is null)
     {
@@ -1150,6 +1151,14 @@ app.MapPost("/api/v1/owner/providers/configure", (
 
     try
     {
+        if (request.Action.InhabitantId is { } target &&
+            !observations.GetSnapshot().Inhabitants.Any(item => item.Id == target))
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["inhabitantId"] = ["Choose an inhabitant in this world."],
+            });
+        }
         return Results.Ok(providers.Configure(request.Action));
     }
     catch (ArgumentException exception)

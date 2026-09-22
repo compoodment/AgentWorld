@@ -36,6 +36,7 @@ public sealed partial class PrivateWorldRuntimeService(
             return false;
         }
 
+        _ = runtime.StageStarterContent();
         var result = await runtime.AdvanceOneTickAsync(cancellationToken);
         LogGateTransition(result.Advanced ? "advancing" : result.Outcome, result.WorldTick);
         if (result.Advanced)

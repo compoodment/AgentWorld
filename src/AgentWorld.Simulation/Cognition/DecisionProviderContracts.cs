@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AgentWorld.Simulation.Cognition;
 
@@ -164,11 +165,14 @@ public sealed record CognitionDecisionResponse(
 public sealed record CognitionUsage(
     string? ModelId,
     int InputTokens,
-    int OutputTokens)
+    int OutputTokens,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? LatencyMilliseconds = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ProviderId = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Role = null)
 {
     public void Validate()
     {
-        if (InputTokens < 0 || OutputTokens < 0)
+        if (InputTokens < 0 || OutputTokens < 0 || LatencyMilliseconds < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(InputTokens));
         }

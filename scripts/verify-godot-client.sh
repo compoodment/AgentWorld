@@ -42,3 +42,4 @@ test -n "${godot_bin}"
 printf 'Building Godot C# scripts and starting the scene headlessly\n'
 "${godot_bin}" --headless --path "${repo_root}/src/AgentWorld.GodotClient" --build-solutions --quit
 "${godot_bin}" --headless --path "${repo_root}/src/AgentWorld.GodotClient" --quit-after 120
+"${godot_bin}" --headless --path "${repo_root}/src/AgentWorld.GodotClient" -- --ui-smoke-test

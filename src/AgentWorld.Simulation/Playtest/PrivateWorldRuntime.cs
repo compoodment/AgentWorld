@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AgentWorld.Simulation.Content;
 using AgentWorld.Simulation.Cognition;
 using AgentWorld.Simulation.Harness;
@@ -17,7 +18,8 @@ public sealed record PlaytestInhabitantState(
     int EnergyBasisPoints,
     int MoveWaitTicks,
     string Personality,
-    string Aspiration);
+    string Aspiration,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? LastDecisionContext = null);
 
 public sealed record PlaytestResourceState(string ResourceId, ResourceState State);
 
@@ -427,9 +429,37 @@ public sealed class PrivateWorldRuntime : IDisposable
         gate.Wait();
         try
         {
-            var record = contentRegistry.Propose(manifest);
+            var record = contentRegistry.Propose(manifest, WorldTick);
             AppendEvent("content_proposed", manifest.PackageId);
             return record;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public bool StageStarterContent()
+    {
+        gate.Wait();
+        try
+        {
+            if (society.Checkpoint.IsPaused || contentRegistry.ExportState().Packages
+                .Any(package => package.Manifest.PackageId == StarterContent.PackageId))
+            {
+                // Never undo an owner's rollback or quarantine, or mutate a paused save.
+                return false;
+            }
+
+            var manifest = StarterContent.Create();
+            _ = ContentDefinitionPayloadCodec.ApplyPackage(worldContent, manifest);
+            var resolution = ContentPackageResolver.Resolve([manifest], [manifest.PackageId]);
+            contentRegistry.Propose(manifest, WorldTick);
+            contentRegistry.Validate(manifest.PackageId, resolution, WorldTick);
+            contentRegistry.Approve(manifest.PackageId, WorldTick);
+            contentRegistry.Stage(manifest.PackageId, WorldTick);
+            AppendEvent("starter_content_staged", manifest.PackageId);
+            return true;
         }
         finally
         {
@@ -1542,9 +1572,19 @@ public sealed class PrivateWorldRuntime : IDisposable
     private bool NeedsCognition(
         string inhabitantId,
         CognitionIntention? current,
-        IReadOnlyList<CognitionCandidate> candidates)
+        List<CognitionCandidate> candidates)
     {
-        if (PendingInstructionFor(inhabitantId) is not null || current is null)
+        if (PendingInstructionFor(inhabitantId) is not null)
+        {
+            return true;
+        }
+
+        if (candidates.Count == 1 && candidates[0].Id == "safe_idle")
+        {
+            return false;
+        }
+
+        if (current is null)
         {
             return true;
         }
@@ -1559,8 +1599,19 @@ public sealed class PrivateWorldRuntime : IDisposable
             return true;
         }
 
+        if (current.CandidateId == "safe_idle")
+        {
+            var physical = inhabitants[inhabitantId];
+            return DecisionContext(physical, candidates) != physical.LastDecisionContext ||
+                checked(WorldTick - current.WorldTick) >= 300;
+        }
+
         return checked(WorldTick - current.WorldTick) >= CognitionReevaluationIntervalTicks;
     }
+
+    private static string DecisionContext(PlaytestInhabitantState state, List<CognitionCandidate> candidates) =>
+        $"{state.HungerBasisPoints < 2_500}:{state.EnergyBasisPoints < 1_500}:" +
+        string.Join('|', candidates.Select(candidate => candidate.Id).Order(StringComparer.Ordinal));
 
     private void ApplyContinuingIntentions(IEnumerable<string> dispatchedInhabitantIds)
     {
@@ -1603,6 +1654,8 @@ public sealed class PrivateWorldRuntime : IDisposable
             candidateId = forcedCandidate;
         }
 
+        state = state with { LastDecisionContext = DecisionContext(state, CreateCandidates(decision.InhabitantId, state)) };
+        inhabitants[decision.InhabitantId] = state;
         ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
 
         if (pendingInstruction is not null &&
@@ -1640,6 +1693,9 @@ public sealed class PrivateWorldRuntime : IDisposable
                 break;
             case "consume_food":
                 ConsumeFood(inhabitantId, state);
+                break;
+            case "collect_shared_food":
+                CollectSharedFood(inhabitantId, state);
                 break;
             case "sleep":
                 Sleep(inhabitantId, state);
@@ -1844,6 +1900,37 @@ public sealed class PrivateWorldRuntime : IDisposable
         AppendEvent("food_harvested", $"{inhabitantId}:{HarvestFoodYield}");
     }
 
+    private InventoryLot? AvailableSharedFood()
+    {
+        var inventory = society.Checkpoint.Inventory;
+        return inventory.Lots.OrderBy(lot => lot.Id, StringComparer.Ordinal).FirstOrDefault(lot =>
+            lot.OwnerId == HouseholdId && lot.ItemKind == "food" && lot.Quantity > inventory.Reservations
+                .Where(reservation => reservation.LotId == lot.Id &&
+                    reservation.State is InventoryReservationState.Reserved or
+                        InventoryReservationState.PartiallyConsumed or InventoryReservationState.Committed)
+                .Sum(reservation => reservation.Quantity));
+    }
+
+    private void CollectSharedFood(string inhabitantId, PlaytestInhabitantState state)
+    {
+        var supplyPoint = map.GetObject("bedroll").Position;
+        if (!IsWithinInteractionRange(state.Position, supplyPoint, ResourceInteractionRange))
+        {
+            MoveToward(inhabitantId, state, supplyPoint, "household_food", ResourceInteractionRange);
+            return;
+        }
+
+        if (AvailableSharedFood() is not { } lot)
+        {
+            return;
+        }
+
+        ApplyInventoryTransition(inventory => InventoryFixture.Transfer(
+            inventory, $"household-food:{WorldTick}:{inhabitantId}", HouseholdId, inhabitantId,
+            lot.Id, 1, "household_food_share"));
+        AppendEvent("household_food_collected", $"{inhabitantId}:{lot.Id}:1");
+    }
+
     private void ConsumeFood(string inhabitantId, PlaytestInhabitantState state)
     {
         var lot = society.Checkpoint.Inventory.Lots
@@ -1899,6 +1986,14 @@ public sealed class PrivateWorldRuntime : IDisposable
         var berry = map.GetResource(BerryResourceId);
         var foodPriority = state.HungerBasisPoints < 2_500 ? 2 : 5;
         var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000;
+        if (shouldGatherFood && contentRegistry.ExportState().Packages.Any(package =>
+                package.Manifest.PackageId == StarterContent.PackageId && package.Lifecycle == ContentPackageLifecycle.Active) &&
+            AvailableSharedFood() is not null)
+        {
+            candidates.Add(new CognitionCandidate("collect_shared_food",
+                "Collect one available household food serving at camp, then eat it.",
+                foodPriority - 1, HouseholdId));
+        }
         if (shouldGatherFood && resources[BerryResourceId] == ResourceState.Available &&
             IsWithinInteractionRange(state.Position, berry.Position, ResourceInteractionRange))
         {

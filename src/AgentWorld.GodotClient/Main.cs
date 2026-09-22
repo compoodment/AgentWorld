@@ -2,6 +2,7 @@ using AgentWorld.GodotClient.ClientState;
 using AgentWorld.GodotClient.Pairing;
 using AgentWorld.GodotClient.UI;
 using Godot;
+using System.Globalization;
 
 namespace AgentWorld.GodotClient;
 
@@ -35,6 +36,7 @@ public partial class Main : Control
     private readonly Button pairAgainButton = new();
     private readonly PanelContainer cognitionSettingsPanel = new();
     private readonly OptionButton cognitionRoleChoice = new();
+    private readonly OptionButton cognitionTargetChoice = new();
     private readonly OptionButton cognitionProviderChoice = new();
     private readonly LineEdit cognitionModelInput = new();
     private readonly LineEdit cognitionApiKeyInput = new();
@@ -63,10 +65,6 @@ public partial class Main : Control
     private readonly Control objectLayer = new();
     private readonly Control entityLayer = new();
     private readonly Label rosterSummaryLabel = new();
-    private readonly Label cognitionProviderValue = new();
-    private readonly Label cognitionCandidateValue = new();
-    private readonly Label cognitionRequestValue = new();
-    private readonly Label cognitionActivityValue = new();
     private readonly PanelContainer selectedInhabitantCard = new();
     private readonly Label selectedActorNameLabel = new();
     private readonly Label selectedActorSummaryLabel = new();
@@ -136,6 +134,11 @@ public partial class Main : Control
     public override void _Ready()
     {
         BuildLayout();
+        if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))
+        {
+            _ = VerifyMenuLayoutAsync();
+            return;
+        }
         _ = TryGetCommandLineWorldUrl(out var commandLineUrl);
         worldUrlInput.Text = commandLineUrl ?? ConfiguredWorldUrl();
         _ = InitializeAsync();
@@ -147,6 +150,47 @@ public partial class Main : Control
         };
         timer.Timeout += () => _ = PulseAsync();
         AddChild(timer);
+    }
+
+    private async Task VerifyMenuLayoutAsync()
+    {
+        try
+        {
+            pairingPanel.Hide();
+            developerScroll.Hide();
+            gameMenuPanel.Show();
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(1920, 1080), new Vector2I(1024, 768) })
+            {
+                GetWindow().Size = size;
+                foreach (var settingsVisible in new[] { false, true })
+                {
+                    settingsPanel.Visible = settingsVisible;
+                    foreach (var selected in new[] { false, true, false })
+                    {
+                        selectedInhabitantCard.Visible = selected;
+                        for (var frame = 0; frame < 5; frame++)
+                        {
+                            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                        }
+                        ApplyResponsiveLayout();
+                        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                        var menu = gameMenuPanel.GetGlobalRect();
+                        var bounds = gameMenuPanel.GetParent<Control>().GetGlobalRect();
+                        if (menu.GetCenter().DistanceTo(bounds.GetCenter()) > 2 || !bounds.Encloses(menu))
+                        {
+                            throw new InvalidOperationException($"Menu escaped its centered bounds: window={size}, settings={settingsVisible}, selected={selected}, menu={menu}, bounds={bounds}");
+                        }
+                    }
+                }
+            }
+            GD.Print("UI layout checks passed: centered menu with/without selection and settings at three window sizes.");
+            GetTree().Quit();
+        }
+        catch (Exception exception)
+        {
+            GD.PushError(exception.Message);
+            GetTree().Quit(1);
+        }
     }
 
     public override void _ExitTree()
@@ -649,7 +693,8 @@ public partial class Main : Control
         {
             providerConfiguration = await ownerApi.GetProviderStatusAsync(
                 ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
-            SelectProviderChoice(ActiveProviderForSelectedRole());
+            PopulateCognitionTargets();
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
             RenderProviderConfiguration();
             return "loaded inhabitant cognition settings";
         });
@@ -668,9 +713,10 @@ public partial class Main : Control
         var action = new OwnerProviderConfigurationAction(
             role,
             provider,
-            provider == "deterministic" ? null : EmptyToNull(cognitionModelInput.Text),
-            provider == "deterministic" ? null : EmptyToNull(cognitionApiKeyInput.Text),
-            ForgetCredential: false);
+            provider is "deterministic" or "inherit" ? null : EmptyToNull(cognitionModelInput.Text),
+            provider is "deterministic" or "inherit" ? null : EmptyToNull(cognitionApiKeyInput.Text),
+            ForgetCredential: false,
+            InhabitantId: SelectedCognitionTarget());
         try
         {
             await RunOwnerActionAsync(async () =>
@@ -721,7 +767,32 @@ public partial class Main : Control
 
     private string SelectedRoleId() => cognitionRoleChoice.Selected == 1 ? "planning" : "routine";
 
-    private string ActiveProviderForSelectedRole() => providerConfiguration is null
+    private string? SelectedCognitionTarget() => cognitionTargetChoice.Selected <= 0
+        ? null : cognitionTargetChoice.GetItemMetadata(cognitionTargetChoice.Selected).AsString();
+
+    private void PopulateCognitionTargets()
+    {
+        var target = SelectedCognitionTarget();
+        cognitionTargetChoice.Clear();
+        cognitionTargetChoice.AddItem("World defaults");
+        foreach (var inhabitant in observationSession.Current?.Baseline.Snapshot.Inhabitants ?? [])
+        {
+            cognitionTargetChoice.AddItem(inhabitant.DisplayName);
+            var index = cognitionTargetChoice.ItemCount - 1;
+            cognitionTargetChoice.SetItemMetadata(index, inhabitant.Id);
+            if (inhabitant.Id == target)
+            {
+                cognitionTargetChoice.Select(index);
+            }
+        }
+    }
+
+    private InhabitantProviderAssignment? SelectedAssignment() => providerConfiguration?.Assignments?
+        .FirstOrDefault(item => item.InhabitantId == SelectedCognitionTarget() && item.Role == SelectedRoleId());
+
+    private string ActiveProviderForSelectedRole() => SelectedCognitionTarget() is not null
+        ? SelectedAssignment()?.Provider ?? "inherit"
+        : providerConfiguration is null
         ? "deterministic"
         : SelectedRoleId() == "planning"
             ? providerConfiguration.PlanningProvider
@@ -730,15 +801,19 @@ public partial class Main : Control
     private void PopulateProviderChoices(string selectedProvider)
     {
         cognitionProviderChoice.Clear();
-        cognitionProviderChoice.AddItem("Deterministic");
+        if (SelectedCognitionTarget() is not null)
+        {
+            AddProviderChoice("Use world default", "inherit");
+        }
+        AddProviderChoice("Deterministic", "deterministic");
         if (SelectedRoleId() == "routine")
         {
-            cognitionProviderChoice.AddItem("Jev");
+            AddProviderChoice("Jev", "jev");
         }
         else
         {
-            cognitionProviderChoice.AddItem("OpenAI");
-            cognitionProviderChoice.AddItem("Ollama Cloud");
+            AddProviderChoice("OpenAI", "openai");
+            AddProviderChoice("Ollama Cloud", "ollama-cloud");
         }
 
         SelectProviderChoice(selectedProvider);
@@ -746,48 +821,51 @@ public partial class Main : Control
 
     private void SelectProviderChoice(string provider)
     {
-        var selected = SelectedRoleId() switch
+        for (var index = 0; index < cognitionProviderChoice.ItemCount; index++)
         {
-            "routine" when provider == "jev" => 1,
-            "planning" when provider == "openai" => 1,
-            "planning" when provider == "ollama-cloud" => 2,
-            _ => 0,
-        };
-        cognitionProviderChoice.Select(selected);
+            if (cognitionProviderChoice.GetItemMetadata(index).AsString() == provider)
+            {
+                cognitionProviderChoice.Select(index);
+                return;
+            }
+        }
+        cognitionProviderChoice.Select(0);
     }
 
-    private string SelectedProviderId() => (SelectedRoleId(), cognitionProviderChoice.Selected) switch
+    private void AddProviderChoice(string label, string id)
     {
-        ("routine", 1) => "jev",
-        ("planning", 1) => "openai",
-        ("planning", 2) => "ollama-cloud",
-        _ => "deterministic",
-    };
+        cognitionProviderChoice.AddItem(label);
+        cognitionProviderChoice.SetItemMetadata(cognitionProviderChoice.ItemCount - 1, id);
+    }
+
+    private string SelectedProviderId() => cognitionProviderChoice.Selected < 0
+        ? "deterministic" : cognitionProviderChoice.GetItemMetadata(cognitionProviderChoice.Selected).AsString();
 
     private void RenderProviderConfiguration()
     {
         var provider = SelectedProviderId();
         var option = providerConfiguration?.Providers.FirstOrDefault(item =>
             string.Equals(item.Provider, provider, StringComparison.Ordinal));
-        var hosted = provider != "deterministic";
+        var hosted = provider is not ("deterministic" or "inherit");
         cognitionModelInput.Visible = hosted;
         cognitionApiKeyInput.Visible = hosted;
         cognitionCredentialHint.Visible = hosted;
-        forgetCognitionCredentialButton.Visible = hosted;
+        forgetCognitionCredentialButton.Visible = hosted && SelectedCognitionTarget() is null;
         if (hosted && option is not null && !cognitionModelInput.HasFocus())
         {
-            cognitionModelInput.Text = option.Model;
+            cognitionModelInput.Text = SelectedAssignment() is { } assignment && assignment.Provider == provider
+                ? assignment.Model ?? option.Model : option.Model;
         }
 
         cognitionApiKeyInput.PlaceholderText = option?.HasCredential == true
-            ? "Saved on private world host · leave blank to keep it"
-            : "Paste API key (sent once; never saved on this device)";
+            ? "Leave blank to keep saved key"
+            : "API key";
         cognitionCredentialHint.Text = option?.HasCredential == true
-            ? "A key is saved on the private world host. It is never returned to this client."
-            : "No key is saved for this provider.";
+            ? "Key saved on host"
+            : "No saved key";
         cognitionConfigurationStatus.Text = providerConfiguration is null
-            ? "Provider status has not been loaded yet."
-            : $"Routine: {ProviderDisplayName(providerConfiguration.RoutineProvider)} · Planning: {ProviderDisplayName(providerConfiguration.PlanningProvider)} · revision {providerConfiguration.Revision}";
+            ? "Loading…"
+            : $"Routine: {ProviderDisplayName(providerConfiguration.RoutineProvider)} · Planning: {ProviderDisplayName(providerConfiguration.PlanningProvider)}";
         RefreshControlAvailability();
     }
 
@@ -800,6 +878,7 @@ public partial class Main : Control
         "jev" => "Jev",
         "openai" => "OpenAI",
         "ollama-cloud" => "Ollama Cloud",
+        "inherit" => "World default",
         _ => "Deterministic",
     };
 
@@ -1134,16 +1213,18 @@ public partial class Main : Control
         var body = new VBoxContainer();
         body.AddThemeConstantOverride("separation", 6);
 
-        var explanation = new Label
+        cognitionTargetChoice.AddItem("World defaults");
+        cognitionTargetChoice.ItemSelected += _ =>
         {
-            Text = "Configure two cognition roles. Jev handles small routine survival choices; OpenAI or Ollama Cloud handles planning and work. Movement, collisions, costs, and action validation always remain authoritative game rules.",
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            cognitionApiKeyInput.Text = string.Empty;
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            RenderProviderConfiguration();
         };
-        explanation.Modulate = new Color("AFC4BA");
-        body.AddChild(explanation);
+        body.AddChild(cognitionTargetChoice);
 
-        cognitionRoleChoice.AddItem("Routine survival decisions");
-        cognitionRoleChoice.AddItem("Planning and work decisions");
+        cognitionRoleChoice.AddItem("Routine survival");
+        cognitionRoleChoice.AddItem("Planning and work");
+        cognitionRoleChoice.TooltipText = "Routine handles daily needs. Planning chooses projects. Both roles can use different providers.";
         cognitionRoleChoice.ItemSelected += _ =>
         {
             cognitionApiKeyInput.Text = string.Empty;
@@ -1153,7 +1234,10 @@ public partial class Main : Control
             cognitionModelInput.Text = option?.Model ?? DefaultProviderModel(selected);
             RenderProviderConfiguration();
         };
-        body.AddChild(cognitionRoleChoice);
+        var providerRow = new HBoxContainer();
+        cognitionRoleChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        cognitionProviderChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        providerRow.AddChild(cognitionRoleChoice);
 
         PopulateProviderChoices("deterministic");
         cognitionProviderChoice.ItemSelected += _ =>
@@ -1164,7 +1248,8 @@ public partial class Main : Control
             cognitionModelInput.Text = option?.Model ?? DefaultProviderModel(selected);
             RenderProviderConfiguration();
         };
-        body.AddChild(cognitionProviderChoice);
+        providerRow.AddChild(cognitionProviderChoice);
+        body.AddChild(providerRow);
 
         cognitionModelInput.PlaceholderText = "Model ID";
         body.AddChild(cognitionModelInput);
@@ -1177,24 +1262,18 @@ public partial class Main : Control
         cognitionCredentialHint.Modulate = new Color("8FA5A7");
         body.AddChild(cognitionCredentialHint);
 
-        var securityNote = new Label
-        {
-            Text = "The key is sent over this paired HTTPS connection, stored only on the private world host, never returned, and never written to the Windows client or world save.",
-            AutowrapMode = TextServer.AutowrapMode.WordSmart,
-        };
-        securityNote.Modulate = new Color("8FA5A7");
-        body.AddChild(securityNote);
+        cognitionCredentialHint.TooltipText = "Keys travel over paired HTTPS and stay on the host. They are never returned, logged, or included in world saves.";
 
         cognitionConfigurationStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         body.AddChild(cognitionConfigurationStatus);
 
         var buttons = new HBoxContainer();
         buttons.AddThemeConstantOverride("separation", 6);
-        saveCognitionProviderButton.Text = "Save and use";
+        saveCognitionProviderButton.Text = "Apply";
         StyleButton(saveCognitionProviderButton, primary: true);
         saveCognitionProviderButton.Pressed += () => _ = SaveProviderConfigurationAsync();
         buttons.AddChild(saveCognitionProviderButton);
-        forgetCognitionCredentialButton.Text = "Forget saved key";
+        forgetCognitionCredentialButton.Text = "Remove key";
         StyleButton(forgetCognitionCredentialButton);
         forgetCognitionCredentialButton.Pressed += () => _ = ForgetProviderCredentialAsync();
         buttons.AddChild(forgetCognitionCredentialButton);
@@ -1528,7 +1607,14 @@ public partial class Main : Control
         AddPanelContents(gameMenuPanel, body);
         gameMenuPanel.ZIndex = 100;
         gameMenuPanel.Hide();
-        content.AddChild(gameMenuPanel);
+        var menuCenter = new CenterContainer
+        {
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            ZIndex = 100,
+        };
+        menuCenter.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        content.AddChild(menuCenter);
+        menuCenter.AddChild(gameMenuPanel);
         UpdateAuthoringHint();
     }
 
@@ -1748,7 +1834,6 @@ public partial class Main : Control
         RenderWorldHud(snapshot);
         RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
-        RenderCognition(snapshot);
         RenderWorldDetails(snapshot);
         RenderEventLog();
         RefreshControlAvailability();
@@ -1999,34 +2084,17 @@ public partial class Main : Control
                     return $"{Pretty(relationship.Type)} with {other} · {Pretty(relationship.State)}";
                 }));
         inhabitantSocialDetails.Clear();
-        inhabitantSocialDetails.AppendText($"{intention}\n{relationships}");
+        var decision = snapshot.Cognition?.Decisions?.FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
+        var activity = decision is null
+            ? "No decision yet"
+            : $"{Pretty(decision.Provider)}{(decision.FellBack ? " (fallback)" : "")} · {Pretty(decision.CandidateId)} · tick {decision.WorldTick:N0}";
+        inhabitantSocialDetails.Text = $"{intention}\n{relationships}\n{activity}";
+        inhabitantSocialDetails.TooltipText = decision is null ? "" :
+            $"Last accepted decision\nRole: {decision.Role ?? "not reported"}\nModel: {decision.Model ?? "not reported"}\nConfidence: {decision.Confidence:P0}\n" +
+            $"Latency: {decision.LatencyMilliseconds?.ToString(CultureInfo.CurrentCulture) ?? "—"} ms\n" +
+            $"Tokens in/out: {decision.InputTokens?.ToString(CultureInfo.CurrentCulture) ?? "—"}/{decision.OutputTokens?.ToString(CultureInfo.CurrentCulture) ?? "—"}";
         selectedInhabitantCard.Show();
         PositionSelectedInhabitantCard(snapshot);
-    }
-
-    private void RenderCognition(OwnerWorldSnapshot snapshot)
-    {
-        if (snapshot.Cognition is not { } cognition)
-        {
-            cognitionProviderValue.Text = "Not reported";
-            cognitionCandidateValue.Text = "No current intention";
-            cognitionRequestValue.Text = "No request in flight";
-            cognitionActivityValue.Text = "The server did not include cognition status in this observation.";
-            return;
-        }
-
-        cognitionProviderValue.Text = string.IsNullOrWhiteSpace(cognition.Provider)
-            ? "Unnamed provider"
-            : Pretty(cognition.Provider);
-        cognitionCandidateValue.Text = cognition.CurrentCandidateId ?? "No current intention";
-        cognitionRequestValue.Text = cognition.InFlightRequestId ?? "No request in flight";
-        cognitionRequestValue.Modulate = cognition.IsPaused
-            ? new Color("F3C77B")
-            : new Color("E5EFEA");
-        var latest = cognition.Events.OrderBy(worldEvent => worldEvent.EventId).LastOrDefault();
-        cognitionActivityValue.Text = latest is null
-            ? (cognition.IsPaused ? "Cognition is paused." : "No cognition events reported yet.")
-            : $"{Pretty(latest.Kind)}  ·  tick {latest.WorldTick:N0}\n{latest.Detail}";
     }
 
     private void RenderWorldDetails(OwnerWorldSnapshot snapshot)
@@ -2256,10 +2324,6 @@ public partial class Main : Control
 
         var menuWidth = Math.Min(560, Math.Max(320, viewport.X - 28));
         gameMenuPanel.CustomMinimumSize = new Vector2(menuWidth, 0);
-        var menuSize = gameMenuPanel.GetCombinedMinimumSize();
-        gameMenuPanel.Position = new Vector2(
-            Math.Max(14, (viewport.X - menuWidth) / 2),
-            Math.Max(14, (viewport.Y - menuSize.Y) / 2));
 
         var toastSize = statusToast.GetCombinedMinimumSize();
         statusToast.Position = new Vector2(

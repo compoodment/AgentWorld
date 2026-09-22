@@ -558,7 +558,41 @@ public sealed class PrivateWorldRuntimeTests
         }
     }
 
-    private sealed class CountingSelectingProvider(DecisionProviderKind kind) : IDecisionProvider
+    [Fact]
+    public async Task UnchangedIdleDecisionsAreNotRepurchasedEveryThirtyTicksOrOnReload()
+    {
+        var provider = new CountingSelectingProvider(DecisionProviderKind.Jev, chooseIdle: true);
+        using var runtime = new PrivateWorldRuntime("playtest-alpha", _ => provider);
+        _ = await runtime.AdvanceOneTickAsync();
+        Assert.Equal(4, provider.CallCount);
+        for (var tick = 0; tick < 60; tick++)
+        {
+            _ = await runtime.AdvanceOneTickAsync();
+        }
+
+        Assert.Equal(4, provider.CallCount);
+        using var restored = PrivateWorldRuntime.Restore(
+            PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(runtime.ExportState())), _ => provider);
+        _ = await restored.AdvanceOneTickAsync();
+        Assert.Equal(4, provider.CallCount);
+
+        var hungry = restored.ExportState();
+        using var urgent = PrivateWorldRuntime.Restore(hungry with
+        {
+            Inhabitants = hungry.Inhabitants.Select(inhabitant => inhabitant with { HungerBasisPoints = 2_000 }).ToArray(),
+        }, _ => provider);
+        _ = await urgent.AdvanceOneTickAsync();
+        Assert.Equal(8, provider.CallCount);
+    }
+
+    [Fact]
+    public void LegacyInhabitantsDoNotAcquireNullDecisionCacheFieldsWhenSaved()
+    {
+        using var runtime = new PrivateWorldRuntime("playtest-alpha");
+        Assert.DoesNotContain("lastDecisionContext", System.Text.Encoding.UTF8.GetString(PrivateWorldRuntimeCodec.Encode(runtime.ExportState())), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class CountingSelectingProvider(DecisionProviderKind kind, bool chooseIdle = false) : IDecisionProvider
     {
         private int callCount;
 
@@ -576,7 +610,7 @@ public sealed class PrivateWorldRuntimeTests
             cancellationToken.ThrowIfCancellationRequested();
             Interlocked.Increment(ref callCount);
             var selected = request.Observation.Candidates
-                .OrderBy(candidate => candidate.DeterministicPriority)
+                .OrderBy(candidate => chooseIdle && candidate.Id == "safe_idle" ? int.MinValue : candidate.DeterministicPriority)
                 .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
                 .First();
             var probabilities = request.Observation.Candidates.ToDictionary(

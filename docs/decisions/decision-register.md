@@ -17,6 +17,15 @@ evidence where applicable, and a matching design-log entry.
 
 ## Batch 1 — closed decisions
 
+**Scope override (2026-09-22):** AgentWorld is a private single-player game.
+Multiplayer and public/shared worlds are excluded, superseding earlier
+multiplayer-later proposals. Multiple paired devices belonging to the owner
+remain supported; they do not introduce other players.
+
+**Provider assignment (2026-09-22):** Each inhabitant can override either
+cognition role's provider/model or inherit the world default. Provider keys
+remain shared host credentials, never copied into inhabitant/world saves.
+
 The first design interview established these decisions:
 
 - The human is an **observer-director**. They observe by default and issue

@@ -171,6 +171,13 @@ public sealed class ViewerObservationTests
 
         Assert.Contains(snapshot.Inhabitants, inhabitant =>
             inhabitant.PublicIntention is { WorldTick: 1, Summary: not null });
+        Assert.Equal(4, snapshot.Cognition!.Decisions!.Count);
+        Assert.All(snapshot.Cognition.Decisions, decision =>
+        {
+            Assert.Equal(1, decision.WorldTick);
+            Assert.Equal("deterministic", decision.Provider);
+            Assert.Contains(snapshot.Inhabitants, inhabitant => inhabitant.Id == decision.InhabitantId);
+        });
         Assert.All(snapshot.Inhabitants.Where(inhabitant => inhabitant.PublicIntention is not null), inhabitant =>
         {
             Assert.DoesNotContain("chain", inhabitant.PublicIntention!.Summary, StringComparison.OrdinalIgnoreCase);

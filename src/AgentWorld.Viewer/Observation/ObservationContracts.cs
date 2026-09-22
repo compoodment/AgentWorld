@@ -94,13 +94,19 @@ public sealed record ViewerInstruction(
 
 public sealed record ViewerCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
+public sealed record ViewerInhabitantDecision(
+    string InhabitantId, string Provider, string CandidateId, long WorldTick,
+    double Confidence, string? Model, int? InputTokens, int? OutputTokens,
+    string? Role = null, long? LatencyMilliseconds = null, bool FellBack = false);
+
 public sealed record ViewerCognition(
     string Provider,
     bool IsPaused,
     string? InFlightRequestId,
     string? CurrentCandidateId,
     string? CurrentDecisionProvider,
-    IReadOnlyList<ViewerCognitionEvent> Events);
+    IReadOnlyList<ViewerCognitionEvent> Events,
+    IReadOnlyList<ViewerInhabitantDecision>? Decisions = null);
 
 public sealed record ViewerContentPackage(
     string PackageId,

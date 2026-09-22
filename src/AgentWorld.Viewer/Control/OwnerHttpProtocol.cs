@@ -59,7 +59,10 @@ public sealed record OwnerProviderConfigurationAction(
     string Provider,
     string? Model,
     string? ApiKey,
-    bool ForgetCredential);
+    bool ForgetCredential,
+    string? InhabitantId = null);
+
+public sealed record InhabitantProviderAssignment(string InhabitantId, string Role, string Provider, string? Model = null);
 
 public sealed record OwnerProviderOptionStatus(
     string Provider,
@@ -70,7 +73,8 @@ public sealed record OwnerProviderConfigurationStatus(
     string RoutineProvider,
     string PlanningProvider,
     long Revision,
-    IReadOnlyList<OwnerProviderOptionStatus> Providers);
+    IReadOnlyList<OwnerProviderOptionStatus> Providers,
+    IReadOnlyList<InhabitantProviderAssignment>? Assignments = null);
 
 public sealed record OwnerInstructionAction(
     string IdempotencyKey,
@@ -156,7 +160,7 @@ public static class OwnerHttpBinding
         var apiKeyDigest = action.ApiKey is null
             ? "-"
             : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
-        return string.Join(
+        var payload = string.Join(
             '\n',
             "agentworld.owner-provider-configuration.v1",
             $"role={EncodeRequired(action.Role, nameof(action.Role))}",
@@ -164,6 +168,7 @@ public static class OwnerHttpBinding
             $"model={EncodeOptional(action.Model)}",
             $"api-key-sha256={apiKeyDigest}",
             $"forget-credential={action.ForgetCredential.ToString().ToLowerInvariant()}");
+        return action.InhabitantId is null ? payload : payload + "\ninhabitant=" + EncodeRequired(action.InhabitantId, nameof(action.InhabitantId));
     }
 
     public static string InstructionPayload(OwnerInstructionAction action) => string.Join(

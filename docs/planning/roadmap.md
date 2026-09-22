@@ -48,6 +48,7 @@ or obstruction.
    - emergent work preferences and settlement roles;
    - inspectable reasons without exposing hidden model reasoning.
 5. **Cognition cost and feedback**
+   - per-inhabitant provider/model assignments with world-default inheritance;
    - suppress repeated paid `safe_idle` calls;
    - show compact provider decision/fallback/usage activity in-game;
    - retain secret-safe structured host telemetry.
@@ -117,17 +118,16 @@ its consequences remain visible across time, relationships and succession.
 **Gate:** new content materially expands the live world while preserving save,
 authority, rollback and host-isolation guarantees.
 
-## Release and multiplayer
+## Single-player release
 
 Public packaging comes after the private world is coherent:
 
 - signed client distribution, update/migration flow and recovery UX;
-- additional desktop platforms as justified;
-- only then: accounts, shared-world permissions, moderation, capacity and
-  public discovery.
+- additional desktop platforms as justified.
 
-**Gate:** multiplayer extends a stable single-world game; it is not used to
-hide an unfinished simulation.
+**Gate:** a stable private single-player game has a reproducible distribution,
+update and recovery path. Multiplayer, shared-world roles and public discovery
+are excluded by the owner's 2026-09-22 decision.
 
 ## Completed foundation
 

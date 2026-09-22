@@ -88,13 +88,19 @@ public sealed record OwnerWorldInstruction(
 
 public sealed record OwnerWorldCognitionEvent(long EventId, long WorldTick, string Kind, string Detail);
 
+public sealed record OwnerWorldInhabitantDecision(
+    string InhabitantId, string Provider, string CandidateId, long WorldTick,
+    double Confidence, string? Model, int? InputTokens, int? OutputTokens,
+    string? Role = null, long? LatencyMilliseconds = null, bool FellBack = false);
+
 public sealed record OwnerWorldCognition(
     string Provider,
     bool IsPaused,
     string? InFlightRequestId,
     string? CurrentCandidateId,
     string? CurrentDecisionProvider,
-    IReadOnlyList<OwnerWorldCognitionEvent> Events);
+    IReadOnlyList<OwnerWorldCognitionEvent> Events,
+    IReadOnlyList<OwnerWorldInhabitantDecision>? Decisions = null);
 
 public sealed record OwnerWorldContentPackage(
     string PackageId,
@@ -227,7 +233,10 @@ public sealed record OwnerProviderConfigurationAction(
     string Provider,
     string? Model,
     string? ApiKey,
-    bool ForgetCredential);
+    bool ForgetCredential,
+    string? InhabitantId = null);
+
+public sealed record InhabitantProviderAssignment(string InhabitantId, string Role, string Provider, string? Model = null);
 
 public sealed record OwnerProviderOptionStatus(
     string Provider,
@@ -238,7 +247,8 @@ public sealed record OwnerProviderConfigurationStatus(
     string RoutineProvider,
     string PlanningProvider,
     long Revision,
-    IReadOnlyList<OwnerProviderOptionStatus> Providers);
+    IReadOnlyList<OwnerProviderOptionStatus> Providers,
+    IReadOnlyList<InhabitantProviderAssignment>? Assignments = null);
 
 public sealed record OwnerInstructionAction(
     string IdempotencyKey,
@@ -474,7 +484,7 @@ public static class OwnerWorldActionPayload
         var apiKeyDigest = action.ApiKey is null
             ? "-"
             : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
-        return string.Join(
+        var payload = string.Join(
             '\n',
             "agentworld.owner-provider-configuration.v1",
             $"role={EncodeRequired(action.Role, nameof(action.Role))}",
@@ -482,6 +492,7 @@ public static class OwnerWorldActionPayload
             $"model={EncodeOptional(action.Model)}",
             $"api-key-sha256={apiKeyDigest}",
             $"forget-credential={action.ForgetCredential.ToString().ToLowerInvariant()}");
+        return action.InhabitantId is null ? payload : payload + "\ninhabitant=" + EncodeRequired(action.InhabitantId, nameof(action.InhabitantId));
     }
 
     public static string Instruction(OwnerInstructionAction action) => string.Join(

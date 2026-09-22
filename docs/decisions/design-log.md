@@ -2,7 +2,7 @@
 title: AgentWorld Design Log
 type: decision-history
 status: history
-updated: 2026-09-19
+updated: 2026-09-22
 ---
 
 # Design Log
@@ -718,3 +718,14 @@ ephemeral host concern rather than persisted world state, so a disconnect can
 gate execution without corrupting the durable pause epoch or world history.
 Supporting multiple active paired devices also avoids treating one transport
 connection as a new source of simulation authority.
+
+## 2026-09-22 — Single-player scope and individual cognition
+
+The owner explicitly excluded multiplayer from the development plan. This
+supersedes earlier statements that shared/public worlds were a later goal.
+An owner may still pair their own devices to the same private host.
+
+The owner also confirmed that inhabitants need independent provider choices.
+World defaults remain useful, but each inhabitant may override either cognition
+role and its model, or explicitly inherit. Credentials remain shared private
+host configuration, never embedded in inhabitants or distributed with saves.

@@ -49,18 +49,18 @@ interface.
 | Map and movement | **Playable** | Seeded tile map, deterministic routing, occupancy, contention, adjacent resource interaction and animated client movement | Small fixed first-world presentation; no broad exploration loop |
 | Survival | **Playable** | Hunger, energy, gathering, carried food, eating, sleep, resource depletion and regeneration | Shelter, exposure, varied nutrition and illness are not connected loops |
 | Observation and control | **Playable** | World view, inhabitants, needs, intentions, inventories, relationships, events, pause/resume and suggestive/must-do instructions | UI remains early-alpha and some diagnostics are operator-only |
-| Cognition | **Playable** | Deterministic selection; Jev for routine survival; OpenAI or Ollama Cloud for planning/work; validation, fallback, retry, usage and safe logs | Default content produces almost no planning/work choices; routine `safe_idle` can still waste calls |
+| Cognition | **Playable** | World defaults and per-inhabitant provider/model overrides; Jev for routine and OpenAI/Ollama Cloud for planning; validation, fallback, retry, safe logs and selection-card telemetry | Legal planning remains bounded to building/recipe choices, not free-form social reasoning |
 | Inventory and ownership | **Integrated but thin** | Authoritative lots, reservations, household/personal inventory, transfer and production completion | Very few useful item kinds are present in normal play; ownership is not yet a visible economy |
-| Buildings and production | **Integrated but thin** | Data-only building/recipe definitions, placement, crop/workstation jobs, reservations and completion | A fresh/default world has no active starter package, so the loop is normally unreachable |
+| Buildings and production | **Integrated but thin** | Automatically staged starter shelter/storage/fire/workshop and crop/meal/tool recipes; placement, jobs, reservations, completion and household food pickup | Material acquisition and persistent multi-step projects are still incomplete |
 | Trade and economy | **Verified primitive** | Atomic direct transfer, barter settlement, ownership and currency state are implemented and tested | Inhabitants do not autonomously request, negotiate or repeat trade in the live world |
 | Relationships and households | **Integrated but thin** | Persistent relationship/household state, social interactions and owner projection | Few world events change relationships; cooperation and conflict are not yet lived loops |
 | Family, aging and death | **Integrated but thin** | Lifecycle, caregiving, birth, aging, death, estates and inheritance exist in society runtime/tests | Timescale and default play do not yet make this a practical player experience |
 | Ecology and weather | **Integrated but thin** | Renewable resources, seasons, deterministic weather and world summaries | Weather has little survival/economic consequence |
 | Factions, law, currency and culture | **Integrated but thin** | Bounded persistent state and deterministic contracts | Mostly summaries/state containers; inhabitants do not create or contest institutions in normal play |
-| Content governance | **Integrated but thin** | Canonical data-only packages, validation, approval, staging, activation, rollback and quarantine | No friendly player workflow or bundled first-world content pack |
+| Content governance | **Integrated but thin** | Canonical data-only packages and bundled starter content; validation, approval, staging, activation, rollback and quarantine | No friendly player proposal/approval workflow |
 | Asset governance | **Verified primitive** | Provenance, rights metadata, quotas, cache/reservation accounting, preview contracts and artifact envelopes | No end-to-end creator/approval experience and no production art pipeline |
-| Client presentation | **Playable** | World-first Godot view, HUD, selection card, roster/events popovers, settings and Windows export | Prototype visuals; cognition settings and empty-selection menu layout need repair |
-| Multiplayer/public worlds | **Planned** | Authoritative boundaries avoid blocking later work | No accounts, public roles, moderation or shared-world product |
+| Client presentation | **Playable** | World-first view, selection-card provider activity, compact per-inhabitant settings, centered menu and Windows export | Prototype visuals; project/blocker presentation remains thin |
+| Multiplayer/public worlds | **Excluded** | Single-player only by owner decision | Multiple paired owner devices are not multiplayer |
 | Executable generated mods | **Planned/disabled** | Data-only packages are fail-closed | No sandbox has been selected; arbitrary generated code does not run on the host |
 
 ## Current cognition behavior
@@ -73,11 +73,24 @@ output can choose one candidate; it cannot invent a world mutation.
 | Routine survival | Deterministic, Jev | Eat, sleep, gather, move or idle |
 | Planning and work | Deterministic, OpenAI, Ollama Cloud | Choose a legal building or recipe project |
 
-Planning/work is technically connected, but the default world begins with no
-active building or recipe definitions. Unless content is introduced and
-activated through the governed content path, the large-model role has no legal
-project to choose. This is a product gap, not evidence that the configured
-provider is malfunctioning.
+The host stages the built-in starter package through the validated content
+registry on the first client-present, unpaused tick. It activates at the tick
+boundary and supplies legal building/recipe choices. This also works for old
+saves; already registered, rolled-back or quarantined starter packages are not
+silently reinstalled. A manually paused save is not migrated merely by starting
+the service.
+
+Settings select either **World defaults** or a named inhabitant. Each role may
+inherit its world default or override its provider/model. API keys remain in
+the host credential store; removing a shared provider key also removes its
+personal overrides. Personal assignments are signed, target-bound and durable.
+
+Unchanged idle intentions are reused for up to 300 ticks, including across
+reloads. Changed legal choices or urgent need bands trigger reconsideration;
+an observation with only `safe_idle` does not need a provider call. The selected
+inhabitant card shows the last accepted decision, with available usage/model/
+latency details in a tooltip. Missing model/latency is shown as unavailable;
+adapter token counts can be zero when the provider omits usage.
 
 ## Evidence boundary
 
