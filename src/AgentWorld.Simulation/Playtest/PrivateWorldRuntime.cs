@@ -1933,6 +1933,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             BeginProject(inhabitantId, state, candidateId);
             return;
         }
+        if (candidateId.StartsWith("invent:building:", StringComparison.Ordinal))
+        {
+            ApplyInhabitantBuildingDesignCandidate(inhabitantId, candidateId);
+            return;
+        }
         if (candidateId.StartsWith("assist:", StringComparison.Ordinal))
         {
             AssistProject(inhabitantId, state, candidateId[7..]);
@@ -2331,6 +2336,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             var inhabitant = society.Checkpoint.GetInhabitant(inhabitantId);
             AddBuildCandidates(candidates, inhabitant, state);
+            AddInhabitantBuildingDesignCandidates(candidates, inhabitant, state);
             AddProjectAssistanceCandidates(candidates, inhabitantId);
             AddTradeCandidates(candidates, inhabitantId);
             AddCouncilCandidates(candidates, inhabitantId);

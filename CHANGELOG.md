@@ -8,6 +8,13 @@ release yet.
 
 ### Added
 
+- Experienced builders can now propose bounded 1×1 shelter, storehouse or
+  hearth designs through planning cognition. Completed building practice gates
+  the choice; proposals are rate-limited, retain durable inhabitant authorship
+  and enter Menu → Create as **proposed only**. They never validate, approve,
+  stage, activate or consume live materials without the owner's existing review
+  steps.
+
 - Added bounded directed trust earned from completed material help, mutually
   accepted barter and finished teaching. Trust survives restart, is visible on
   inhabitant cards, prioritizes familiar barter partners and remains required

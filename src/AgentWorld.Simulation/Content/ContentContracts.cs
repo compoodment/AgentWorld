@@ -514,9 +514,23 @@ public sealed class ContentPackageRegistry
         _ = Restore(ExportState());
     }
 
-    public ContentPackageRecord Propose(ContentPackageManifest manifest, long worldTick = 0)
+    public ContentPackageRecord Propose(ContentPackageManifest manifest, long worldTick = 0) =>
+        Propose(manifest, worldTick, proposedByInhabitantId: null);
+
+    public ContentPackageRecord Propose(
+        ContentPackageManifest manifest,
+        long worldTick,
+        string? proposedByInhabitantId)
     {
         ArgumentNullException.ThrowIfNull(manifest);
+        if (proposedByInhabitantId is not null &&
+            (string.IsNullOrWhiteSpace(proposedByInhabitantId) ||
+             proposedByInhabitantId != proposedByInhabitantId.Trim() ||
+             proposedByInhabitantId.Length > 256 ||
+             proposedByInhabitantId.Any(char.IsControl)))
+        {
+            throw new ArgumentException("An inhabitant proposal requires a canonical author ID.", nameof(proposedByInhabitantId));
+        }
         manifest.Validate();
         RejectForbiddenCapabilities(manifest);
         if (packages.ContainsKey(manifest.PackageId))
@@ -534,6 +548,10 @@ public sealed class ContentPackageRegistry
             ContentPackageManifestCodec.ComputeManifestDigest(manifest));
         packages.Add(manifest.PackageId, record);
         AppendEvent(worldTick, manifest.PackageId, "package_proposed", manifest.PackageDigest);
+        if (proposedByInhabitantId is not null)
+        {
+            AppendEvent(worldTick, manifest.PackageId, "package_proposed_by_inhabitant", proposedByInhabitantId);
+        }
         return record;
     }
 

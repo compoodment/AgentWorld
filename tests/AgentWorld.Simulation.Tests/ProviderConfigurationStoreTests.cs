@@ -6,6 +6,28 @@ namespace AgentWorld.Simulation.Tests;
 
 public sealed class ProviderConfigurationStoreTests
 {
+    [Fact]
+    public void InhabitantInventionUsesPlanningProvider()
+    {
+        var directory = Directory.CreateTempSubdirectory("agentworld-invention-routing-");
+        try
+        {
+            var store = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"), EmptySeed());
+            _ = store.Configure(new("routine", "jev", "jev-test", "routine-test-secret", false));
+            _ = store.Configure(new("planning", "ollama-cloud", "planning-test", "planning-test-secret", false));
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(new ProviderResponseHandler()));
+            var observation = Request(router.ProviderEpoch).Observation with
+            {
+                Candidates = [new("invent:building:shelter", "Propose a shelter.", 35), new("safe_idle", "Wait safely.", 100)],
+            };
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel, router.KindFor(observation));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("wear_clothing")]
     [InlineData("tend_fire")]

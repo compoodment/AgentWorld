@@ -206,11 +206,14 @@ describe destructive deletion as rollback.
 and fuelled hearths with bounded wood costs. A separate deterministic world
 tests construction without live mutations or paid cognition. Saved proposals
 can be reviewed again, then separately validated, approved and staged; pause
-still prevents activation. Runtime tests prove inhabitants choose and construct
-all three purposes through normal planning. Godot engine tests cover workbench
-geometry and visible placed-building names/footprints. This does not complete
-inhabitant invention, arbitrary recipes, art provenance/cache UI, or explicit
-conversion of already-used packages.
+still prevents activation. Experienced builders can now select a bounded
+shelter/storage/hearth idea through planning cognition after completed work.
+Their rate-limited proposal retains durable authorship and enters the same
+owner review path without self-validation, approval, staging or activation.
+Runtime tests prove both proposal isolation and construction of reviewed designs
+through normal planning. Godot engine tests cover workbench geometry and visible
+placed-building names/footprints. This does not complete arbitrary recipes, art
+provenance/cache UI, or explicit conversion of already-used packages.
 
 ## Single-player release
 

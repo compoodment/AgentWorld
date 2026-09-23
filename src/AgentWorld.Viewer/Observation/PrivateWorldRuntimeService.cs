@@ -22,6 +22,10 @@ public sealed partial class PrivateWorldRuntimeService(
         Message = "social_standing tick={WorldTick} inhabitant={InhabitantId} subject={SubjectId} trust={Trust} reason={Reason}")]
     private static partial void LogSocialStanding(ILogger logger, long worldTick, string inhabitantId, string subjectId, int trust, string reason);
 
+    [LoggerMessage(EventId = 2217, Level = LogLevel.Information,
+        Message = "inhabitant_content_proposal tick={WorldTick} inhabitant={InhabitantId} package={PackageId} kind=building lifecycle=proposed")]
+    private static partial void LogInhabitantContentProposal(ILogger logger, long worldTick, string inhabitantId, string packageId);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
@@ -94,6 +98,12 @@ public sealed partial class PrivateWorldRuntimeService(
                     if (subject is null || standing is null) continue;
                     var reason = remainder.Length > subject.Length ? remainder[(subject.Length + 1)..] : "cooperation";
                     LogSocialStanding(logger, result.WorldTick, actor, subject, standing.Trust, reason);
+                }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind == "inhabitant_building_proposed"))
+                {
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is null || worldEvent.Detail.Length <= actor.Length + 1) continue;
+                    LogInhabitantContentProposal(logger, result.WorldTick, actor, worldEvent.Detail[(actor.Length + 1)..]);
                 }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "project_chosen" or "project_progress" or "project_request_fulfilled"))
                 {
