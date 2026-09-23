@@ -289,7 +289,9 @@ public sealed class OwnerWorldObservationStore
                     package.StagedTick,
                     package.ActivationTick,
                     package.ManifestDigest,
-                    package.Manifest.Definitions.Count == 0 ? null : package.Manifest.Definitions[0].DisplayName))
+                    package.Manifest.Definitions.Count == 0 ? null : package.Manifest.Definitions[0].DisplayName,
+                    state.Content.Events.LastOrDefault(item => item.PackageId == package.Manifest.PackageId &&
+                        item.Kind == "package_proposed_by_inhabitant")?.Detail))
                 .ToArray() ?? [],
             ContentEvents = state.Content?.Events
                 .OrderBy(item => item.EventId)

@@ -40,6 +40,9 @@ public sealed class InhabitantBuildingDesignTests
             Assert.Contains("private-inventor", design.Name, StringComparison.Ordinal);
             Assert.Contains(world.Content.Events, item => item.PackageId == package.Manifest.PackageId &&
                 item.Kind == "package_proposed_by_inhabitant" && item.Detail == actor.Id);
+            var projected = new OwnerWorldObservationStore(world).GetSnapshot().ContentPackages.Single(item =>
+                item.PackageId == package.Manifest.PackageId);
+            Assert.Equal(actor.Id, projected.ProposedByInhabitantId);
             Assert.Equal(prepared.WorldContent!.Buildings.Count, world.WorldContent.Buildings.Count);
             Assert.Equal(prepared.WorldSimulation!.Buildings.Count, world.WorldSimulation.Buildings.Count);
             Assert.Contains(logger.Messages, message => message.Contains("inhabitant_content_proposal", StringComparison.Ordinal) &&

@@ -212,7 +212,12 @@ public partial class Main : Control
                 .Select(index => new OwnerWorldTile(index % 4, index / 4, "meadow")).ToArray(), [], [sampleResource], null, 0)
             {
                 PlacedBuildings = [new("test-hall", "test-definition", new(0, 2), 0, "Test hall", ["shelter"], 2, 1)],
+                ContentPackages = [new("owner-building-ui-test", "1.0.0", "sha256:test", "proposed", null, null, null, null,
+                    "sha256:manifest", "Mira's shelter study", "builder-test")],
             };
+            RenderDesignPackages(sample);
+            if (designPackages.ItemCount != 1 || !designPackages.GetItemText(0).Contains("proposed by builder-test", StringComparison.Ordinal))
+                throw new InvalidOperationException("Creation workbench must show inhabitant proposal provenance.");
             RenderMap(sample);
             for (var frame = 0; frame < 3; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
             var marker = mapObjectVisuals["resource:wood"];
@@ -231,7 +236,7 @@ public partial class Main : Control
             RenderMap(sample with { Resources = [], PlacedBuildings = [] });
             if (mapObjectVisuals.ContainsKey("resource:wood")) throw new InvalidOperationException("Removed resource marker was retained.");
             if (mapObjectVisuals.ContainsKey("building:test-hall")) throw new InvalidOperationException("Removed building marker was retained.");
-            GD.Print("UI checks passed: centered menus/workbench and settlement panel at three sizes; resource hover, stock updates and building footprints.");
+            GD.Print("UI checks passed: centered menus/workbench and settlement panel at three sizes; proposal provenance, resource hover, stock updates and building footprints.");
             GetTree().Quit();
         }
         catch (Exception exception)

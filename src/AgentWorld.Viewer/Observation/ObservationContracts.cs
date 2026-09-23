@@ -137,7 +137,8 @@ public sealed record ViewerContentPackage(
     long? StagedTick,
     long? ActivationTick,
     string? ManifestDigest = null,
-    string? DisplayName = null);
+    string? DisplayName = null,
+    string? ProposedByInhabitantId = null);
 
 public sealed record ViewerContentGovernanceEvent(
     long EventId,

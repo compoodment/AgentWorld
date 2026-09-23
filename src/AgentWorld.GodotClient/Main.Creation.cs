@@ -129,7 +129,10 @@ public partial class Main
         foreach (var package in snapshot.ContentPackages.Where(package => package.PackageId.StartsWith("owner-building-", StringComparison.Ordinal)))
         {
             var index = designPackages.ItemCount;
-            designPackages.AddItem($"{package.DisplayName ?? "Building design"} · {GameUiText.HumanizeIdentifier(package.Lifecycle)}");
+            var proposer = package.ProposedByInhabitantId is null ? null : snapshot.Inhabitants
+                .FirstOrDefault(inhabitant => inhabitant.Id == package.ProposedByInhabitantId)?.DisplayName ?? package.ProposedByInhabitantId;
+            var provenance = proposer is null ? string.Empty : " · proposed by " + proposer;
+            designPackages.AddItem($"{package.DisplayName ?? "Building design"}{provenance} · {GameUiText.HumanizeIdentifier(package.Lifecycle)}");
             designPackages.SetItemMetadata(index, package.PackageId);
             if (package.PackageId == selected)
             {

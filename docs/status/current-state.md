@@ -139,7 +139,8 @@ at most three units; size, effects and allowed tags remain the existing safe
 workbench format. Each author may propose a purpose once, with at least 300
 ticks between different ideas. The content registry keeps the author as a
 durable governance event, while safe host logs contain only inhabitant and
-package IDs. The proposal appears in Menu → Create for the same isolated review
+package IDs. The proposal appears in Menu → Create with the proposer's readable
+name for the same isolated review
 and construction preview as a player design. It remains `proposed`: only the
 owner can validate, approve and stage it, and pause still blocks activation.
 

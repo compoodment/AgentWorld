@@ -11,7 +11,8 @@ release yet.
 - Experienced builders can now propose bounded 1×1 shelter, storehouse or
   hearth designs through planning cognition. Completed building practice gates
   the choice; proposals are rate-limited, retain durable inhabitant authorship
-  and enter Menu → Create as **proposed only**. They never validate, approve,
+  and enter Menu → Create as **proposed only**, labelled with their proposer.
+  They never validate, approve,
   stage, activate or consume live materials without the owner's existing review
   steps.
 
