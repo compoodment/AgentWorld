@@ -84,6 +84,7 @@ public sealed class SettlementProjectTests
     [InlineData(8)]
     [InlineData(9)]
     [InlineData(10)]
+    [InlineData(11)]
     public async Task LegacyCheckpointRemainsUntouchedUntilResumedAndThenMigrates(int schema)
     {
         using var seed = new PrivateWorldRuntime("legacy-settlement");
@@ -142,6 +143,8 @@ public sealed class SettlementProjectTests
         Assert.Contains("stone", gathered);
         Assert.Contains("fiber", gathered);
         Assert.Contains(state.Events, item => item.Kind == "project_request_fulfilled");
+        Assert.Contains(state.Events, item => item.Kind == "social_standing_changed");
+        Assert.Contains(state.Inhabitants, person => person.SocialStanding?.Any(item => item.Trust >= 2) == true);
         Assert.Contains(state.Events, item => item.Kind == "project_progress" && item.Detail.Contains(":completed:", StringComparison.Ordinal));
         Assert.Contains(state.Events, item => item.Kind == "food_consumed");
         Assert.True(provider.MeaningfulProjectChoiceSeen);
@@ -149,6 +152,7 @@ public sealed class SettlementProjectTests
         Assert.NotEmpty(snapshot.Stockpiles);
         Assert.Contains(snapshot.Inhabitants, person => person.Project is not null);
         Assert.Contains(snapshot.Inhabitants, person => person.SocialNotes.Count > 0);
+        Assert.Contains(snapshot.Inhabitants, person => person.SocialStanding.Count > 0);
         Assert.NotNull(snapshot.Council?.StewardName);
         using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(state)));
         Assert.Equal(PrivateWorldRuntimeCodec.Encode(state), PrivateWorldRuntimeCodec.Encode(restored.ExportState()));

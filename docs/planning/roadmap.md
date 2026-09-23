@@ -80,15 +80,18 @@ the normal game, not merely pass separate fixture tests.
 
 The ordinary seeded runtime now executes persistent acquisition/work projects,
 gathers wood/stone/fiber, shares requested materials, produces and consumes food,
-and exposes stores, project blockers and public gratitude in Godot. The
+and exposes stores, project blockers, public gratitude and bounded directed
+trust in Godot. The
 1,000-tick `SettlementProjectTests` scenario verifies that connected loop;
 separate tests cover interrupted work and old-save migration. Provider/model
 assignments, idle reuse and menu fixes are delivered foundations for this loop.
 Bounded one-for-one barter now offers separate proposal/accept/refuse choices,
 reservation expiry and public exchange memories. Controlled runtime regressions
 cover independent decisions across restart, refusal and spoiled goods. This is
-not evidence of rich price negotiation, quantified trust/resentment or emergent
-roles; those workstreams remain open. Clothing, tools and buildings now have
+not evidence of rich price negotiation, justified resentment or emergent roles;
+those workstreams remain open. Trust now rises after completed help, barter and
+teaching, appears in the client, prioritizes familiar trade partners and gates
+partnership proposals without penalizing refusal. Clothing, tools and buildings now have
 bounded useful effects, described in the current-state matrix.
 
 ## Next — Consequential survival

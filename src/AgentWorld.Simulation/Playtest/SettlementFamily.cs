@@ -50,10 +50,7 @@ public sealed partial class PrivateWorldRuntime
         society.Checkpoint.GetInhabitant(other).HouseholdId == household &&
         !Partnerships(actor).Any(item => (item.ProposerId == other || item.TargetId == other) &&
             WorldTick - Math.Max(item.ProposedTick, item.EffectiveTick) < 1_440) &&
-        society.Checkpoint.Memories.Any(memory => memory.OwnerId == actor && memory.SubjectId == other &&
-            memory.TombstonedTick is null && (memory.Id.StartsWith("project-gratitude:", StringComparison.Ordinal) ||
-                memory.Id.StartsWith("settlement-trust:", StringComparison.Ordinal) ||
-                memory.Id.StartsWith("lesson-gratitude:", StringComparison.Ordinal)));
+        TrustScore(actor, other) > 0;
 
     private void MaintainPartnerships()
     {

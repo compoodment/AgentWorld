@@ -63,6 +63,8 @@ public sealed class SettlementLearningTests
         Assert.Equal("completed", restored.Inhabitants.Single(person => person.InhabitantId == learner).Lesson!.Stage);
         Assert.NotNull(restored.Inhabitants.Single(person => person.InhabitantId == learner).Project);
         Assert.Contains(restored.Society.Memories, memory => memory.OwnerId == learner && memory.Id.StartsWith("lesson-gratitude:", StringComparison.Ordinal));
+        var completed = restored.Inhabitants.Single(person => person.InhabitantId == learner);
+        Assert.Equal(2, completed.SocialStanding!.Single(item => item.SubjectId == completed.Lesson!.TeacherId).Trust);
     }
 
     [Fact]

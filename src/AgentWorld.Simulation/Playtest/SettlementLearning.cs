@@ -180,6 +180,7 @@ public sealed partial class PrivateWorldRuntime
         {
             lesson = lesson with { Stage = "completed" };
             society.Apply(checkpoint => SocietyFixture.AssignRole(checkpoint, student.InhabitantId, lesson.Role));
+            IncreaseTrust(student.InhabitantId, actor, 2, "teaching_completed");
             var memoryId = $"lesson-gratitude:{student.InhabitantId}:{actor}:{lesson.Role}";
             if (!society.Checkpoint.Memories.Any(memory => memory.Id == memoryId))
             {

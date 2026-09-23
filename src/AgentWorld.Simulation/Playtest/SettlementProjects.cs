@@ -396,6 +396,7 @@ public sealed partial class PrivateWorldRuntime
         var quantity = Math.Min(request.Input.Amount, AvailableLotQuantity(carried));
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"project-share:{WorldTick}:{helperId}",
             helperId, HouseholdId, carried.Id, quantity, "project_request_fulfilled"));
+        IncreaseTrust(request.Requester, helperId, 2, "material_help");
         var memoryId = $"project-gratitude:{request.Requester}:{helperId}";
         if (!society.Checkpoint.Memories.Any(memory => memory.Id == memoryId))
         {

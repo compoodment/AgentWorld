@@ -24,7 +24,8 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SurvivalCondition? Survival = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementLesson? Lesson = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementParenthood? Parenthood = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementProficiency? Proficiency = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementProficiency? Proficiency = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementSocialStanding>? SocialStanding = null);
 
 public sealed record PlaytestResourceState(string ResourceId, ResourceState State);
 
@@ -70,7 +71,7 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 11;
+    public const int StateSchemaVersion = 12;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
@@ -991,6 +992,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         foreach (var inhabitant in inhabitants.Values)
         {
             ValidateProficiency(inhabitant, checkpointSchemaVersion);
+            ValidateSocialStanding(inhabitant, society.Checkpoint.Inhabitants.Select(item => item.Id), checkpointSchemaVersion, WorldTick);
             if (inhabitant.Project is { } project)
             {
                 ValidateProject(project, WorldTick);
@@ -2505,7 +2507,12 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         ValidateSurvival(state);
         ValidateCouncil(state);
         ValidateLessons(state);
-        foreach (var person in state.Inhabitants) ValidateProficiency(person, state.SchemaVersion);
+        foreach (var person in state.Inhabitants)
+        {
+            ValidateProficiency(person, state.SchemaVersion);
+            ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
+                state.SchemaVersion, state.Society.Society.WorldTick);
+        }
         ValidateParenthood(state);
         ContentPackageRegistry.Restore(state.Content);
         if (state.SchemaVersion >= 3 && state.Content is null)

@@ -75,6 +75,18 @@ different build revision cannot falsely appear as a simulation change.
 
 ## Release checklist
 
+### Private-world save schema 12
+
+Schema 12 adds optional bounded directed trust records to physical inhabitants.
+Scores are earned only from committed material help, completed exchange or
+finished teaching; refusal and disagreement do not create a negative record.
+Schemas 1–11 remain readable. Existing cooperation memories project equivalent
+trust for observation and eligibility without rewriting an older paused save;
+the next new trust event materializes that pair's score under schema 12. Records
+must reference another known inhabitant, remain within 1–10 and cannot
+claim a future change tick. Rollback requires the matching pre-upgrade
+application, save and adjacent history.
+
 ### Private-world save schema 11
 
 Schema 11 adds optional bounded building, farming and crafting practice to each

@@ -18,6 +18,10 @@ public sealed partial class PrivateWorldRuntimeService(
         Message = "work_practice tick={WorldTick} inhabitant={InhabitantId} building={Building} farming={Farming} crafting={Crafting}")]
     private static partial void LogWorkPractice(ILogger logger, long worldTick, string inhabitantId, int building, int farming, int crafting);
 
+    [LoggerMessage(EventId = 2216, Level = LogLevel.Information,
+        Message = "social_standing tick={WorldTick} inhabitant={InhabitantId} subject={SubjectId} trust={Trust} reason={Reason}")]
+    private static partial void LogSocialStanding(ILogger logger, long worldTick, string inhabitantId, string subjectId, int trust, string reason);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
@@ -78,6 +82,18 @@ public sealed partial class PrivateWorldRuntimeService(
                     var actor = EventActor(worldEvent.Detail);
                     if (actor is not null && runtime.Inhabitants.FirstOrDefault(person => person.InhabitantId == actor)?.Proficiency is { } practice)
                         LogWorkPractice(logger, result.WorldTick, actor, practice.Building, practice.Farming, practice.Crafting);
+                }
+                foreach (var worldEvent in result.Events.Where(item => item.Kind == "social_standing_changed"))
+                {
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is null || worldEvent.Detail.Length <= actor.Length + 1) continue;
+                    var remainder = worldEvent.Detail[(actor.Length + 1)..];
+                    var subject = actors.FirstOrDefault(id => remainder == id || remainder.StartsWith(id + ":", StringComparison.Ordinal));
+                    var standing = runtime.Inhabitants.FirstOrDefault(person => person.InhabitantId == actor)?.SocialStanding?
+                        .FirstOrDefault(item => item.SubjectId == subject);
+                    if (subject is null || standing is null) continue;
+                    var reason = remainder.Length > subject.Length ? remainder[(subject.Length + 1)..] : "cooperation";
+                    LogSocialStanding(logger, result.WorldTick, actor, subject, standing.Trust, reason);
                 }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "project_chosen" or "project_progress" or "project_request_fulfilled"))
                 {

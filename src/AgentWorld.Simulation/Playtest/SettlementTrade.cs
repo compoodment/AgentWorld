@@ -88,7 +88,8 @@ public sealed partial class PrivateWorldRuntime
             candidates.Add(new("trade_accept:" + offer.Id, $"Accept exchange: give one {give.ItemKind}, receive one {take.ItemKind}.", useful ? 12 : 60));
             candidates.Add(new("trade_decline:" + offer.Id, "Decline this exchange and release both reserved items.", useful ? 60 : 12));
         }
-        foreach (var other in inhabitants.Keys.Order(StringComparer.Ordinal))
+        foreach (var other in inhabitants.Keys.Where(other => other != actor)
+                     .OrderByDescending(other => TrustScore(actor, other)).ThenBy(other => other, StringComparer.Ordinal))
         {
             if (TradeOpportunity(actor, other) is { } trade)
             {
@@ -139,6 +140,7 @@ public sealed partial class PrivateWorldRuntime
         {
             foreach (var (owner, subject) in new[] { (offer.FirstPartyId, offer.SecondPartyId), (offer.SecondPartyId, offer.FirstPartyId) })
             {
+                IncreaseTrust(owner, subject, 1, "barter_completed");
                 var memoryId = "settlement-trust:" + owner + ":" + subject;
                 if (!society.Checkpoint.Memories.Any(memory => memory.Id == memoryId))
                 {

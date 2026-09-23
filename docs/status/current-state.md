@@ -44,7 +44,7 @@ Provider work runs against an isolated proposed tick, so owner observations and
 pause remain responsive. Cancellation or intervening owner changes discard the
 proposal without partial world mutations. In-flight provider work is cancelled
 on manual pause or client lease expiry.
-Save schema 11 preserves optional bounded work practice alongside biological
+Save schema 12 preserves optional bounded directed trust and work practice alongside biological
 life-clock anchors, parenthood preparation, practical lessons and council
 policy/ballots, survival conditions, fuel deadlines, work projects and additive
 settlement resources;
@@ -67,7 +67,7 @@ the authority file; old challenges fail closed after restart.
 | Inventory and ownership | **Playable** | Carried items and shared stores, gathering wood/stone/fiber/seeds, material requests, household sharing and food pickup | Negotiated barter and a broader economy remain incomplete |
 | Buildings and production | **Playable** | Persistent acquisition/work projects; hearth fuel, shelter insulation, storehouse preservation, bedding rest, clothing insulation, tool benefits and bounded building/farming/crafting practice earned from completed work | Equipment durability, repair and sophisticated logistics remain incomplete |
 | Trade and economy | **Integrated but thin** | Inhabitants offer personal surplus for needed items; each party independently accepts or refuses through planning cognition. Expiry/cancellation releases reservations; exchanges leave visible public memories | One-for-one barter, not negotiated pricing or an autonomous currency economy; opportunities depend on actual personal surplus |
-| Relationships and households | **Integrated but thin** | Households, cooperation memories, majority-voted food access, steward succession, practical apprenticeships, work practice and independently accepted/refused adult partnerships with unilateral withdrawal | Rich conflict and quantified trust remain incomplete; teaching grants basic builder/farmer roles while proficiency comes only from successful work |
+| Relationships and households | **Integrated but thin** | Households, visible directed trust earned from completed cooperation, majority-voted food access, steward succession, practical apprenticeships, work practice and independently accepted/refused adult partnerships with unilateral withdrawal | Trust is bounded and affects barter-partner order and partnership eligibility; resentment, reconciliation and rich conflict remain incomplete |
 | Family, aging and death | **Integrated but thin** | Separate parental consent, preparation, dependent infants and actual caregiver food/warmth delivery; infants have no paid cognition. Household adults can volunteer to replace lost carers; older dependents accept/refuse independently. Pause-only Life pace settings optionally make biological years last one world day or a quarter-day, preserving existing ages and historical dates. Lifecycle, estates and inheritance remain in the society runtime | Calendar aging remains the default; legal guardianship and long-run intergenerational balance need further work |
 | Ecology and weather | **Integrated but thin** | Renewable resources, seasons and weather affect warmth, fuel demand, illness, crop food yields and travel fatigue | Broader ecosystems, drought/flood damage and long-run tuning remain incomplete |
 | Factions, law, currency and culture | **Integrated but thin** | A household council can change shared-food access by majority vote; persistent faction/currency/culture contracts exist | Broader institutions, currency circulation and contested law remain incomplete |
@@ -154,7 +154,16 @@ no ownership changes until both independently accept. Either party can decline
 or withdraw. Spoilage cancels pending settlement safely, and a pair cooldown
 prevents repeated requests. Pending decisions and completed exchange memories
 appear in social notes; the host emits bounded `settlement_trade` outcomes.
-This is a small barter loop, not pricing, currency circulation or measured trust.
+This is a small barter loop, not negotiated pricing or currency circulation.
+
+Completed material help, mutually accepted barter and finished teaching now
+increase bounded directed trust. The client shows each positive score; barter
+opportunities prefer trusted partners and partnership proposals require prior
+trust. Existing public cooperation memories project their old meaning until a
+new event persists schema 12. Refusal, withdrawal and policy disagreement do
+not reduce trust. The world still lacks justified harm, resentment and
+reconciliation mechanics, so this is a positive-cooperation consequence rather
+than a complete relationship simulation.
 
 After settlement activation, public contributions qualify a household steward.
 The steward may propose reserving scarce shared food or reopening abundant

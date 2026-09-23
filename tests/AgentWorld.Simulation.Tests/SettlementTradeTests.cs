@@ -44,6 +44,7 @@ public sealed class SettlementTradeTests
         {
             Assert.DoesNotContain(inventory.Lots, lot => lot.OwnerId == second && lot.ItemKind == "food");
             Assert.Empty(final.Society.Society.Memories);
+            Assert.All(final.Inhabitants, person => Assert.True(person.SocialStanding is null or []));
             Assert.Contains(final.Events, item => item.Kind == "settlement_trade_declined");
         }
         else
@@ -51,6 +52,10 @@ public sealed class SettlementTradeTests
             Assert.Contains(inventory.Lots, lot => lot.OwnerId == second && lot.ItemKind == "food" && lot.Quantity == 1);
             Assert.Contains(inventory.Lots, lot => lot.OwnerId == first && lot.ItemKind == "clothing" && lot.Quantity == 1);
             Assert.Equal(2, final.Society.Society.Memories.Count);
+            Assert.Equal(1, final.Inhabitants.Single(person => person.InhabitantId == first).SocialStanding!
+                .Single(item => item.SubjectId == second).Trust);
+            Assert.Equal(1, final.Inhabitants.Single(person => person.InhabitantId == second).SocialStanding!
+                .Single(item => item.SubjectId == first).Trust);
             Assert.Contains(final.Events, item => item.Kind == "settlement_trade_completed");
         }
     }

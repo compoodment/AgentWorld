@@ -8,6 +8,13 @@ release yet.
 
 ### Added
 
+- Added bounded directed trust earned from completed material help, mutually
+  accepted barter and finished teaching. Trust survives restart, is visible on
+  inhabitant cards, prioritizes familiar barter partners and remains required
+  before proposing partnership. Refusal, withdrawal and disagreement do not
+  reduce trust. Save schema 12 persists scores while projecting older
+  cooperation memories without rewriting paused saves.
+
 - Added bounded building, farming and crafting practice. Inhabitants earn one
   point only when useful work completes successfully; every ten points speeds
   the hands-on preparation stage without bypassing roles, materials or crop

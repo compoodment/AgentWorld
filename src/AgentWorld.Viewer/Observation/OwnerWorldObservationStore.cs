@@ -494,6 +494,7 @@ public sealed class OwnerWorldObservationStore
                 lesson.Stage, lesson.Progress, 20) : null,
             Proficiency = physical.Proficiency is { } practice
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
+            SocialStanding = SocialStandingFor(state, inhabitant.Id, physical),
             SocialNotes = state.Society.Society.Inventory.Offers.Where(offer => offer.State == DirectBarterState.Open &&
                     (offer.FirstPartyId == inhabitant.Id || offer.SecondPartyId == inhabitant.Id))
                 .Select(offer => offer.AcceptedBy.Contains(inhabitant.Id, StringComparer.Ordinal)
@@ -513,6 +514,26 @@ public sealed class OwnerWorldObservationStore
                     .OrderByDescending(memory => memory.SourceTick).Take(3).Select(memory => memory.Summary)).ToArray(),
         };
     }
+
+    private static ViewerSocialStanding[] SocialStandingFor(
+        PrivateWorldRuntimeState state,
+        string ownerId,
+        PlaytestInhabitantState physical)
+    {
+        var saved = (physical.SocialStanding ?? []).ToDictionary(item => item.SubjectId, item => item.Trust, StringComparer.Ordinal);
+        return state.Society.Society.Inhabitants.Where(subject => subject.Id != ownerId)
+            .Select(subject => new ViewerSocialStanding(subject.Id, subject.Name,
+                saved.GetValueOrDefault(subject.Id, LegacyTrustScore(state, ownerId, subject.Id))))
+            .Where(item => item.Trust > 0)
+            .OrderByDescending(item => item.Trust).ThenBy(item => item.SubjectId, StringComparer.Ordinal).ToArray();
+    }
+
+    private static int LegacyTrustScore(PrivateWorldRuntimeState state, string ownerId, string subjectId) =>
+        Math.Min(10, state.Society.Society.Memories.Where(memory => memory.OwnerId == ownerId &&
+                memory.SubjectId == subjectId && memory.TombstonedTick is null)
+            .Sum(memory => memory.Id.StartsWith("project-gratitude:", StringComparison.Ordinal) ? 2
+                : memory.Id.StartsWith("lesson-gratitude:", StringComparison.Ordinal) ? 2
+                : memory.Id.StartsWith("settlement-trust:", StringComparison.Ordinal) ? 1 : 0));
 
     private static ViewerInhabitantRelationship[] RelationshipsFor(
         PrivateWorldRuntimeState state,
