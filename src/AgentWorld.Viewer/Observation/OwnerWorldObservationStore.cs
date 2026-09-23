@@ -492,6 +492,8 @@ public sealed class OwnerWorldObservationStore
             Lesson = physical.Lesson is { } lesson ? new ViewerLesson(
                 state.Society.Society.GetInhabitant(lesson.TeacherId).Name, lesson.Role.ToString().ToLowerInvariant(),
                 lesson.Stage, lesson.Progress, 20) : null,
+            Proficiency = physical.Proficiency is { } practice
+                ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
             SocialNotes = state.Society.Society.Inventory.Offers.Where(offer => offer.State == DirectBarterState.Open &&
                     (offer.FirstPartyId == inhabitant.Id || offer.SecondPartyId == inhabitant.Id))
                 .Select(offer => offer.AcceptedBy.Contains(inhabitant.Id, StringComparer.Ordinal)

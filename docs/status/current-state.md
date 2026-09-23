@@ -44,8 +44,10 @@ Provider work runs against an isolated proposed tick, so owner observations and
 pause remain responsive. Cancellation or intervening owner changes discard the
 proposal without partial world mutations. In-flight provider work is cancelled
 on manual pause or client lease expiry.
-Save schema 10 preserves optional biological life-clock anchors, parenthood preparation, practical lessons and council policy/ballots alongside survival conditions,
-fuel deadlines, work projects and additive settlement resources;
+Save schema 11 preserves optional bounded work practice alongside biological
+life-clock anchors, parenthood preparation, practical lessons and council
+policy/ballots, survival conditions, fuel deadlines, work projects and additive
+settlement resources;
 the schema-4 history mechanism bounds hot histories
 and archives older events with verified hashes; reconnect explicitly resets
 stale cursors. See [persistence and backup requirements](../planning/architecture.md#persistence-and-replay).
@@ -63,9 +65,9 @@ the authority file; old challenges fail closed after restart.
 | Observation and control | **Playable** | World view, inhabitants, needs, intentions, inventories, relationships, events, pause/resume and suggestive/must-do instructions | UI remains early-alpha and some diagnostics are operator-only |
 | Cognition | **Playable** | World defaults and per-inhabitant provider/model overrides; Jev for routine and OpenAI/Ollama Cloud for planning; validation, fallback, retry, safe logs and selection-card telemetry | Legal planning covers projects, material help and barter, not free-form social reasoning |
 | Inventory and ownership | **Playable** | Carried items and shared stores, gathering wood/stone/fiber/seeds, material requests, household sharing and food pickup | Negotiated barter and a broader economy remain incomplete |
-| Buildings and production | **Playable** | Persistent acquisition/work projects; hearth fuel, shelter insulation, storehouse preservation, bedding rest, clothing insulation and tool work-speed benefits | Equipment durability, repair and sophisticated logistics remain incomplete |
+| Buildings and production | **Playable** | Persistent acquisition/work projects; hearth fuel, shelter insulation, storehouse preservation, bedding rest, clothing insulation, tool benefits and bounded building/farming/crafting practice earned from completed work | Equipment durability, repair and sophisticated logistics remain incomplete |
 | Trade and economy | **Integrated but thin** | Inhabitants offer personal surplus for needed items; each party independently accepts or refuses through planning cognition. Expiry/cancellation releases reservations; exchanges leave visible public memories | One-for-one barter, not negotiated pricing or an autonomous currency economy; opportunities depend on actual personal surplus |
-| Relationships and households | **Integrated but thin** | Households, cooperation memories, majority-voted food access, steward succession, practical apprenticeships and independently accepted/refused adult partnerships with unilateral withdrawal | Rich conflict and quantified trust remain incomplete; learning currently grants basic builder/farmer roles |
+| Relationships and households | **Integrated but thin** | Households, cooperation memories, majority-voted food access, steward succession, practical apprenticeships, work practice and independently accepted/refused adult partnerships with unilateral withdrawal | Rich conflict and quantified trust remain incomplete; teaching grants basic builder/farmer roles while proficiency comes only from successful work |
 | Family, aging and death | **Integrated but thin** | Separate parental consent, preparation, dependent infants and actual caregiver food/warmth delivery; infants have no paid cognition. Household adults can volunteer to replace lost carers; older dependents accept/refuse independently. Pause-only Life pace settings optionally make biological years last one world day or a quarter-day, preserving existing ages and historical dates. Lifecycle, estates and inheritance remain in the society runtime | Calendar aging remains the default; legal guardianship and long-run intergenerational balance need further work |
 | Ecology and weather | **Integrated but thin** | Renewable resources, seasons and weather affect warmth, fuel demand, illness, crop food yields and travel fatigue | Broader ecosystems, drought/flood damage and long-run tuning remain incomplete |
 | Factions, law, currency and culture | **Integrated but thin** | A household council can change shared-food access by majority vote; persistent faction/currency/culture contracts exist | Broader institutions, currency circulation and contested law remain incomplete |

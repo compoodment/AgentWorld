@@ -8,6 +8,11 @@ release yet.
 
 ### Added
 
+- Added bounded building, farming and crafting practice. Inhabitants earn one
+  point only when useful work completes successfully; every ten points speeds
+  the hands-on preparation stage without bypassing roles, materials or crop
+  growth. Practice persists in save schema 11 and appears on inhabitant cards.
+
 - Added Menu → Create: a data-only building workbench for named shelters,
   storehouses and fuelled hearths. Isolated construction previews consume no
   live materials or paid cognition. Saved designs require separate validation,

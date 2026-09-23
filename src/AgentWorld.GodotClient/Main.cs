@@ -2249,11 +2249,15 @@ public partial class Main : Control
         var role = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "role")?.Detail;
         var learning = inhabitant.Lesson is { } lesson
             ? $"\nLearning {Pretty(lesson.Role)} with {lesson.TeacherName} · {Pretty(lesson.Stage)} · {lesson.Progress}/{lesson.Required}" : "";
+        if (inhabitant.Proficiency is { } practice)
+            learning += $"\nPractice · Building {practice.Building}/30 · Farming {practice.Farming}/30 · Crafting {practice.Crafting}/30";
         inhabitantSocialDetails.Text = $"{condition}{(role is null ? "" : Pretty(role) + "\n")}{(inhabitant.Project is null ? intention : projectText)}{learning}\n{relationships}{socialNotes}\n{activity}";
         inhabitantSocialDetails.TooltipText = decision is null ? "" :
             $"Last accepted decision\nRole: {decision.Role ?? "not reported"}\nModel: {decision.Model ?? "not reported"}\nConfidence: {decision.Confidence:P0}\n" +
             $"Latency: {decision.LatencyMilliseconds?.ToString(CultureInfo.CurrentCulture) ?? "—"} ms\n" +
             $"Tokens in/out: {decision.InputTokens?.ToString(CultureInfo.CurrentCulture) ?? "—"}/{decision.OutputTokens?.ToString(CultureInfo.CurrentCulture) ?? "—"}";
+        if (inhabitant.Proficiency is not null)
+            inhabitantSocialDetails.TooltipText += "\nPractice: each completed project earns one point in its domain, up to 30. Every 10 points adds one work per preparation step. Materials, permissions and crop growth time are unchanged.";
         selectedInhabitantCard.Show();
         PositionSelectedInhabitantCard(snapshot);
     }

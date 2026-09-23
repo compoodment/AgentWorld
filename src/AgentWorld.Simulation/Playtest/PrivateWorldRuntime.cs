@@ -23,7 +23,8 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementProject? Project = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SurvivalCondition? Survival = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementLesson? Lesson = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementParenthood? Parenthood = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementParenthood? Parenthood = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementProficiency? Proficiency = null);
 
 public sealed record PlaytestResourceState(string ResourceId, ResourceState State);
 
@@ -69,7 +70,7 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 10;
+    public const int StateSchemaVersion = 11;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
@@ -989,6 +990,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         foreach (var inhabitant in inhabitants.Values)
         {
+            ValidateProficiency(inhabitant, checkpointSchemaVersion);
             if (inhabitant.Project is { } project)
             {
                 ValidateProject(project, WorldTick);
@@ -1516,6 +1518,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             AppendEvent("crop_weather_loss", $"{job.JobId}:{worldSystems.Climate.Weather.ToString().ToLowerInvariant()}");
         }
+        CreditCompletedWork(job.WorkerId, recipe.IsCrop ? "farming" : "crafting");
         return true;
     }
 
@@ -2005,6 +2008,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             if (!placement.Applied)
             {
                 AppendEvent("build_rejected", $"{inhabitantId}:{candidateId}:{placement.Failure}");
+            }
+            else
+            {
+                CreditCompletedWork(inhabitantId, "building");
             }
 
             return;
@@ -2498,6 +2505,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         ValidateSurvival(state);
         ValidateCouncil(state);
         ValidateLessons(state);
+        foreach (var person in state.Inhabitants) ValidateProficiency(person, state.SchemaVersion);
         ValidateParenthood(state);
         ContentPackageRegistry.Restore(state.Content);
         if (state.SchemaVersion >= 3 && state.Content is null)

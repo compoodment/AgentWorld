@@ -83,6 +83,7 @@ public sealed class SettlementProjectTests
     [InlineData(7)]
     [InlineData(8)]
     [InlineData(9)]
+    [InlineData(10)]
     public async Task LegacyCheckpointRemainsUntouchedUntilResumedAndThenMigrates(int schema)
     {
         using var seed = new PrivateWorldRuntime("legacy-settlement");

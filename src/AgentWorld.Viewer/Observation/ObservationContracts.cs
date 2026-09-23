@@ -84,6 +84,7 @@ public sealed record ViewerInhabitant(
     public ViewerProject? Project { get; init; }
     public ViewerSurvival? Survival { get; init; }
     public ViewerLesson? Lesson { get; init; }
+    public ViewerProficiency? Proficiency { get; init; }
 
     public IReadOnlyList<string> SocialNotes { get; init; } = [];
 
@@ -96,6 +97,7 @@ public sealed record ViewerSurvival(int WarmthBasisPoints, int IllnessBasisPoint
 
 public sealed record ViewerStockpile(string OwnerId, string Name, IReadOnlyList<ViewerInventoryEntry> Items);
 public sealed record ViewerLesson(string TeacherName, string Role, string Stage, int Progress, int Required);
+public sealed record ViewerProficiency(int Building, int Farming, int Crafting);
 
 public sealed record ViewerInstruction(
     string InstructionId,

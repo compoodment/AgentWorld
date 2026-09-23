@@ -81,7 +81,7 @@ public sealed class SocietyLifePaceTests
         Assert.False(world.SetLifePace(1));
         Assert.Equal(bytes, PrivateWorldRuntimeCodec.Encode(world.ExportState()));
         Assert.True(world.SetLifePace(365));
-        Assert.Equal(10, world.ExportState().SchemaVersion);
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, world.ExportState().SchemaVersion);
         Assert.Equal(365, world.Society.LifeClock!.Rate);
         Assert.True(world.Society.IsPaused);
         using var reloaded = PrivateWorldRuntime.Restore(world.ExportState());

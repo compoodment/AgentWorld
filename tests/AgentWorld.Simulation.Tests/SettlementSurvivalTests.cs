@@ -57,6 +57,15 @@ public sealed class SettlementSurvivalTests
             for (var tick = 1; tick < recipe.DurationTicks; tick++) await preparing.AdvanceOneTickAsync();
         if (completedBeforeDeath) await preparing.AdvanceOneTickAsync();
         state = preparing.ExportState();
+        var practice = state.Inhabitants.Single(person => person.InhabitantId == worker.InhabitantId).Proficiency;
+        if (completedBeforeDeath)
+        {
+            Assert.Equal(crop ? new SettlementProficiency(Farming: 1) : new SettlementProficiency(Crafting: 1), practice);
+            using var proof = PrivateWorldRuntime.Restore(state, _ => new IdleProvider());
+            await proof.AdvanceOneTickAsync();
+            Assert.Equal(practice, proof.Inhabitants.Single(person => person.InhabitantId == worker.InhabitantId).Proficiency);
+        }
+        else Assert.Null(practice);
         var produced = state.Society.Society.Inventory.Lots.Where(lot => lot.Id.StartsWith(started.JobId + ":output:", StringComparison.Ordinal))
             .Select(lot => (lot.Id, lot.Quantity)).ToArray();
         using var society = SocietyWorldRuntime.Restore(state.Society);
@@ -181,6 +190,7 @@ public sealed class SettlementSurvivalTests
         Assert.Equal(WorldProductionJobState.Cancelled, world.WorldSimulation.ProductionJobs.Single(job => job.JobId == started.JobId).State);
         Assert.DoesNotContain(world.Society.Inventory.Lots, lot => lot.Id.StartsWith(started.JobId + ":output:", StringComparison.Ordinal));
         Assert.Contains(world.ExportState().Events, item => item.Kind == "production_input_unusable");
+        Assert.Null(world.Inhabitants.Single(person => person.InhabitantId == worker.InhabitantId).Proficiency);
     }
 
     [Theory]

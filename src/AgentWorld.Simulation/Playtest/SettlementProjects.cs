@@ -238,7 +238,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (project.WorkDone < ProjectWorkTicks)
         {
-            var work = HasCarriedItem(inhabitantId, "tool") ? 2 : 1;
+            var work = (HasCarriedItem(inhabitantId, "tool") ? 2 : 1) + ProjectPracticeBonus(state, project);
             SetProject(inhabitantId, project with { Stage = "working", WorkDone = Math.Min(ProjectWorkTicks, project.WorkDone + work), Blocker = null });
             return;
         }

@@ -75,6 +75,17 @@ different build revision cannot falsely appear as a simulation change.
 
 ## Release checklist
 
+### Private-world save schema 11
+
+Schema 11 adds optional bounded building, farming and crafting practice to each
+inhabitant. Older inhabitants retain no practice until they successfully finish
+new work; migration does not infer experience from roles, age or project
+history. Schemas 1–10 remain readable, and schema-3-and-later paused checkpoints
+retain their representation until a resumed mutation earns practice or otherwise
+requires the current schema. Values outside 0–30 and practice stored under an
+older schema fail closed. Rollback requires the matching pre-upgrade application,
+save and adjacent history.
+
 ### Private-world save schema 10
 
 Schema 10 adds a nullable society biological-clock anchor/rate and nullable

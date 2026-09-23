@@ -14,6 +14,10 @@ public sealed partial class PrivateWorldRuntimeService(
 {
     private string? lastGateState;
 
+    [LoggerMessage(EventId = 2215, Level = LogLevel.Information,
+        Message = "work_practice tick={WorldTick} inhabitant={InhabitantId} building={Building} farming={Farming} crafting={Crafting}")]
+    private static partial void LogWorkPractice(ILogger logger, long worldTick, string inhabitantId, int building, int farming, int crafting);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
@@ -69,6 +73,12 @@ public sealed partial class PrivateWorldRuntimeService(
                 string? EventActor(string detail) => actors.FirstOrDefault(id => detail == id || detail.StartsWith(id + ":", StringComparison.Ordinal));
                 var projects = runtime.Inhabitants.Where(person => person.Project is not null)
                     .ToDictionary(person => person.InhabitantId, person => person.Project!, StringComparer.Ordinal);
+                foreach (var worldEvent in result.Events.Where(item => item.Kind == "work_practice_earned"))
+                {
+                    var actor = EventActor(worldEvent.Detail);
+                    if (actor is not null && runtime.Inhabitants.FirstOrDefault(person => person.InhabitantId == actor)?.Proficiency is { } practice)
+                        LogWorkPractice(logger, result.WorldTick, actor, practice.Building, practice.Farming, practice.Crafting);
+                }
                 foreach (var worldEvent in result.Events.Where(item => item.Kind is "project_chosen" or "project_progress" or "project_request_fulfilled"))
                 {
                     var actor = EventActor(worldEvent.Detail);

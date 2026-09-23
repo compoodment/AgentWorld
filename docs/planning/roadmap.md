@@ -157,8 +157,11 @@ rechecked material readiness. Runtime tests cover one atomic birth across
 restart, refusal/expiry, separation, actual feeding and zero infant provider
 calls. Opt-in life pacing now advances biological age without changing world
 dates or model cadence; replay and signed HTTP tests cover preserved ages,
-newborn age zero, age-band transitions and pause-only configuration. General
-skills and long-run intergenerational balance remain open. Replacement household
+newborn age zero, age-band transitions and pause-only configuration. Bounded
+building, farming and crafting practice is earned only by completed useful work,
+persists across restart and shortens preparation without bypassing permissions,
+materials or crop growth. Broader knowledge and long-run intergenerational
+balance remain open. Replacement household
 caregivers now volunteer after all active carers are lost. Infants receive a
 protected care transition; older dependents accept/refuse independently. Tests
 cover competing volunteers, restart, refusal/expiry and actual feeding without
@@ -172,8 +175,9 @@ pace, earning a builder role and completing construction within 12,000 ticks.
 It uses deterministic providers and a prepared parental household, not a claim
 that every unassisted seed forms a family. This exposed and repaired descendant
 building-ID rejection, crowded needs access and mentor/project interactions.
-General skills, quantitative social consequences and long-run population
-balance remain open.
+Domain practice is now visible on inhabitant cards and covered at completion,
+save/reload and cap boundaries. Quantitative social consequences, transferable
+knowledge and long-run population balance remain open.
 
 ## Later — Creation and richer worlds
 
