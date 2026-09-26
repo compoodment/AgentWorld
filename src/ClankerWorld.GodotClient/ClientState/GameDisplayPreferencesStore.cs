@@ -5,7 +5,22 @@ namespace ClankerWorld.GodotClient.ClientState;
 /// <summary>
 /// Installation-local display choices. These do not alter world time or save data.
 /// </summary>
-public sealed record GameDisplayPreferences(bool UseTwelveHourClock = false);
+public sealed record GameDisplayPreferences(
+    bool UseTwelveHourClock = false,
+    bool NotifyBirths = true,
+    bool NotifyDeaths = true,
+    bool NotifyInventions = true,
+    bool NotifySettlements = true)
+{
+    public bool AllowsNotification(string category) => category switch
+    {
+        "birth" => NotifyBirths,
+        "death" => NotifyDeaths,
+        "invention" => NotifyInventions,
+        "settlement" => NotifySettlements,
+        _ => false,
+    };
+}
 
 public sealed class GameDisplayPreferencesStore(string path)
 {

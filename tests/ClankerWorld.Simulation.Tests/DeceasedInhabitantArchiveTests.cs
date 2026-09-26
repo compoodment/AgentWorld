@@ -33,7 +33,14 @@ public sealed class DeceasedInhabitantArchiveTests
                 LastLifecycleYearChecked = 18,
             }).ToArray(),
         };
-        state = state with { Society = state.Society with { Society = society } };
+        state = state with
+        {
+            Society = state.Society with { Society = society },
+            Inhabitants = state.Inhabitants.Select(person => person with
+            {
+                RecentThoughts = [new PlaytestPrivateThought(0, "I hope the camp lasts.")],
+            }).ToArray(),
+        };
         using var world = PrivateWorldRuntime.Restore(state, _ => new DeterministicDecisionProvider());
 
         Assert.True((await world.AdvanceOneTickAsync()).Advanced);
@@ -52,6 +59,7 @@ public sealed class DeceasedInhabitantArchiveTests
         Assert.Equal(deceased.DeathTick.ToString(System.Globalization.CultureInfo.InvariantCulture),
             historical.DecisionFactors.Single(factor => factor.Key == "death-tick").Detail);
         Assert.Null(historical.PublicIntention);
+        Assert.Equal("I hope the camp lasts.", Assert.Single(historical.RecentPrivateThoughts).Text);
         Assert.DoesNotContain(restored.Inhabitants, person => person.InhabitantId == deceased.InhabitantId);
 
         var invalid = archived with

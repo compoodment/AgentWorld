@@ -125,8 +125,18 @@ public sealed record CognitionDecisionResponse(
     string SelectedCandidateId,
     double Confidence,
     IReadOnlyDictionary<string, double> Probabilities,
-    CognitionUsage? Usage = null)
+    CognitionUsage? Usage = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PrivateThought = null)
 {
+    public const int MaximumPrivateThoughtLength = 160;
+
+    public static string? NormalizePrivateThought(string? value)
+    {
+        var text = value?.Trim();
+        return text is { Length: > 0 and <= MaximumPrivateThoughtLength } &&
+            !text.Any(char.IsControl) ? text : null;
+    }
+
     public void Validate()
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(RequestId);
@@ -151,6 +161,11 @@ public sealed record CognitionDecisionResponse(
             {
                 throw new ArgumentOutOfRangeException(nameof(Probabilities));
             }
+        }
+
+        if (PrivateThought is not null && NormalizePrivateThought(PrivateThought) != PrivateThought)
+        {
+            throw new ArgumentOutOfRangeException(nameof(PrivateThought));
         }
 
         Usage?.Validate();
@@ -504,7 +519,9 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                     role = "system",
                     content = "Choose exactly one legal candidate. Return JSON only, with fields " +
                         "selected_candidate_id (string), confidence (number 0..1), and " +
-                        "probabilities (object mapping candidate IDs to numbers 0..1). Do not include reasoning.",
+                        "probabilities (object mapping candidate IDs to numbers 0..1), and optional " +
+                        "private_thought (one brief, in-character thought of at most 160 characters). " +
+                        "This is dialogue-like fiction, not an explanation of your reasoning. Do not include reasoning.",
                 },
                 new
                 {
@@ -582,6 +599,10 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                     candidate => candidate.Id,
                     candidate => string.Equals(candidate.Id, selected, StringComparison.Ordinal) ? 1d : 0d,
                     StringComparer.Ordinal);
+            var privateThought = answerRoot.TryGetProperty("private_thought", out var thoughtProperty) &&
+                thoughtProperty.ValueKind == JsonValueKind.String
+                    ? CognitionDecisionResponse.NormalizePrivateThought(thoughtProperty.GetString())
+                    : null;
 
             var usage = TryParseUsage(root, modelId);
             return new CognitionDecisionResponse(
@@ -595,7 +616,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 NormalizeRequiredText(selected ?? string.Empty, "selected_candidate_id"),
                 confidence,
                 probabilities,
-                usage);
+                usage,
+                privateThought);
         }
         catch (JsonException exception)
         {

@@ -8,6 +8,14 @@ release yet.
 
 ### Added
 
+- Agent profiles now show a small scrollable history of recent private thoughts
+  written alongside accepted personal-model decisions. These thoughts survive
+  saves and remain inspectable after death; routine fallback and hidden model
+  reasoning are not presented as thoughts.
+- Important out-of-view births, deaths and building proposals can raise brief
+  notices that jump to their location or open the event log. Game Settings
+  remembers notice choices by category without hiding full log entries.
+
 - Game Settings now remembers a 24-hour or AM/PM clock preference on this
   installation. The top bar, World Info, settlement view, and event log use
   the same display choice without changing world time.

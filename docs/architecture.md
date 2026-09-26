@@ -50,21 +50,22 @@ fixture methods still support synchronous provider dispatch for isolated tests.
   and executes movement, work, resources, occupancy, ownership and effects.
   Text from a model, mod, client or save file is never authority to change
   state directly.
-- Provider work runs against an isolated proposed tick. A rejected, cancelled
+- Hosted provider work runs between committed ticks. A rejected, cancelled
   or superseded answer cannot leave a half-applied action. Pausing or losing
   client presence invalidates in-flight work in the current host.
   Failure or low confidence selects only the explicit `safe_idle` fallback;
-  it cannot execute a strategic candidate or complete an instruction. A slow
-  request still delays the proposed tick because the scheduler awaits its
-  whole dispatch batch; nonblocking pending work is not implemented yet.
+  it cannot execute a strategic candidate or complete an instruction. Other
+  agents and world systems advance while a hosted request remains unresolved.
 - API credentials are stored separately from world saves and must not be
   returned in observations or written to telemetry. Operational logs are
   bounded, structured outcome records, not raw prompts or secret-bearing
   responses.
 - Agents have bounded personal knowledge. A fact in the world or visible to
-  the player is not automatically known to every agent. Current client access
-  to private memories is limited; the vision-ledger's inspectable Thoughts and
-  Memories UI is **not yet implemented**.
+  the player is not automatically known to every agent. Accepted personal-model
+  decisions can include a short in-character private thought; the last eight
+  are saved and projected only into that agent's owner-visible profile. They
+  are not hidden model reasoning, public dialogue, or knowledge transferred to
+  another agent. The broader inspectable Memories UI is not implemented yet.
 - Live physical actors remain separate from saved deceased records. On death,
   the runtime archives the last physical state and frozen age alongside the
   society death record, then removes the actor from active movement and work.

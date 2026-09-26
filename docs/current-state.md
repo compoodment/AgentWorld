@@ -52,7 +52,7 @@ The server build is installed on the live VPS, but the preserved world is
 paused and the matching Windows artifact has not been tested on computment's
 laptop; a live model-wait playtest is still outstanding.
 
-Save schema 13 preserves deceased records, optional bounded directed trust and work practice alongside biological
+Save schema 14 preserves bounded private thoughts from accepted personal-model decisions, deceased records, optional bounded directed trust and work practice alongside biological
 life-clock anchors, parenthood preparation, practical lessons and council
 policy/ballots, survival conditions, fuel deadlines, work projects and additive
 settlement resources;
@@ -65,8 +65,14 @@ the authority file; old challenges fail closed after restart.
 
 The event stream now stores a location for actor-associated events. The Godot
 Events panel marks those entries as navigable and moves the camera to the
-recorded event location when clicked. The selected agent card also shows when
-a decision is queued. Global events have no map destination.
+recorded event location when clicked. Out-of-view births, deaths and building
+proposals can also raise a short notice; Game Settings controls those pop-ups
+by category without removing the full event-log entry. Settlement notices are
+configurable but await a settlement-founding event. The selected agent card
+shows when a decision is queued and a scrollable history of recent private
+thoughts supplied by accepted personal-model decisions. Archived thoughts on
+deceased profiles do not continue to update. Global events have no map
+destination.
 
 ## Capability matrix
 
@@ -76,7 +82,7 @@ a decision is queued. Global events have no map destination.
 | Owner security | **Playable** | Windows device key, host-approved pairing, signed/replay-resistant owner requests, revocation and origin pinning | Private single-owner model only |
 | Map and movement | **Playable** | Seeded tile map, deterministic routing, animated client movement, wheel zoom, WASD/arrow and middle-drag panning, and a top-left data-drawn overview with click/drag camera navigation | Small fixed map; all tiles are still drawn each refresh, without chunk loading or a large-world atlas |
 | Survival | **Playable** | Hunger, energy, warmth, exposure illness/recovery, fresh food, source-based diet variety, sleep, clothing, fuelled heat, shelter and bedding | Illness and monotonous diets increase fatigue rather than causing mortality; balance is still early-alpha |
-| Observation and control | **Playable** | World view, top-bar living-agent count and World Info, inhabitants, needs, intentions, inventories, relationships, located event-log jumps, pause/resume, separated Game/World Settings panels and suggestive/must-do instructions; newly deceased inhabitants retain an inspectable last-state record across save/reload. The family-tree panel links accepted parentage and partnerships, lets the player inspect living or deceased relatives, and excludes household-only links. Game Settings persists 24-hour or AM/PM time display locally | Historical records currently cover deaths after this archive is introduced, not earlier lost physical state; private thought/memory history and date-format settings are not yet available. World Info shows current facts, not future ownership/capability discovery; settings contain only existing prototype controls and some diagnostics remain operator-only |
+| Observation and control | **Playable** | World view, top-bar living-agent count and World Info, inhabitants, needs, intentions, inventories, relationships, located event-log jumps and out-of-view event notices, pause/resume, separated Game/World Settings panels and suggestive/must-do instructions; newly deceased inhabitants retain an inspectable last-state record across save/reload. The family-tree panel links accepted parentage and partnerships, lets the player inspect living or deceased relatives, and excludes household-only links. Game Settings persists 24-hour or AM/PM time display and event-notice choices locally. Personal-model agents show a bounded scrollable private-thought history in their profiles | Historical records currently cover deaths after this archive is introduced, not earlier lost physical state; thoughts only exist for new accepted personal-model decisions, not past play or model-internal reasoning. Rich memories and date-format settings are not yet available. World Info shows current facts, not future ownership/capability discovery; settings contain only existing prototype controls and some diagnostics remain operator-only |
 | Cognition | **Playable** | World defaults and per-inhabitant provider/model overrides; Jev for routine and OpenAI/Ollama Cloud for planning; validation, fallback, retry, safe logs and selection-card telemetry | Legal planning covers projects, material help, barter and bounded building proposals, not free-form social reasoning |
 | Inventory and ownership | **Playable** | Carried items and shared stores, gathering wood/stone/fiber/seeds, material requests, household sharing and food pickup | Negotiated barter and a broader economy remain incomplete |
 | Buildings and production | **Playable** | Persistent acquisition/work projects; hearth fuel, shelter insulation, storehouse preservation, bedding rest, clothing insulation, tool benefits and bounded building/farming/crafting practice earned from completed work | Equipment durability, repair and sophisticated logistics remain incomplete |
@@ -98,11 +104,11 @@ not a claim that all interview proposals should be implemented at once.
 
 | Priority | Decided behavior | Current playable behavior / remaining work |
 | --- | --- | --- |
-| 1 | A slow or unavailable personal model does not stop unrelated agents or invent an important choice | Failed or low-confidence requests now select only `safe_idle`; pending instructions cannot override or be completed by that fallback. The legacy fixture no longer automatically pauses after repeated failure. **Still open in code:** the private-world scheduler awaits a whole provider batch inside a proposed tick, so one slow call stalls tick commits. Move pending work outside the tick transaction with durable request identity, deadlines, and pause/quit cancellation before claiming this is solved. |
+| 1 | A slow or unavailable personal model does not stop unrelated agents or invent an important choice | The private-world host dispatches hosted decisions between committed ticks; unrelated agents and world systems keep advancing. Failed or low-confidence requests can select only `safe_idle`, never complete an instruction or invent a strategic choice. Pending decisions survive save/reload and stale answers after pause/provider changes are rejected. A live Windows/VPS model-wait playtest remains to be done. |
 | 2 | New World creates a map and empty base camp; four configured founders are added in-world, then Start World begins time | The present single private world starts with four hard-coded founders and an active settlement. There is no finished new-world setup, multiple-world selection, or explicit start gate. Introduce a versioned world-setup state without rewriting the paused development save. |
 | 3 | Playtest a six-minute day and custom 40-day/four-season year, with at most six hours of life from birth | The host still schedules one minute per real second; the world calendar has 1,440 ticks/day and 365 days/year. Existing saves/replay depend on these values. Make clock/calendar parameters versioned per world and migrate deliberately; do not reinterpret the live world's dates. |
 | 4 | Each agent owns a personal model and key; Jev is an optional per-world support layer | Personal planning-provider overrides exist, but the routine/planning split and shared credential slots do not match the full per-agent assignment flow. There is no per-world Jev switch. Add distinct credential identities and transition rules before exposing the intended UI. |
-| 5 | One continuous zoomable pixel-art world view with an always-available draggable overview and inspection controls | The Godot prototype has the single zoomable view, draggable overview, located event-log navigation and an ancestry/partnership family tree, but not the decided Main Menu, large world map, filters or thoughts/memories. Art and UI are prototype-quality. |
+| 5 | One continuous zoomable pixel-art world view with an always-available draggable overview and inspection controls | The Godot prototype has the single zoomable view, draggable overview, located event-log navigation, out-of-view event notices, private-thought history for accepted personal-model decisions and an ancestry/partnership family tree, but not the decided Main Menu, large world map, filters or rich memories. Art and UI are prototype-quality. |
 | 6 | Local Windows install runs the authoritative simulation and keeps saves/keys on that PC | The Godot client currently requires the private VPS host. Preserve it for development, then package the same simulation locally and prove a fresh install without the VPS. |
 | 7 | Regional weather, bounded inventions and mods, cross-generation social life | The current world has basic seasonal weather effects, data-only building proposals and thin family/trade/council loops. Weather regions, the Mod Library, restricted scripted content, deep conversation/memory and full inheritance are not yet connected. |
 
@@ -113,7 +119,8 @@ output can choose one candidate; it cannot invent an undeclared world mutation.
 Provider failure or low confidence now permits only the explicit `safe_idle`
 fallback; without that candidate the request is rejected rather than choosing
 a strategic action. A failed request cannot complete a pending
-instruction. This does not yet solve the slow-provider tick-stall above.
+instruction. Hosted requests wait outside tick commits, so they do not stall
+unrelated agents or world systems.
 
 | Role | Options | Typical current work |
 | --- | --- | --- |

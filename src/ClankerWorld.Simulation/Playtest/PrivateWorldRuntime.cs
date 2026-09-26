@@ -25,7 +25,10 @@ public sealed record PlaytestInhabitantState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementLesson? Lesson = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementParenthood? Parenthood = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementProficiency? Proficiency = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementSocialStanding>? SocialStanding = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<SettlementSocialStanding>? SocialStanding = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlaytestPrivateThought>? RecentThoughts = null);
+
+public sealed record PlaytestPrivateThought(long WorldTick, string Text);
 
 public sealed record PlaytestResourceState(string ResourceId, ResourceState State);
 
@@ -79,7 +82,8 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 13;
+    public const int StateSchemaVersion = 14;
+    private const int MaximumRecentThoughts = 8;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
@@ -561,6 +565,21 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                         outcome.Failure, legal);
                     if (decision is not null)
                     {
+                        if (decision.Admission.Accepted && !decision.Admission.FellBack &&
+                            outcome.Response is
+                            {
+                                Provider: DecisionProviderKind.LargeLanguageModel,
+                                PrivateThought: { } thought
+                            } && inhabitants.TryGetValue(id, out var thinking))
+                        {
+                            inhabitants[id] = thinking with
+                            {
+                                RecentThoughts = (thinking.RecentThoughts ?? [])
+                                    .Append(new PlaytestPrivateThought(targetTick, thought))
+                                    .TakeLast(MaximumRecentThoughts).ToArray(),
+                            };
+                            checkpointSchemaVersion = StateSchemaVersion;
+                        }
                         deferredDecisions.Add(decision);
                         AppendEvent("hosted_decision_completed", $"{id}:{decision.Admission.Outcome}");
                     }
@@ -1129,6 +1148,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             ValidateProficiency(inhabitant, checkpointSchemaVersion);
             ValidateSocialStanding(inhabitant, society.Checkpoint.Inhabitants.Select(item => item.Id), checkpointSchemaVersion, WorldTick);
+            ValidatePrivateThoughts(inhabitant.RecentThoughts, checkpointSchemaVersion, WorldTick);
             if (inhabitant.Project is { } project)
             {
                 ValidateProject(project, WorldTick);
@@ -2698,6 +2718,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             ValidateProficiency(person, state.SchemaVersion);
             ValidateSocialStanding(person, state.Society.Society.Inhabitants.Select(item => item.Id),
                 state.SchemaVersion, state.Society.Society.WorldTick);
+            ValidatePrivateThoughts(person.RecentThoughts, state.SchemaVersion, state.Society.Society.WorldTick);
         }
         ValidateParenthood(state);
         ContentPackageRegistry.Restore(state.Content);
@@ -2789,6 +2810,24 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 person.LastPhysical.HungerBasisPoints is < 0 or > 10_000 ||
                 person.LastPhysical.EnergyBasisPoints is < 0 or > 10_000)
                 throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
+            ValidatePrivateThoughts(person.LastPhysical.RecentThoughts, schemaVersion, person.DeathTick);
+        }
+    }
+
+    private static void ValidatePrivateThoughts(
+        IReadOnlyList<PlaytestPrivateThought>? thoughts, int schemaVersion, long latestTick)
+    {
+        if (thoughts is null) return;
+        if (schemaVersion < 14 || thoughts.Count > MaximumRecentThoughts)
+            throw new InvalidDataException("The private-thought history version or size is invalid.");
+        long previousTick = -1;
+        foreach (var thought in thoughts)
+        {
+            if (thought is null || thought.Text is null ||
+                thought.WorldTick < 0 || thought.WorldTick < previousTick || thought.WorldTick > latestTick ||
+                CognitionDecisionResponse.NormalizePrivateThought(thought.Text) != thought.Text)
+                throw new InvalidDataException("The private-thought history contains an invalid entry.");
+            previousTick = thought.WorldTick;
         }
     }
 

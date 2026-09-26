@@ -63,6 +63,8 @@ public sealed record ViewerInhabitantRelationship(
     long EffectiveTick,
     string? Direction = null);
 
+public sealed record ViewerPrivateThought(long WorldTick, string Text);
+
 /// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
 /// is visible as such but is not a living simulation actor yet.
@@ -91,6 +93,8 @@ public sealed record ViewerInhabitant(
     public IReadOnlyList<string> SocialNotes { get; init; } = [];
 
     public IReadOnlyList<ViewerInhabitantRelationship> Relationships { get; init; } = [];
+
+    public IReadOnlyList<ViewerPrivateThought> RecentPrivateThoughts { get; init; } = [];
 }
 
 public sealed record ViewerProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);

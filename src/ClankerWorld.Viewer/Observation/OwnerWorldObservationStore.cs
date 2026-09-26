@@ -491,6 +491,8 @@ public sealed class OwnerWorldObservationStore
                 ? ToPublicIntention(publicIntention.CandidateId, publicIntention.Provider.ToString().ToLowerInvariant(), publicIntention.WorldTick)
                 : null,
             Relationships = RelationshipsFor(state, inhabitant.Id),
+            RecentPrivateThoughts = (physical.RecentThoughts ?? [])
+                .Select(thought => new ViewerPrivateThought(thought.WorldTick, thought.Text)).ToArray(),
             Project = physical.Project is { } project
                 ? new ViewerProject(project.Label, project.Stage, project.WorkDone, 10, project.Blocker, project.StartedTick)
                 : null,
@@ -553,6 +555,8 @@ public sealed class OwnerWorldObservationStore
             IsDraft: false)
         {
             Relationships = RelationshipsFor(state, inhabitant.Id),
+            RecentPrivateThoughts = (lastPhysical.RecentThoughts ?? [])
+                .Select(thought => new ViewerPrivateThought(thought.WorldTick, thought.Text)).ToArray(),
             Proficiency = lastPhysical.Proficiency is { } practice
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
             SocialStanding = SocialStandingFor(state, inhabitant.Id, lastPhysical),

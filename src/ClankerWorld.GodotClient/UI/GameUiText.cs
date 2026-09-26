@@ -64,6 +64,15 @@ public static class GameUiText
         };
     }
 
+    public static string? NotificationCategory(string kind) => kind switch
+    {
+        "child_born" => "birth",
+        "inhabitant_removed" => "death",
+        "inhabitant_building_proposed" => "invention",
+        "settlement_founded" => "settlement",
+        _ => null,
+    };
+
     public static string HumanizeIdentifier(string value)
     {
         if (string.IsNullOrWhiteSpace(value))

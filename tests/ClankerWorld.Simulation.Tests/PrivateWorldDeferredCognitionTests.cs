@@ -55,9 +55,35 @@ public sealed class PrivateWorldDeferredCognitionTests
     }
 
     [Fact]
+    public async Task AcceptedPersonalModelThoughtIsSavedAndShownOnlyOnItsOwnersProfile()
+    {
+        var hosted = new HeldHostedProvider(kind: DecisionProviderKind.LargeLanguageModel,
+            privateThought: "I should gather food before the others wake.");
+        using var world = new PrivateWorldRuntime("private-thoughts", id =>
+            id == "founder-scout" ? hosted : new DeterministicDecisionProvider());
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await hosted.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        hosted.Release.TrySetResult(true);
+        await hosted.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+
+        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        Assert.Equal(14, saved.SchemaVersion);
+        using var restored = PrivateWorldRuntime.Restore(saved);
+        var people = new OwnerWorldObservationStore(restored).GetSnapshot().Inhabitants;
+        Assert.Equal("I should gather food before the others wake.",
+            Assert.Single(people.Single(person => person.Id == "founder-scout").RecentPrivateThoughts).Text);
+        Assert.All(people.Where(person => person.Id != "founder-scout"),
+            person => Assert.Empty(person.RecentPrivateThoughts));
+        Assert.DoesNotContain(world.ExportState().Events,
+            item => item.Detail.Contains("I should gather food", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task PausedRequestCannotActAndSavedQueueCanBeRetriedAfterReload()
     {
-        var hosted = new HeldHostedProvider(ignoreCancellation: true);
+        var hosted = new HeldHostedProvider(ignoreCancellation: true,
+            kind: DecisionProviderKind.LargeLanguageModel, privateThought: "This stale thought must vanish.");
         using var world = new PrivateWorldRuntime("deferred-reload", id =>
             id == "founder-scout" ? hosted : new DeterministicDecisionProvider());
         Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
@@ -67,8 +93,10 @@ public sealed class PrivateWorldDeferredCognitionTests
         hosted.Release.TrySetResult(true);
         await hosted.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.DoesNotContain(world.ExportState().Events, item => item.Kind == "hosted_decision_completed");
+        Assert.Empty(world.Inhabitants.Single(person => person.InhabitantId == "founder-scout").RecentThoughts ?? []);
 
-        var replacement = new HeldHostedProvider();
+        var replacement = new HeldHostedProvider(kind: DecisionProviderKind.LargeLanguageModel,
+            privateThought: "This new decision is mine.");
         using var restored = PrivateWorldRuntime.Restore(saved, id =>
             id == "founder-scout" ? replacement : new DeterministicDecisionProvider());
         restored.Resume();
@@ -78,14 +106,19 @@ public sealed class PrivateWorldDeferredCognitionTests
         await replacement.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
         var result = await restored.AdvanceOneTickNonBlockingAsync();
         Assert.Contains(result.Decisions, item => item.InhabitantId == "founder-scout" && item.Admission.Accepted);
+        Assert.Equal("This new decision is mine.",
+            Assert.Single(restored.Inhabitants.Single(person => person.InhabitantId == "founder-scout").RecentThoughts!).Text);
     }
 
-    private sealed class HeldHostedProvider(bool ignoreCancellation = false) : IDecisionProvider
+    private sealed class HeldHostedProvider(
+        bool ignoreCancellation = false,
+        DecisionProviderKind kind = DecisionProviderKind.Jev,
+        string? privateThought = null) : IDecisionProvider
     {
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public DecisionProviderKind Kind => DecisionProviderKind.Jev;
+        public DecisionProviderKind Kind => kind;
         public long ProviderEpoch => 1;
 
         public async ValueTask<CognitionDecisionResponse> DecideAsync(
@@ -101,7 +134,8 @@ public sealed class PrivateWorldDeferredCognitionTests
             return new CognitionDecisionResponse(
                 request.RequestId, request.Observation.InhabitantId, Kind, ProviderEpoch,
                 request.Observation.RunEpoch, request.Observation.DecisionGeneration,
-                request.Observation.ObservationDigest, selected.Id, 1d, probabilities);
+                request.Observation.ObservationDigest, selected.Id, 1d, probabilities,
+                PrivateThought: privateThought);
         }
     }
 }

@@ -143,6 +143,8 @@ public sealed class CognitionTests
         Assert.Equal("json_object", body.RootElement.GetProperty("response_format").GetProperty("type").GetString());
         Assert.Equal("seek_food", response.SelectedCandidateId);
         Assert.Equal(0.91, response.Confidence);
+        Assert.Equal("I should find food before dark.", response.PrivateThought);
+        Assert.Contains("private_thought", body.RootElement.GetProperty("messages")[0].GetProperty("content").GetString());
         Assert.Equal("test-model", response.Usage?.ModelId);
         Assert.Equal(44, response.Usage?.InputTokens);
         Assert.Equal(9, response.Usage?.OutputTokens);
@@ -172,13 +174,22 @@ public sealed class CognitionTests
             {
               "message": {
                 "role": "assistant",
-                "content": "{\"selected_candidate_id\":\"seek_food\",\"confidence\":0.91,\"probabilities\":{\"safe_idle\":0.09,\"seek_food\":0.91}}"
+                "content": "{\"selected_candidate_id\":\"seek_food\",\"confidence\":0.91,\"probabilities\":{\"safe_idle\":0.09,\"seek_food\":0.91},\"private_thought\":\"I should find food before dark.\"}"
               }
             }
           ],
           "usage": { "prompt_tokens": 44, "completion_tokens": 9 }
         }
         """;
+
+    [Fact]
+    public void PrivateThoughtsAreBriefSingleLineTextNotRawReasoning()
+    {
+        Assert.Null(CognitionDecisionResponse.NormalizePrivateThought("   "));
+        Assert.Null(CognitionDecisionResponse.NormalizePrivateThought("line one\nline two"));
+        Assert.Null(CognitionDecisionResponse.NormalizePrivateThought(new string('a', 161)));
+        Assert.Equal("I need warmth.", CognitionDecisionResponse.NormalizePrivateThought(" I need warmth. "));
+    }
 
     private sealed class ThrowingProvider : IDecisionProvider
     {

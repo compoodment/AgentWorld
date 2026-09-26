@@ -45,12 +45,28 @@ public sealed class GameUiTextTests
             var store = new GameDisplayPreferencesStore(Path.Combine(directory, "game-settings.json"));
             Assert.False(store.Load().UseTwelveHourClock);
             store.Save(new GameDisplayPreferences(UseTwelveHourClock: true));
-            Assert.True(new GameDisplayPreferencesStore(Path.Combine(directory, "game-settings.json")).Load().UseTwelveHourClock);
+            var restored = new GameDisplayPreferencesStore(Path.Combine(directory, "game-settings.json")).Load();
+            Assert.True(restored.UseTwelveHourClock);
+            Assert.True(restored.NotifyBirths);
+            store.Save(restored with { NotifyDeaths = false });
+            Assert.False(store.Load().AllowsNotification("death"));
+            Assert.True(store.Load().AllowsNotification("birth"));
         }
         finally
         {
             if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
+    }
+
+    [Theory]
+    [InlineData("child_born", "birth")]
+    [InlineData("inhabitant_removed", "death")]
+    [InlineData("inhabitant_building_proposed", "invention")]
+    [InlineData("settlement_founded", "settlement")]
+    [InlineData("food_consumed", null)]
+    public void OnlyImportantEventsBecomeOptionalPopups(string kind, string? category)
+    {
+        Assert.Equal(category, GameUiText.NotificationCategory(kind));
     }
 
     [Theory]

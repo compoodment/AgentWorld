@@ -64,6 +64,8 @@ public sealed record OwnerWorldInhabitantRelationship(
     long EffectiveTick,
     string? Direction = null);
 
+public sealed record OwnerWorldPrivateThought(long WorldTick, string Text);
+
 public sealed record OwnerWorldInhabitant(
     string Id,
     string DisplayName,
@@ -88,6 +90,8 @@ public sealed record OwnerWorldInhabitant(
     public IReadOnlyList<string> SocialNotes { get; init; } = [];
 
     public IReadOnlyList<OwnerWorldInhabitantRelationship> Relationships { get; init; } = [];
+
+    public IReadOnlyList<OwnerWorldPrivateThought> RecentPrivateThoughts { get; init; } = [];
 }
 
 public sealed record OwnerWorldProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
