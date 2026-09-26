@@ -4,7 +4,8 @@ using ClankerWorld.Viewer.Control;
 
 namespace ClankerWorld.Viewer.Observation;
 
-public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick);
+public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
+    bool IsAutosave = false);
 
 /// <summary>
 /// Owner-only named checkpoints for the currently active world. Opaque IDs,
@@ -13,7 +14,8 @@ public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset Crea
 /// </summary>
 public sealed class ManualWorldSaveStore
 {
-    private sealed record Metadata(ManualWorldSave Save, IReadOnlyList<InhabitantProviderAssignment> Assignments);
+    private sealed record Metadata(ManualWorldSave Save, IReadOnlyList<InhabitantProviderAssignment> Assignments,
+        WorldAutosaveSettings? AutosaveSettings);
     private readonly object gate = new();
     private readonly string directory;
 
@@ -32,22 +34,32 @@ public sealed class ManualWorldSaveStore
     }
 
     public ManualWorldSave Create(string name, PrivateWorldRuntime runtime,
-        IReadOnlyList<InhabitantProviderAssignment> assignments)
+        IReadOnlyList<InhabitantProviderAssignment> assignments, WorldAutosaveSettings? autosaveSettings = null)
+        => CreateCore(name, runtime, assignments, autosaveSettings, isAutosave: false);
+
+    public ManualWorldSave CreateAutosave(PrivateWorldRuntime runtime,
+        IReadOnlyList<InhabitantProviderAssignment> assignments, WorldAutosaveSettings autosaveSettings)
+        => CreateCore("Autosave", runtime, assignments, autosaveSettings, isAutosave: true);
+
+    private ManualWorldSave CreateCore(string name, PrivateWorldRuntime runtime,
+        IReadOnlyList<InhabitantProviderAssignment> assignments,
+        WorldAutosaveSettings? autosaveSettings, bool isAutosave)
     {
         ArgumentNullException.ThrowIfNull(runtime);
         ArgumentNullException.ThrowIfNull(assignments);
         name = NormalizeName(name);
         var state = runtime.ExportState();
-        if (!state.Society.Society.IsPaused)
+        if (!isAutosave && !state.Society.Society.IsPaused)
             throw new InvalidOperationException("Pause the world before making a manual save.");
         var entry = new ManualWorldSave(Guid.NewGuid().ToString("N"), name, DateTimeOffset.UtcNow,
-            state.Society.Society.WorldTick);
+            state.Society.Society.WorldTick, isAutosave);
         lock (gate)
         {
             Directory.CreateDirectory(directory);
             RestrictDirectory();
             WriteAtomic(StatePath(entry.Id), PrivateWorldRuntimeCodec.Encode(state));
-            WriteAtomic(MetadataPath(entry.Id), JsonSerializer.SerializeToUtf8Bytes(new Metadata(entry, assignments)));
+            WriteAtomic(MetadataPath(entry.Id), JsonSerializer.SerializeToUtf8Bytes(
+                new Metadata(entry, assignments, autosaveSettings)));
         }
         return entry;
     }
@@ -64,6 +76,23 @@ public sealed class ManualWorldSaveStore
                 .OrderByDescending(item => item.CreatedUtc)
                 .ThenBy(item => item.Id, StringComparer.Ordinal)
                 .ToArray();
+        }
+    }
+
+    public void KeepNewestAutosaves(int count, string? preserveId = null)
+    {
+        if (count is < 1 or > 10) throw new ArgumentOutOfRangeException(nameof(count));
+        lock (gate)
+        {
+            var candidates = List().Where(item => item.IsAutosave && item.Id != preserveId)
+                .Skip(preserveId is null ? count : count - 1);
+            foreach (var old in candidates)
+            {
+                // The new snapshot is already durable before older rotations
+                // are retired. Named manual saves are never included here.
+                File.Delete(MetadataPath(old.Id));
+                File.Delete(StatePath(old.Id));
+            }
         }
     }
 
@@ -87,6 +116,17 @@ public sealed class ManualWorldSaveStore
                 throw new FileNotFoundException("The manual save does not exist.");
             return JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(MetadataPath(id)))?.Assignments
                 ?? throw new InvalidDataException("The manual save metadata is invalid.");
+        }
+    }
+
+    public WorldAutosaveSettings? ReadAutosaveSettings(string id)
+    {
+        if (!IsId(id)) throw new ArgumentException("Invalid save ID.", nameof(id));
+        lock (gate)
+        {
+            if (!File.Exists(StatePath(id)) || !File.Exists(MetadataPath(id)))
+                throw new FileNotFoundException("The manual save does not exist.");
+            return JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(MetadataPath(id)))?.AutosaveSettings;
         }
     }
 

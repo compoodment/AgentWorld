@@ -65,6 +65,7 @@ public sealed partial class ViewerHttpTests
                 providers.Configure(new OwnerProviderConfigurationAction("personal", "inherit", null,
                     null, false, "founder:checkpoint"));
                 Assert.Empty(providers.CaptureRuntimeConfiguration().Assignments ?? []);
+                host.Services.GetRequiredService<WorldAutosaveStore>().Configure(false, 1, 0);
 
                 var list = new OwnerControlAction("list-saves");
                 using var listed = await SendSignedAsync(host, client, key, device.DeviceId,
@@ -82,11 +83,33 @@ public sealed partial class ViewerHttpTests
                 backupId = receipt.BackupId;
                 Assert.True(runtime.JevEnabled);
                 Assert.True(runtime.Society.IsPaused);
+                Assert.True(host.Services.GetRequiredService<WorldAutosaveStore>().Capture().Enabled);
+                Assert.Equal(5, host.Services.GetRequiredService<WorldAutosaveStore>().Capture().IntervalMinutes);
                 Assert.False(host.Services.GetRequiredService<ManualWorldSaveStore>().Read(backupId).JevEnabled);
                 Assert.Contains(providers.CaptureRuntimeConfiguration().Assignments ?? [],
                     item => item.InhabitantId == "founder:checkpoint" && item.CredentialSlotId == slotId);
+                var statusAction = new OwnerControlAction("autosave-status");
+                using var status = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/saves/autosave/status", statusAction,
+                    OwnerHttpBinding.EmptyPayload("autosave-status"));
+                Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+                Assert.Equal(5, (await status.Content.ReadFromJsonAsync<WorldAutosaveSettings>())!.IntervalMinutes);
+                var autosaveAction = new OwnerAutosaveConfigurationAction(true, 1, 0);
+                const string autosavePath = "/api/v1/owner/saves/autosave/configure";
+                var autosaveEnvelope = await CreateSignedRequestAsync(host, client, key, device.DeviceId,
+                    autosavePath, autosaveAction, OwnerHttpBinding.AutosaveConfigurationPayload(autosaveAction));
+                using var tamperedAutosave = await client.PostAsJsonAsync(autosavePath, autosaveEnvelope with
+                {
+                    Action = autosaveAction with { Enabled = false },
+                });
+                Assert.False(tamperedAutosave.IsSuccessStatusCode);
+                using var configured = await SendSignedAsync(host, client, key, device.DeviceId,
+                    autosavePath, autosaveAction, OwnerHttpBinding.AutosaveConfigurationPayload(autosaveAction));
+                Assert.Equal(HttpStatusCode.OK, configured.StatusCode);
+                Assert.Equal(0, host.Services.GetRequiredService<WorldAutosaveStore>().Capture().RotationCount);
                 Assert.Contains(saveLog.Messages, message => message.Contains("manual_save outcome=created", StringComparison.Ordinal));
                 Assert.Contains(saveLog.Messages, message => message.Contains("manual_save outcome=loaded", StringComparison.Ordinal));
+                Assert.Contains(saveLog.Messages, message => message.Contains("autosave_settings outcome=changed", StringComparison.Ordinal));
                 Assert.DoesNotContain(saveLog.Messages, message => message.Contains("test-secret-key", StringComparison.Ordinal));
             }
 
@@ -97,6 +120,7 @@ public sealed partial class ViewerHttpTests
             var saves = restarted.Services.GetRequiredService<ManualWorldSaveStore>().List();
             Assert.Contains(saves, item => item.Id == saveId);
             Assert.Contains(saves, item => item.Id == backupId);
+            Assert.Equal(1, restarted.Services.GetRequiredService<WorldAutosaveStore>().Capture().IntervalMinutes);
         }
         finally { directory.Delete(recursive: true); }
     }
@@ -116,5 +140,49 @@ public sealed partial class ViewerHttpTests
         Assert.Empty(runtime.FounderSetup!.FounderIds);
         Assert.Empty(runtime.Inhabitants);
         Assert.Throws<InvalidOperationException>(runtime.Resume);
+    }
+
+    [Fact]
+    public async Task AutosaveScheduleRotatesOnlyAutomaticSnapshotsAndPersistsOwnerChoices()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-autosave-");
+        try
+        {
+            using var runtime = new PrivateWorldRuntime("autosave-rotation");
+            var path = Path.Combine(directory.FullName, "world.json");
+            var saves = new ManualWorldSaveStore(path);
+            var autosave = new WorldAutosaveStore(path, runtime.Society.WorldId);
+            var providers = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"),
+                new ProviderConfigurationSeed("deterministic", null, null, null, null, null, null));
+            Assert.True(autosave.Capture().Enabled);
+            Assert.Equal(5, autosave.Capture().IntervalMinutes);
+            Assert.Equal(5, autosave.Capture().RotationCount);
+            runtime.Pause();
+            var manual = saves.Create("Keep me", runtime, []);
+            runtime.Resume();
+
+            var firstTick = await runtime.AdvanceOneTickAsync();
+            Assert.True(firstTick.Advanced);
+            var start = DateTimeOffset.UtcNow.AddMinutes(6);
+            Assert.NotNull(autosave.MaybeSave(start, runtime, providers, saves));
+            Assert.Null(autosave.MaybeSave(start.AddMinutes(6), runtime, providers, saves));
+            Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+            Assert.NotNull(autosave.MaybeSave(start.AddMinutes(12), runtime, providers, saves));
+            Assert.Equal(2, saves.List().Count(item => item.IsAutosave));
+
+            autosave.Configure(true, 1, 0);
+            Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+            Assert.NotNull(autosave.MaybeSave(start.AddMinutes(24), runtime, providers, saves));
+            Assert.Single(saves.List(), item => item.IsAutosave);
+            Assert.Contains(saves.List(), item => item.Id == manual.Id && !item.IsAutosave);
+
+            autosave.Configure(false, 1, 0);
+            Assert.True((await runtime.AdvanceOneTickAsync()).Advanced);
+            Assert.Null(autosave.MaybeSave(start.AddMinutes(36), runtime, providers, saves));
+            var reloaded = new WorldAutosaveStore(path, runtime.Society.WorldId);
+            Assert.False(reloaded.Capture().Enabled);
+            Assert.Equal(0, reloaded.Capture().RotationCount);
+        }
+        finally { directory.Delete(recursive: true); }
     }
 }

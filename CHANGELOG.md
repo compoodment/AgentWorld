@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- World Settings now controls per-world autosaves: on by default every five
+  minutes with five rotating copies, with the agreed interval and rotation
+  choices. Rotating snapshots appear in Load Save and can be restored like
+  manual checkpoints; turning autosave off does not disable the host's separate
+  per-change emergency recovery checkpoint.
+
 - Pause Menu → **Save World** now creates an unlimited named checkpoint of the
   paused world. Main Menu → **Load Save** lists those checkpoints, confirms a
   rewind, preserves the current state as a new checkpoint first, and opens the

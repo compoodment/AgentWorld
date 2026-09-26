@@ -1,4 +1,5 @@
 using ClankerWorld.GodotClient.UI;
+using System.Globalization;
 using Godot;
 
 namespace ClankerWorld.GodotClient;
@@ -16,6 +17,88 @@ public partial class Main
     private readonly ConfirmationDialog manualSaveLoadConfirmation = new();
     private ManualWorldSave[] listedManualSaves = [];
     private bool manualSaveLoadMode;
+    private readonly CheckBox autosaveEnabledToggle = new();
+    private readonly OptionButton autosaveIntervalChoice = new();
+    private readonly OptionButton autosaveRotationChoice = new();
+    private readonly Button autosaveApplyButton = new();
+    private readonly Label autosaveSettingsStatus = new();
+    private bool autosaveSettingsLoaded;
+
+    private void BuildAutosaveSettings()
+    {
+        var content = new VBoxContainer();
+        content.AddThemeConstantOverride("separation", 6);
+        autosaveEnabledToggle.Text = "Autosave enabled";
+        autosaveEnabledToggle.ButtonPressed = true;
+        content.AddChild(autosaveEnabledToggle);
+        var intervalRow = new HBoxContainer();
+        intervalRow.AddChild(new Label { Text = "Every" });
+        foreach (var minutes in new[] { 1, 2, 5, 10, 15, 30 })
+            autosaveIntervalChoice.AddItem(minutes + " minutes", minutes);
+        autosaveIntervalChoice.Select(autosaveIntervalChoice.GetItemIndex(5));
+        autosaveIntervalChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        intervalRow.AddChild(autosaveIntervalChoice);
+        content.AddChild(intervalRow);
+        var rotationRow = new HBoxContainer();
+        rotationRow.AddChild(new Label { Text = "Rotating copies" });
+        autosaveRotationChoice.AddItem("Off (keep latest)", 0);
+        foreach (var count in new[] { 3, 5, 10 })
+            autosaveRotationChoice.AddItem(count.ToString(CultureInfo.InvariantCulture), count);
+        autosaveRotationChoice.Select(autosaveRotationChoice.GetItemIndex(5));
+        autosaveRotationChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        rotationRow.AddChild(autosaveRotationChoice);
+        content.AddChild(rotationRow);
+        autosaveSettingsStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        autosaveSettingsStatus.Text = "Loading this world's autosave settings…";
+        content.AddChild(autosaveSettingsStatus);
+        autosaveApplyButton.Text = "Apply autosave settings";
+        StyleButton(autosaveApplyButton);
+        autosaveApplyButton.Pressed += () => _ = ApplyAutosaveSettingsAsync();
+        content.AddChild(autosaveApplyButton);
+        worldSettingsContent.AddChild(NewPanel("Autosave", content));
+    }
+
+    private async Task RefreshAutosaveSettingsAsync()
+    {
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        autosaveSettingsLoaded = false;
+        autosaveSettingsStatus.Text = "Loading this world's autosave settings…";
+        RefreshControlAvailability();
+        try
+        {
+            var saved = await ownerApi.GetAutosaveSettingsAsync(ResolveWorldUri(), authority,
+                deviceId, signer, CancellationToken.None);
+            autosaveEnabledToggle.ButtonPressed = saved.Enabled;
+            autosaveIntervalChoice.Select(autosaveIntervalChoice.GetItemIndex(saved.IntervalMinutes));
+            autosaveRotationChoice.Select(autosaveRotationChoice.GetItemIndex(saved.RotationCount));
+            autosaveSettingsLoaded = true;
+            autosaveSettingsStatus.Text = saved.LastWorldTick < 0
+                ? "No rotating snapshot yet. The active world is still saved after committed changes."
+                : $"Last rotating snapshot: tick {saved.LastWorldTick}. The active world is saved after committed changes.";
+        }
+        catch (Exception exception)
+        {
+            autosaveSettingsStatus.Text = "Could not read autosave settings: " + FriendlyFailure(exception);
+        }
+        RefreshControlAvailability();
+    }
+
+    private async Task ApplyAutosaveSettingsAsync()
+    {
+        if (!autosaveSettingsLoaded || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        var action = new OwnerAutosaveConfigurationAction(autosaveEnabledToggle.ButtonPressed,
+            autosaveIntervalChoice.GetSelectedId(), autosaveRotationChoice.GetSelectedId());
+        await RunOwnerActionAsync(async () =>
+        {
+            var updated = await ownerApi.ConfigureAutosaveAsync(ResolveWorldUri(), authority,
+                deviceId, action, signer, CancellationToken.None);
+            autosaveSettingsStatus.Text = updated.Enabled
+                ? $"Autosave every {updated.IntervalMinutes} minutes; " +
+                  (updated.RotationCount == 0 ? "keep latest only." : $"keep {updated.RotationCount} copies.")
+                : "Autosave off. The active recovery save still updates after committed changes.";
+            return "Autosave settings saved for this world.";
+        });
+    }
 
     private void BuildManualSavesPanel()
     {
@@ -88,7 +171,7 @@ public partial class Main
                 deviceId, signer, CancellationToken.None);
             manualSaveList.Clear();
             foreach (var save in listedManualSaves)
-                manualSaveList.AddItem($"{save.Name} · tick {save.WorldTick} · {save.CreatedUtc.ToLocalTime():g}");
+                manualSaveList.AddItem($"{(save.IsAutosave ? "Autosave" : save.Name)} · tick {save.WorldTick} · {save.CreatedUtc.ToLocalTime():g}");
             if (listedManualSaves.Length == 0)
                 manualSaveStatus.Text = "No named saves yet. Continue the world and use Pause Menu → Save World.";
         }

@@ -112,6 +112,8 @@ builder.Services.AddSingleton<PrivateWorldRuntime>(services =>
     services.GetRequiredService<WorldJevPolicy>().Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
     return runtime;
 });
+builder.Services.AddSingleton<WorldAutosaveStore>(services => new WorldAutosaveStore(
+    privateRuntimeStatePath, services.GetRequiredService<PrivateWorldRuntime>().Society.WorldId));
 builder.Services.AddSingleton<OwnerWorldObservationStore>(services => isPrivateWorld
     ? new OwnerWorldObservationStore(services.GetRequiredService<PrivateWorldRuntime>())
     : new OwnerWorldObservationStore(services.GetRequiredService<OwnerWorldRuntime>()));
@@ -133,7 +135,14 @@ if (advanceRuntime)
 {
     if (isPrivateWorld)
     {
-        builder.Services.AddHostedService<PrivateWorldRuntimeService>();
+        builder.Services.AddHostedService(services => new PrivateWorldRuntimeService(
+            services.GetRequiredService<PrivateWorldRuntime>(),
+            services.GetRequiredService<PrivateWorldStateFile>(),
+            services.GetRequiredService<OwnerClientPresenceLease>(),
+            services.GetRequiredService<ILogger<PrivateWorldRuntimeService>>(),
+            services.GetRequiredService<WorldAutosaveStore>(),
+            services.GetRequiredService<ManualWorldSaveStore>(),
+            services.GetRequiredService<ProviderConfigurationStore>()));
     }
     else
     {
@@ -487,12 +496,61 @@ app.MapPost("/api/v1/owner/saves/list", (
     return Results.Ok(saves.List());
 });
 
+app.MapPost("/api/v1/owner/saves/autosave/status", (
+    OwnerSignedHttpRequest<OwnerControlAction> request,
+    OwnerRequestAuthorizer authorizer,
+    WorldAutosaveStore autosave) =>
+{
+    if (!IsControl(request, "autosave-status"))
+        return Results.BadRequest(new { error = "An autosave-status action is required." });
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/autosave/status",
+        OwnerHttpBinding.EmptyPayload("autosave-status"));
+    if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (!isPrivateWorld) return Results.Conflict(new { error = "Autosave settings require a private world." });
+    return Results.Ok(autosave.Capture());
+});
+
+app.MapPost("/api/v1/owner/saves/autosave/configure", (
+    OwnerSignedHttpRequest<OwnerAutosaveConfigurationAction> request,
+    OwnerRequestAuthorizer authorizer,
+    WorldAutosaveStore autosave,
+    ManualWorldSaveStore saves,
+    PrivateWorldRuntime runtime,
+    ILogger<PrivateWorldRuntimeService> logger) =>
+{
+    if (request?.Action is not { } action)
+        return Results.BadRequest(new { error = "Autosave settings are required." });
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/autosave/configure",
+        OwnerHttpBinding.AutosaveConfigurationPayload(action));
+    if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (!isPrivateWorld) return Results.Conflict(new { error = "Autosave settings require a private world." });
+    if (!runtime.Society.IsPaused)
+    {
+        ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "not_paused");
+        return Results.Conflict(new { error = "Pause the world before changing autosave settings." });
+    }
+    try
+    {
+        var updated = autosave.Configure(action.Enabled, action.IntervalMinutes, action.RotationCount);
+        saves.KeepNewestAutosaves(Math.Max(1, updated.RotationCount));
+        ManualWorldSaveTelemetry.AutosaveConfigured(logger, updated.Enabled,
+            updated.IntervalMinutes, updated.RotationCount, runtime.WorldTick);
+        return Results.Ok(updated);
+    }
+    catch (ArgumentException)
+    {
+        ManualWorldSaveTelemetry.Rejected(logger, "autosave_configure", "invalid_option");
+        return Results.BadRequest(new { error = "Choose an offered interval and rotation count." });
+    }
+});
+
 app.MapPost("/api/v1/owner/saves/create", (
     OwnerSignedHttpRequest<OwnerManualSaveAction> request,
     OwnerRequestAuthorizer authorizer,
     ManualWorldSaveStore saves,
     PrivateWorldRuntime runtime,
     ProviderConfigurationStore providers,
+    WorldAutosaveStore autosave,
     ILogger<PrivateWorldRuntimeService> logger) =>
 {
     if (request?.Action is not { Operation: "create" } action)
@@ -506,7 +564,7 @@ app.MapPost("/api/v1/owner/saves/create", (
     try
     {
         var saved = saves.Create(action.Value, runtime,
-            providers.CaptureRuntimeConfiguration().Assignments ?? []);
+            providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
         ManualWorldSaveTelemetry.Created(logger, saved.Id, saved.WorldTick);
         return Results.Ok(saved);
     }
@@ -529,6 +587,7 @@ app.MapPost("/api/v1/owner/saves/load", (
     PrivateWorldRuntime runtime,
     PrivateWorldStateFile stateFile,
     ProviderConfigurationStore providers,
+    WorldAutosaveStore autosave,
     WorldJevPolicy jevPolicy,
     ILogger<PrivateWorldRuntimeService> logger) =>
 {
@@ -549,6 +608,7 @@ app.MapPost("/api/v1/owner/saves/load", (
     {
         var checkpoint = saves.Read(action.Value);
         var assignments = saves.ReadAssignments(action.Value);
+        var autosaveSettings = saves.ReadAutosaveSettings(action.Value);
         if (!string.Equals(checkpoint.WorldSeed, runtime.ExportState().WorldSeed, StringComparison.Ordinal))
         {
             ManualWorldSaveTelemetry.Rejected(logger, "load", "different_world");
@@ -557,12 +617,13 @@ app.MapPost("/api/v1/owner/saves/load", (
         // A rewind must never destroy the current timeline. The backup is a
         // normal named checkpoint, visible in Load Saves immediately.
         var backup = saves.Create("Before loading", runtime,
-            providers.CaptureRuntimeConfiguration().Assignments ?? []);
+            providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
         try
         {
             runtime.LoadPausedCheckpoint(checkpoint);
             stateFile.Save(runtime);
             providers.RestoreWorldAssignments(assignments);
+            if (autosaveSettings is not null) autosave.RestoreFromCheckpoint(autosaveSettings);
             jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
         }
         catch
@@ -570,6 +631,8 @@ app.MapPost("/api/v1/owner/saves/load", (
             runtime.LoadPausedCheckpoint(saves.Read(backup.Id));
             stateFile.Save(runtime);
             providers.RestoreWorldAssignments(saves.ReadAssignments(backup.Id));
+            if (saves.ReadAutosaveSettings(backup.Id) is { } previousAutosave)
+                autosave.RestoreFromCheckpoint(previousAutosave);
             jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
             throw;
         }

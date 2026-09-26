@@ -37,6 +37,7 @@ public sealed record OwnerReconnectAction(long AfterEventId);
 
 public sealed record OwnerControlAction(string Operation);
 public sealed record OwnerManualSaveAction(string Operation, string Value);
+public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
 
@@ -166,6 +167,13 @@ public static class OwnerHttpBinding
         "clankerworld.owner-manual-save.v1",
         $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
+
+    public static string AutosaveConfigurationPayload(OwnerAutosaveConfigurationAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-autosave-configuration.v1",
+        $"enabled={action.Enabled.ToString().ToLowerInvariant()}",
+        $"interval-minutes={action.IntervalMinutes.ToString(CultureInfo.InvariantCulture)}",
+        $"rotation-count={action.RotationCount.ToString(CultureInfo.InvariantCulture)}");
 
     public static string LifePacePayload(OwnerLifePaceAction action) =>
         "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);

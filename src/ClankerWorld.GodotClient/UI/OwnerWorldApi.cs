@@ -264,8 +264,12 @@ public sealed record OwnerReconnectAction(long AfterEventId);
 
 public sealed record OwnerControlAction(string Operation);
 public sealed record OwnerManualSaveAction(string Operation, string Value);
-public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick);
+public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
+    bool IsAutosave = false);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
+public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
+public sealed record WorldAutosaveSettings(string WorldId, bool Enabled, int IntervalMinutes,
+    int RotationCount, DateTimeOffset LastSavedUtc, long LastWorldTick);
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
 
@@ -552,6 +556,13 @@ public static class OwnerWorldActionPayload
         "clankerworld.owner-manual-save.v1",
         $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
+
+    public static string AutosaveConfiguration(OwnerAutosaveConfigurationAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-autosave-configuration.v1",
+        $"enabled={action.Enabled.ToString().ToLowerInvariant()}",
+        $"interval-minutes={action.IntervalMinutes.ToString(CultureInfo.InvariantCulture)}",
+        $"rotation-count={action.RotationCount.ToString(CultureInfo.InvariantCulture)}");
 
     public static string LifePace(OwnerLifePaceAction action) =>
         "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
@@ -893,6 +904,26 @@ public sealed class OwnerWorldApi
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("list-saves"),
             action, deviceKey, cancellationToken);
     }
+
+    public Task<WorldAutosaveSettings> GetAutosaveSettingsAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerControlAction("autosave-status");
+        return pairing.SendSignedActionAsync<OwnerControlAction, WorldAutosaveSettings>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAutosaveStatus,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("autosave-status"),
+            action, deviceKey, cancellationToken);
+    }
+
+    public Task<WorldAutosaveSettings> ConfigureAutosaveAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerAutosaveConfigurationAction action, IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerAutosaveConfigurationAction, WorldAutosaveSettings>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAutosaveConfigure,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AutosaveConfiguration(action),
+            action, deviceKey, cancellationToken);
 
     public Task<ManualWorldSave> CreateManualSaveAsync(
         Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,

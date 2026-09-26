@@ -105,9 +105,13 @@ Jev-assisted memory compaction is not implemented yet.
   and its referenced history. Named manual checkpoints live beside the active
   save in a private `.manual` directory; their snapshots reference the same
   history archive. Checkpoint metadata records per-agent provider/model and
-  credential-slot IDs, never API-key bytes. A full backup must retain the
+  credential-slot IDs and that world's autosave preferences, never API-key
+  bytes. A full backup must retain the
   active save, `.history`, `.manual`, pairing authority and global provider
-  configuration together.
+  configuration together. An adjacent `.autosave.json` file stores the
+  current world's rotating-snapshot schedule and last saved tick; include it
+  in backups. Rotating snapshots use the same private checkpoint directory as
+  named saves and are trimmed only after a newer copy exists.
 - The current content path accepts bounded, validated data-only designs.
   Arbitrary executable agent code is disabled. The vision includes a
   restricted script sandbox and explicit human-mod import; neither is a

@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Viewer.Control;
 
 namespace ClankerWorld.Viewer.Observation;
 
@@ -10,7 +11,10 @@ public sealed partial class PrivateWorldRuntimeService(
     PrivateWorldRuntime runtime,
     PrivateWorldStateFile stateFile,
     OwnerClientPresenceLease clientPresence,
-    ILogger<PrivateWorldRuntimeService>? logger = null) : BackgroundService
+    ILogger<PrivateWorldRuntimeService>? logger = null,
+    WorldAutosaveStore? autosave = null,
+    ManualWorldSaveStore? manualSaves = null,
+    ProviderConfigurationStore? providers = null) : BackgroundService
 {
     private string? lastGateState;
 
@@ -29,6 +33,14 @@ public sealed partial class PrivateWorldRuntimeService(
     [LoggerMessage(EventId = 2218, Level = LogLevel.Information,
         Message = "hosted_decision tick={WorldTick} inhabitant={InhabitantId} outcome={Outcome}")]
     private static partial void LogHostedDecision(ILogger logger, long worldTick, string inhabitantId, string outcome);
+
+    [LoggerMessage(EventId = 2253, Level = LogLevel.Information,
+        Message = "autosave outcome=created save={SaveId} tick={WorldTick}")]
+    private static partial void LogAutosaveCreated(ILogger logger, string saveId, long worldTick);
+
+    [LoggerMessage(EventId = 2254, Level = LogLevel.Warning,
+        Message = "autosave outcome=failed reason={Reason} tick={WorldTick}")]
+    private static partial void LogAutosaveFailed(ILogger logger, string reason, long worldTick);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -79,6 +91,21 @@ public sealed partial class PrivateWorldRuntimeService(
             {
                 var checkpoint = runtime.ExportState();
                 LogHistoryCompacted(logger, result.WorldTick, checkpoint.EventHistoryFloor, checkpoint.Events.Count);
+            }
+            try
+            {
+                var saved = autosave is not null && manualSaves is not null && providers is not null
+                    ? autosave.MaybeSave(DateTimeOffset.UtcNow, runtime, providers, manualSaves)
+                    : null;
+                if (saved is not null && logger is not null)
+                    LogAutosaveCreated(logger, saved.Id, saved.WorldTick);
+            }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or
+                UnauthorizedAccessException or System.Text.Json.JsonException or ArgumentException)
+            {
+                // The active per-tick recovery save already committed; a
+                // failed rotating copy must not halt world simulation.
+                if (logger is not null) LogAutosaveFailed(logger, exception.GetType().Name, result.WorldTick);
             }
             if (logger?.IsEnabled(LogLevel.Information) == true)
             {

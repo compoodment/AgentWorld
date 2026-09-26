@@ -1817,6 +1817,7 @@ public partial class Main : Control
         if (worldSpecific && registration is not null)
         {
             _ = RefreshProviderConfigurationAsync();
+            _ = RefreshAutosaveSettingsAsync();
         }
 
         ApplyResponsiveLayout();
@@ -2177,6 +2178,8 @@ public partial class Main : Control
         });
         prototypePaceBody.AddChild(lifePaceRow);
         developerBody.AddChild(NewPanel("Prototype aging override", prototypePaceBody));
+
+        BuildAutosaveSettings();
 
         jevAssistanceToggle.Text = "Allow Jev assistance in this world";
         jevAssistanceToggle.TooltipText = "Jev is used only if configured. When off, work Jev would have handled goes to that agent's personal planning model, the world planner, or the local safe fallback. Memories and provider keys remain intact.";
@@ -3361,6 +3364,7 @@ public partial class Main : Control
         var selected = snapshot?.Inhabitants.FirstOrDefault(item =>
             string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal));
         var actionDisabled = !paired || isOwnerAction || pendingSubmission is not null;
+        autosaveApplyButton.Disabled = actionDisabled || !paused || !autosaveSettingsLoaded;
         var supportsLifePace = snapshot?.LifePaceRate is not null;
         var supportsJevAssistance = snapshot?.JevEnabled is not null &&
             observationSession.Current?.Handshake.ServerCapabilities.Contains("owner-jev-assistance.v1", StringComparer.Ordinal) == true;

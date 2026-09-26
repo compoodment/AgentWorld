@@ -13,4 +13,9 @@ public static partial class ManualWorldSaveTelemetry
     [LoggerMessage(EventId = 2252, Level = LogLevel.Warning,
         Message = "manual_save outcome=rejected operation={Operation} reason={Reason}")]
     public static partial void Rejected(ILogger logger, string operation, string reason);
+
+    [LoggerMessage(EventId = 2255, Level = LogLevel.Information,
+        Message = "autosave_settings outcome=changed enabled={Enabled} interval_minutes={IntervalMinutes} rotations={RotationCount} tick={WorldTick}")]
+    public static partial void AutosaveConfigured(ILogger logger, bool enabled, int intervalMinutes,
+        int rotationCount, long worldTick);
 }
