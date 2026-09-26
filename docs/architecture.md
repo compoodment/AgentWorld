@@ -45,6 +45,15 @@ layer in the map manifest; surface and vegetation are still collapsed into
 ground kinds, not full layers. Signed New World preview/create options select
 balanced, uniform or dominant climate and optional latitude cooling. The larger
 geography presets remain compact generator outputs, not playable-map promises.
+Generated maps also choose at most one sparse resource site per 16×16 ground
+cell, with food/fiber/seed/stone/wood biased by the projected ground. Starter
+camp resources remain reachable; remote sites need not be reachable on foot.
+The simulation creates 64×64 chunk manifests across the generated map, each
+holding only its own resource metadata; the tiny fixture retains one chunk.
+Food and project-material selection currently consider the camp's foot-accessible
+ground component, so resources across water or mountains do not masquerade as
+immediately available. A boat-access model must broaden this later.
+This is not yet a detailed vegetation/object or abundance model.
 Generated-world weather is derived deterministically by 32×32-tile region,
 day and the saved climate zone at each region's center from the world seed and
 calendar. The saved climate's

@@ -430,7 +430,7 @@ public partial class Main
             previewedWorldOptions = action;
             worldCreateButton.Disabled = false;
             worldPreviewStatus.Text = $"Map preview · camp at {result.Camp.X}, {result.Camp.Y}. " +
-                "The world you create will use this terrain.";
+                $"{result.ResourceSites} resource sites. The world you create will use this terrain.";
         }
         catch (Exception exception)
         {

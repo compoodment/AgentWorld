@@ -88,9 +88,10 @@ public sealed partial class PrivateWorldRuntime
                 worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position)))
             .ToHashSet();
         var additions = new List<MapResource>();
-        var campChunk = worldSystems.Chunks.Single();
-        var campOrigin = campChunk.Coordinate.Origin(campChunk.ChunkSize);
         var bedroll = map.GetObject("bedroll").Position;
+        var campChunk = worldSystems.Chunks.Single(chunk => chunk.Coordinate ==
+            ChunkRules.ToChunkCoordinate(bedroll, chunk.ChunkSize));
+        var campOrigin = campChunk.Coordinate.Origin(campChunk.ChunkSize);
         foreach (var kind in new[] { "stone", "fiber", "seed" })
         {
             var id = "settlement-" + kind;
@@ -128,14 +129,19 @@ public sealed partial class PrivateWorldRuntime
                     WorldCalendarRules.FromTick(WorldTick, worldSystems.Config).DayIndex + 1, EcologyResourceState.Available)))
                     .OrderBy(resource => resource.Id, StringComparer.Ordinal).ToArray(),
             },
-            Chunks = worldSystems.Chunks.Select(chunk => ChunkManifestCodec.WithDigest(chunk with
-            {
-                Resources = map.Resources.Select(resource => new ChunkResourceMetadata(
-                    resource.Id, resource.Kind,
-                    new GridPoint(resource.Position.X - chunk.Coordinate.Origin(chunk.ChunkSize).X,
-                        resource.Position.Y - chunk.Coordinate.Origin(chunk.ChunkSize).Y),
-                    resource.IsRenewable)).ToArray(),
-            })).ToArray(),
+            Chunks = worldSystems.Chunks.Select(chunk => chunk.Coordinate != campChunk.Coordinate
+                ? chunk
+                : ChunkManifestCodec.WithDigest(chunk with
+                {
+                    Resources = map.Resources.Where(resource =>
+                            resource.Position.X >= campOrigin.X && resource.Position.X < campOrigin.X + chunk.Width &&
+                            resource.Position.Y >= campOrigin.Y && resource.Position.Y < campOrigin.Y + chunk.Height)
+                        .Select(resource => new ChunkResourceMetadata(
+                            resource.Id, resource.Kind,
+                            new GridPoint(resource.Position.X - campOrigin.X,
+                                resource.Position.Y - campOrigin.Y),
+                            resource.IsRenewable)).ToArray(),
+                })).ToArray(),
         };
         SyncEcologyResourceStates();
         checkpointSchemaVersion = StateSchemaVersion;
@@ -291,9 +297,13 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
 
-        var source = map.Resources.FirstOrDefault(resource =>
+        var source = map.Resources.Where(resource =>
             (resource.Kind == input.ResourceId || (input.ResourceId == "wood" && resource.Kind == "construction")) &&
-            resources.GetValueOrDefault(resource.Id) == ResourceState.Available);
+            resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
+            map.IsReachableFromCampOnFoot(resource.Position))
+            .OrderBy(resource => Math.Abs(resource.Position.X - state.Position.X) +
+                Math.Abs(resource.Position.Y - state.Position.Y))
+            .FirstOrDefault();
         if (source is null)
         {
             SetProject(inhabitantId, project with { Stage = "blocked", Blocker = $"No available source of {input.ResourceId}" });
@@ -354,7 +364,8 @@ public sealed partial class PrivateWorldRuntime
 
     private MapResource? MaterialSource(string itemKind) => map.Resources.FirstOrDefault(resource =>
         (resource.Kind == itemKind || (itemKind == "wood" && resource.Kind == "construction")) &&
-        resources.GetValueOrDefault(resource.Id) == ResourceState.Available);
+        resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
+        map.IsReachableFromCampOnFoot(resource.Position));
 
     private bool CanAcquireProjectInputs(IReadOnlyList<ContentQuantity> inputs) => inputs.All(input =>
     {
@@ -363,7 +374,8 @@ public sealed partial class PrivateWorldRuntime
             .Sum(lot => (long)AvailableLotQuantity(lot));
         var harvestable = worldSystems.Ecology.Resources.Where(resource =>
                 resource.State == EcologyResourceState.Available &&
-                (resource.Kind == input.ResourceId || (input.ResourceId == "wood" && resource.Kind == "construction")))
+                (resource.Kind == input.ResourceId || (input.ResourceId == "wood" && resource.Kind == "construction")) &&
+                map.IsReachableFromCampOnFoot(resource.Position))
             .Sum(resource => (long)resource.Quantity * 4);
         return stored + harvestable >= input.Amount;
     });

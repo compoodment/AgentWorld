@@ -23,6 +23,9 @@ public sealed class GeographyGeneratorTests
         Assert.All(map.Tiles.Where(item => item.Terrain is TerrainKind.Mountain or TerrainKind.Peak),
             item => Assert.False(map.IsBuildable(item.Position)));
         Assert.All(map.CampObjects, item => Assert.True(map.IsPassable(item.Position)));
+        Assert.True(map.Resources.Count > 20, "Generated worlds need usable sites beyond the starter camp.");
+        Assert.All(map.Resources, site => Assert.True(map.IsPassable(site.Position)));
+        Assert.DoesNotContain(map.Resources, site => map.CampObjects.Any(item => item.Position == site.Position));
     }
 
     [Fact]
@@ -69,6 +72,14 @@ public sealed class GeographyGeneratorTests
         Assert.Equal(initial.Map.ManifestDigest, restored.ExportState().Map.ManifestDigest);
         Assert.Equal(options, restored.ExportState().Geography);
         Assert.Equal(4, restored.Inhabitants.Count);
+        Assert.True(restored.WorldSystems.Chunks.Count > 1);
+        Assert.All(restored.ExportState().Map.Resources, site =>
+        {
+            var chunk = Assert.Single(restored.WorldSystems.Chunks, item =>
+                item.Coordinate == ChunkRules.ToChunkCoordinate(site.Position, item.ChunkSize));
+            Assert.Contains(chunk.Resources, item => item.ResourceId == site.Id &&
+                item.LocalPosition == ChunkRules.ToLocalPoint(site.Position, chunk.ChunkSize));
+        });
     }
 
     [Theory]
@@ -136,6 +147,10 @@ public sealed class GeographyGeneratorTests
         var tropicalMap = GeneratedCampMapGenerator.Generate(dryOptions with { SelectedClimate = ClimateZone.Tropical });
         Assert.Contains(dryMap.Tiles, tile => tile.Terrain == TerrainKind.Sand);
         Assert.Contains(tropicalMap.Tiles, tile => tile.Terrain == TerrainKind.Forest);
+        Assert.All(dryMap.Resources.Where(site => site.Id.StartsWith("wild-", StringComparison.Ordinal)),
+            site => Assert.True(site.Kind is "stone" or "fiber"));
+        Assert.Contains(tropicalMap.Resources, site => site.Id.StartsWith("wild-", StringComparison.Ordinal) &&
+            site.Kind == "construction" && site.IsRenewable);
         Assert.NotEqual(dryMap.ManifestDigest, tropicalMap.ManifestDigest);
         Assert.True(MapAcceptance.Validate(dryMap, allowEmptyCamp: true).IsValid);
 

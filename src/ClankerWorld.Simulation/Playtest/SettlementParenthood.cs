@@ -187,9 +187,13 @@ public sealed partial class PrivateWorldRuntime
             }
             else
             {
-                var berry = map.GetResource(BerryResourceId).Position;
-                if (IsWithinInteractionRange(parent.Position, berry, ResourceInteractionRange)) HarvestFood(actor, parent);
-                else MoveToward(actor, parent, berry, "care_food", ResourceInteractionRange);
+                if (AvailableFoodSource(parent.Position) is { } source)
+                {
+                    if (IsWithinInteractionRange(parent.Position, source.Position, ResourceInteractionRange))
+                        HarvestFood(actor, parent);
+                    else
+                        MoveToward(actor, parent, source.Position, "care_food", ResourceInteractionRange);
+                }
             }
             return;
         }

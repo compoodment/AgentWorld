@@ -8,6 +8,13 @@ release yet.
 
 ### Added
 
+- Generated Small/Medium worlds now place sparse food, fiber, seed, stone and
+  regrowing wood sites beyond the starter camp according to local ground.
+  The preview reports the number of sites, and the same sites persist through
+  world creation and reload. Agents can seek reachable food beyond the starter
+  berry patch, while inaccessible islands do not count as immediately
+  gatherable; some remote sites will require later boats.
+
 - New World now offers balanced, uniform, or dominant climate generation,
   a selected climate family for uniform/dominant worlds, and optional
   equator-to-pole cooling. The preview and created world use the same signed

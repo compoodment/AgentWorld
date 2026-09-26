@@ -36,7 +36,7 @@ public sealed class WorldSelectionCoordinator(
             var camp = map.GetObject("bedroll").Position;
             WorldSelectionTelemetry.Previewed(logger, map.Width, map.Height);
             return new ViewerWorldPreview(OwnerWorldObservationStore.PackTerrain(map),
-                new ViewerPosition(camp.X, camp.Y), map.ManifestDigest);
+                new ViewerPosition(camp.X, camp.Y), map.ManifestDigest, map.Resources.Count);
         }
     }
 

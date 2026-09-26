@@ -94,7 +94,6 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private const string SecondHouseholdId = "household:camp-beta";
     public const int RequiredFounders = 4;
     private const string FoodLotId = "food:camp-alpha";
-    private const string BerryResourceId = "berry-patch";
     private const long CognitionReevaluationIntervalTicks = 30;
     private const int ResourceInteractionRange = 1;
     private const int HarvestFoodYield = 4;
@@ -2065,22 +2064,30 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             []);
         var chunkSize = map.Width > ChunkRules.DefaultChunkSize || map.Height > ChunkRules.DefaultChunkSize
             ? GeographyGenerator.ChunkSize : ChunkRules.DefaultChunkSize;
-        var coordinate = ChunkRules.ToChunkCoordinate(map.GetObject("bedroll").Position, chunkSize);
-        var chunkOrigin = coordinate.Origin(chunkSize);
-        var chunk = ChunkManifestCodec.WithDigest(new ChunkManifest(
-            coordinate,
-            chunkSize,
-            Math.Min(chunkSize, map.Width - chunkOrigin.X),
-            Math.Min(chunkSize, map.Height - chunkOrigin.Y),
-            map.Width > ChunkRules.DefaultChunkSize || map.Height > ChunkRules.DefaultChunkSize
-                ? "noise-drainage-camp" : SeededMapGenerator.GeneratorId,
-            SeededMapGenerator.GeneratorVersion,
-            map.Resources.Select(resource => new ChunkResourceMetadata(
-                resource.Id,
-                resource.Kind,
-                new GridPoint(resource.Position.X - chunkOrigin.X,
-                    resource.Position.Y - chunkOrigin.Y),
-                resource.IsRenewable)).ToArray()));
+        var chunks = new List<ChunkManifest>();
+        for (var top = 0; top < map.Height; top += chunkSize)
+            for (var left = 0; left < map.Width; left += chunkSize)
+            {
+                var coordinate = new ChunkCoordinate(left / chunkSize, top / chunkSize);
+                var chunkWidth = Math.Min(chunkSize, map.Width - left);
+                var chunkHeight = Math.Min(chunkSize, map.Height - top);
+                chunks.Add(ChunkManifestCodec.WithDigest(new ChunkManifest(
+                    coordinate,
+                    chunkSize,
+                    chunkWidth,
+                    chunkHeight,
+                    map.Width > ChunkRules.DefaultChunkSize || map.Height > ChunkRules.DefaultChunkSize
+                        ? "noise-drainage-camp" : SeededMapGenerator.GeneratorId,
+                    map.Width > ChunkRules.DefaultChunkSize || map.Height > ChunkRules.DefaultChunkSize
+                        ? "v2" : SeededMapGenerator.GeneratorVersion,
+                    map.Resources.Where(resource => resource.Position.X >= left &&
+                            resource.Position.X < left + chunkWidth && resource.Position.Y >= top &&
+                            resource.Position.Y < top + chunkHeight)
+                        .Select(resource => new ChunkResourceMetadata(
+                            resource.Id, resource.Kind,
+                            new GridPoint(resource.Position.X - left, resource.Position.Y - top),
+                            resource.IsRenewable)).ToArray())));
+            }
         return WorldSystemsRules.CreateGenesis(
             worldSeed,
             config,
@@ -2088,7 +2095,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             factions,
             currency,
             culture,
-            [chunk]);
+            chunks);
     }
 
     private static WorldSystemsState AdvanceWorldSystemsTo(WorldSystemsState state, long targetTick)
@@ -2493,12 +2500,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 SeekWarmth(inhabitantId, state);
                 break;
             case "seek_food":
-                MoveToward(
-                    inhabitantId,
-                    state,
-                    map.GetResource(BerryResourceId).Position,
-                    "food",
-                    ResourceInteractionRange);
+                if (AvailableFoodSource(state.Position) is { } foodSource)
+                    MoveToward(inhabitantId, state, foodSource.Position, "food", ResourceInteractionRange);
                 break;
             case "harvest_food":
                 HarvestFood(inhabitantId, state);
@@ -2685,19 +2688,24 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private static bool IsWithinInteractionRange(GridPoint origin, GridPoint destination, int interactionRange) =>
         Math.Abs(origin.X - destination.X) + Math.Abs(origin.Y - destination.Y) <= interactionRange;
 
+    private MapResource? AvailableFoodSource(GridPoint position) => map.Resources
+        .Where(resource => resource.Kind == "food" &&
+            resources.GetValueOrDefault(resource.Id) == ResourceState.Available &&
+            map.IsReachableFromCampOnFoot(resource.Position))
+        .OrderBy(resource => Math.Abs(resource.Position.X - position.X) +
+            Math.Abs(resource.Position.Y - position.Y))
+        .FirstOrDefault();
+
     private void HarvestFood(string inhabitantId, PlaytestInhabitantState state)
     {
-        if (!IsWithinInteractionRange(
-                state.Position,
-                map.GetResource(BerryResourceId).Position,
-                ResourceInteractionRange) ||
-            resources[BerryResourceId] != ResourceState.Available)
+        var source = AvailableFoodSource(state.Position);
+        if (source is null || !IsWithinInteractionRange(state.Position, source.Position, ResourceInteractionRange))
         {
             AppendEvent("harvest_failed", $"{inhabitantId}:not_at_available_food");
             return;
         }
 
-        var ecologyResource = worldSystems.Ecology.GetResource(BerryResourceId);
+        var ecologyResource = worldSystems.Ecology.GetResource(source.Id);
         var harvest = EcologyRules.Harvest(ecologyResource, 1);
         if (!harvest.IsValid || harvest.Resource is null)
         {
@@ -2711,7 +2719,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             Ecology = worldSystems.Ecology with
             {
                 Resources = worldSystems.Ecology.Resources
-                    .Select(resource => resource.Id == BerryResourceId ? harvest.Resource : resource)
+                    .Select(resource => resource.Id == source.Id ? harvest.Resource : resource)
                     .ToArray(),
             },
         };
@@ -2819,7 +2827,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             candidates.Add(new CognitionCandidate("consume_food", "Follow the owner's food instruction.", 0));
         }
 
-        var berry = map.GetResource(BerryResourceId);
+        var foodSource = AvailableFoodSource(state.Position);
         var foodPriority = state.HungerBasisPoints < 2_500 ? 2 : 5;
         var shouldGatherFood = !hasFood && state.HungerBasisPoints < 7_000;
         if (shouldGatherFood && contentRegistry.ExportState().Packages.Any(package =>
@@ -2831,36 +2839,36 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 "Collect one available household food serving at camp, then eat it.",
                 foodPriority - 1, HouseholdId));
         }
-        if (shouldGatherFood && resources[BerryResourceId] == ResourceState.Available &&
-            IsWithinInteractionRange(state.Position, berry.Position, ResourceInteractionRange))
+        if (shouldGatherFood && foodSource is not null &&
+            IsWithinInteractionRange(state.Position, foodSource.Position, ResourceInteractionRange))
         {
             candidates.Add(new CognitionCandidate(
                 "harvest_food",
-                "Gather several food servings from the nearby berry patch.",
+                "Gather several food servings from the nearby food source.",
                 foodPriority,
-                BerryResourceId));
+                foodSource.Id));
         }
-        else if (shouldGatherFood && resources[BerryResourceId] == ResourceState.Available)
+        else if (shouldGatherFood && foodSource is not null)
         {
             candidates.Add(new CognitionCandidate(
                 "seek_food",
-                "Travel within gathering range of the available berry patch.",
+                "Travel within gathering range of an available food source.",
                 foodPriority,
-                BerryResourceId));
+                foodSource.Id));
         }
 
-        if (instructionCandidate == "seek_food" && resources[BerryResourceId] == ResourceState.Available &&
+        if (instructionCandidate == "seek_food" && foodSource is not null &&
             !candidates.Any(item => item.Id == "seek_food"))
         {
-            candidates.Add(new CognitionCandidate("seek_food", "Follow the owner's travel instruction.", 0, BerryResourceId));
+            candidates.Add(new CognitionCandidate("seek_food", "Follow the owner's travel instruction.", 0, foodSource.Id));
         }
 
         if (instructionCandidate == "harvest_food" &&
-            resources[BerryResourceId] == ResourceState.Available &&
-            IsWithinInteractionRange(state.Position, berry.Position, ResourceInteractionRange) &&
+            foodSource is not null &&
+            IsWithinInteractionRange(state.Position, foodSource.Position, ResourceInteractionRange) &&
             !candidates.Any(item => item.Id == "harvest_food"))
         {
-            candidates.Add(new CognitionCandidate("harvest_food", "Follow the owner's harvest instruction.", 0, BerryResourceId));
+            candidates.Add(new CognitionCandidate("harvest_food", "Follow the owner's harvest instruction.", 0, foodSource.Id));
         }
 
         if (state.EnergyBasisPoints < 3_500 && !candidates.Any(item => item.Id == "sleep"))

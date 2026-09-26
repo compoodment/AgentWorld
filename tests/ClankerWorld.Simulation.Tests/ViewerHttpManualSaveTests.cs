@@ -66,6 +66,7 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(HttpStatusCode.OK, previewed.StatusCode);
                 var preview = (await previewed.Content.ReadFromJsonAsync<ViewerWorldPreview>())!;
                 Assert.Equal(256, preview.Terrain.Width);
+                Assert.True(preview.ResourceSites > 20);
                 Assert.Contains(selectionLog.Messages, message => message.Contains(
                     "world_preview outcome=generated width=256", StringComparison.Ordinal));
                 Assert.Null(host.Services.GetRequiredService<PrivateWorldRuntime>().ExportState().Geography);
@@ -81,6 +82,7 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(WorldSizePreset.Small, runtime.ExportState().Geography?.Size);
                 Assert.Equal(256, runtime.ExportState().Map.Width);
                 Assert.Equal(preview.ManifestDigest, runtime.ExportState().Map.ManifestDigest);
+                Assert.Equal(preview.ResourceSites, runtime.ExportState().Map.Resources.Count);
                 Assert.Equal(ClimateMode.Uniform, runtime.ExportState().Geography?.ClimateMode);
                 Assert.Equal(ClimateZone.Dry, runtime.ExportState().Map.ClimateAt(
                     runtime.ExportState().Map.GetObject("bedroll").Position));

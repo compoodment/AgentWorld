@@ -17,7 +17,7 @@ public sealed record ViewerTile(int X, int Y, string Terrain);
 /// <summary>Row-major terrain-kind bytes, base64-encoded for owner JSON.</summary>
 public sealed record ViewerPackedTerrain(int Width, int Height, string Encoding, string Data);
 public sealed record ViewerWorldPreview(ViewerPackedTerrain Terrain, ViewerPosition Camp,
-    string ManifestDigest);
+    string ManifestDigest, int ResourceSites = 0);
 
 public sealed record ViewerMapObject(string Id, string Kind, ViewerPosition Position);
 

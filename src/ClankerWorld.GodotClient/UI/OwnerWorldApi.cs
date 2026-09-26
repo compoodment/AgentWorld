@@ -278,7 +278,7 @@ public sealed record CatalogWorld(string Id, string Name, string WorldId, string
     WorldAutosaveSettings? AutosaveSettings);
 public sealed record WorldCatalogSnapshot(string ActiveId, IReadOnlyList<CatalogWorld> Worlds);
 public sealed record OwnerWorldPreview(OwnerWorldPackedTerrain Terrain, OwnerWorldPosition Camp,
-    string ManifestDigest);
+    string ManifestDigest, int ResourceSites = 0);
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
     bool IsAutosave = false);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);

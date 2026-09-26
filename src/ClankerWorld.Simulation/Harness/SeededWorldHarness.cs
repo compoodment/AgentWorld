@@ -62,6 +62,7 @@ public sealed record SeededMap(
     // Keep the index outside the record: a cache field would silently change
     // record equality and could be copied into a `with` map with new tiles.
     private static readonly ConditionalWeakTable<SeededMap, byte[]> TerrainIndexes = new();
+    private static readonly ConditionalWeakTable<SeededMap, HashSet<GridPoint>> CampReachability = new();
 
     public bool Contains(GridPoint point) =>
         point.X >= 0 && point.X < Width && point.Y >= 0 && point.Y < Height;
@@ -77,6 +78,10 @@ public sealed record SeededMap(
     public ClimateZone? ClimateAt(GridPoint point) =>
         Contains(point) && ClimateZones is { } zones && zones.Length == Width * Height
             ? (ClimateZone)zones[point.Y * Width + point.X] : null;
+
+    public bool IsReachableFromCampOnFoot(GridPoint point) => Contains(point) &&
+        CampReachability.GetValue(this, static map =>
+            MapAcceptance.ReachableFrom(map, map.GetObject("bedroll").Position)).Contains(point);
 
     private static bool IsOpenGround(byte kind) => kind is
         (byte)TerrainKind.Meadow or (byte)TerrainKind.Sand or
@@ -266,14 +271,63 @@ public static class GeneratedCampMapGenerator
         var resources = template.Resources.Select(item => item with
         {
             Position = new GridPoint(item.Position.X + origin.X, item.Position.Y + origin.Y),
+            IsRenewable = item.Id == "timber-tree" || item.IsRenewable,
         }).ToArray();
-        var withoutDigest = new SeededMap(width, height, 0, tiles, objects, resources, string.Empty)
+        var distributed = GenerateResourceSites(options.Seed, geography, kinds, objects, resources);
+        var withoutDigest = new SeededMap(width, height, 0, tiles, objects,
+            resources.Concat(distributed).ToArray(), string.Empty)
         { ClimateZones = climateZones };
         var map = withoutDigest with { ManifestDigest = MapManifestCodec.Digest(withoutDigest) };
         var validation = MapAcceptance.Validate(map, allowEmptyCamp: true);
         if (!validation.IsValid)
             throw new InvalidOperationException($"Generated base camp is invalid: {validation.Failure}");
         return map;
+    }
+
+    private static List<MapResource> GenerateResourceSites(string seed, GeneratedGeography geography,
+        TerrainKind[] kinds, IReadOnlyList<CampObject> camp, IReadOnlyList<MapResource> starter)
+    {
+        const int spacing = 16;
+        var width = geography.Width;
+        var height = geography.Height;
+        var occupied = camp.Select(item => item.Position)
+            .Concat(starter.Select(item => item.Position)).ToHashSet();
+        var sites = new List<MapResource>();
+        for (var top = 0; top < height; top += spacing)
+            for (var left = 0; left < width; left += spacing)
+            {
+                var random = Pcg32XshRrV1.Create(seed, $"resource-site:{left},{top}");
+                // A few candidates let coast and mountains leave some cells
+                // empty without ever placing a site on water or high ground.
+                for (var attempt = 0; attempt < 12; attempt++)
+                {
+                    var x = left + (int)(random.NextUInt() % (uint)Math.Min(spacing, width - left));
+                    var y = top + (int)(random.NextUInt() % (uint)Math.Min(spacing, height - top));
+                    var position = new GridPoint(x, y);
+                    var kind = kinds[y * width + x];
+                    if (kind is not (TerrainKind.Meadow or TerrainKind.Sand or TerrainKind.Forest or TerrainKind.Snow) ||
+                        occupied.Contains(position)) continue;
+                    var selection = random.NextUInt() % 4;
+                    var resourceKind = kind switch
+                    {
+                        TerrainKind.Forest => "construction",
+                        TerrainKind.Sand => selection == 0 ? "fiber" : "stone",
+                        TerrainKind.Snow => selection == 0 ? "food" : "stone",
+                        _ => selection switch
+                        {
+                            0 => "fertile_land",
+                            1 => "food",
+                            2 => "fiber",
+                            _ => "seed",
+                        },
+                    };
+                    var renewable = resourceKind is "construction" or "food" or "fiber" or "seed";
+                    sites.Add(new MapResource($"wild-{left}-{top}", resourceKind, position, renewable));
+                    occupied.Add(position);
+                    break;
+                }
+            }
+        return sites;
     }
 
     private static GridPoint FindCampOrigin(TerrainKind[] kinds, int width, int height)
@@ -441,8 +495,11 @@ public static class MapAcceptance
 
         var startingPoint = founder?.Position ?? map.GetObject("bedroll").Position;
         var reachable = ReachableFrom(map, startingPoint);
+        var starterResources = allowEmptyCamp
+            ? map.Resources.Where(resource => resource.Id is "berry-patch" or "timber-tree" or "fertile-land")
+            : map.Resources;
         if (map.CampObjects.Any(mapObject => !reachable.Contains(mapObject.Position)) ||
-            map.Resources.Any(resource => !reachable.Contains(resource.Position)))
+            starterResources.Any(resource => !reachable.Contains(resource.Position)))
         {
             return MapValidationResult.Invalid("A required camp-start route crosses an impassable boundary.");
         }
@@ -455,7 +512,7 @@ public static class MapAcceptance
         return MapValidationResult.Valid;
     }
 
-    private static HashSet<GridPoint> ReachableFrom(SeededMap map, GridPoint origin)
+    internal static HashSet<GridPoint> ReachableFrom(SeededMap map, GridPoint origin)
     {
         var visited = new HashSet<GridPoint> { origin };
         var queue = new Queue<GridPoint>();
