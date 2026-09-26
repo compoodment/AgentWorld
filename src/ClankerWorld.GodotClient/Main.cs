@@ -80,6 +80,10 @@ public partial class Main : Control
     private readonly Label selectedActorNameLabel = new();
     private readonly Label selectedActorSummaryLabel = new();
     private readonly Button clearSelectionButton = new();
+    private readonly Button familyTreeButton = new();
+    private readonly PanelContainer familyTreePanel = new();
+    private readonly FamilyTreeView familyTreeView = new();
+    private readonly Label familyTreeStatus = new();
     private readonly ItemList inhabitantList = new();
     private readonly RichTextLabel inhabitantDetails = new();
     private readonly RichTextLabel inhabitantSocialDetails = new();
@@ -343,7 +347,52 @@ public partial class Main : Control
                 inhabitantList.ItemCount != 1 || !rosterSummaryLabel.Text.Contains("1 deceased", StringComparison.Ordinal) ||
                 !selectedInhabitantCard.Visible || !selectedActorSummaryLabel.Text.Contains("Dead", StringComparison.Ordinal))
                 throw new InvalidOperationException("A deceased inhabitant must remain inspectable without appearing as a living map actor.");
-            GD.Print("UI checks passed: menus/workbench, settlement panel, resource hover, building footprints, zoom, middle-drag, WASD, overview navigation and deceased inspection.");
+            var parentPosition = new OwnerWorldPosition(1, 1);
+            var parent = new OwnerWorldInhabitant("living-parent", "Rowan", "active", parentPosition,
+                7_000, 8_000, [], [new("age-band", "adult")],
+                new OwnerWorldRoute("idle", null, null, [], string.Empty),
+                new OwnerWorldSpatialKnowledge(parentPosition, [parentPosition], [parentPosition]), false)
+            {
+                Relationships =
+                [
+                    new OwnerWorldInhabitantRelationship("birth:test", deceased.Id,
+                        "biological_parentage", "accepted", "family", 1, "parent"),
+                    new OwnerWorldInhabitantRelationship("partner:test", "living-partner",
+                        "partnership", "accepted", "family", 1, "partner"),
+                ],
+            };
+            var partner = new OwnerWorldInhabitant("living-partner", "Ilya", "active", parentPosition,
+                7_000, 8_000, [], [new("age-band", "adult")],
+                new OwnerWorldRoute("idle", null, null, [], string.Empty),
+                new OwnerWorldSpatialKnowledge(parentPosition, [parentPosition], [parentPosition]), false)
+            {
+                Relationships = [new OwnerWorldInhabitantRelationship("partner:test", parent.Id,
+                    "partnership", "accepted", "family", 1, "partner")],
+            };
+            var child = deceased with
+            {
+                Relationships = [new OwnerWorldInhabitantRelationship("birth:test", parent.Id,
+                    "biological_parentage", "accepted", "family", 1, "child")],
+            };
+            ShowFamilyTree(historicalSnapshot with { Inhabitants = [parent, child, partner] }, child.Id);
+            if (!familyTreePanel.Visible || familyTreeView.ParentEdgeCount != 1 || familyTreeView.PartnerEdgeCount != 1 ||
+                !familyTreeView.VisiblePersonIds.Contains(parent.Id) ||
+                !familyTreeView.VisiblePersonIds.Contains(child.Id) ||
+                !familyTreeView.VisiblePersonIds.Contains(partner.Id))
+                throw new InvalidOperationException("Family tree must show ancestry, partnerships and deceased profiles.");
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            ApplyResponsiveLayout();
+            if (!mapCanvas.GetGlobalRect().Encloses(familyTreePanel.GetGlobalRect()))
+                throw new InvalidOperationException("Family tree panel must fit within the world view.");
+            familyTreeView.GetChildren().OfType<Button>().Single(button => button.Text.StartsWith(parent.DisplayName, StringComparison.Ordinal))
+                .EmitSignal(BaseButton.SignalName.Pressed);
+            if (selectedInhabitantId != parent.Id || familyTreePanel.Visible)
+                throw new InvalidOperationException("Selecting a relative must open that person's agent profile.");
+            familyTreeView.SetPeople("roommates-only", [parent with { Relationships = [] }, child with { Relationships = [] }, partner with { Relationships = [] }], child.Id);
+            if (familyTreeView.VisiblePersonIds.Count != 1 || familyTreeView.ParentEdgeCount != 0)
+                throw new InvalidOperationException("Household membership must not create a family link.");
+            familyTreePanel.Hide();
+            GD.Print("UI checks passed: menus/workbench, settlement panel, resource hover, building footprints, zoom, middle-drag, WASD, overview navigation, event jumps, deceased inspection and family tree.");
             GetTree().Quit();
         }
         catch (Exception exception)
@@ -1345,6 +1394,7 @@ public partial class Main : Control
             rosterPanel.Hide();
             settlementPanel.Hide();
             eventsPanel.Hide();
+            familyTreePanel.Hide();
             worldInfoPanel.Hide();
             worldOverviewPanel.Visible = show;
         };
@@ -1671,6 +1721,31 @@ public partial class Main : Control
         eventsPanel.Hide();
         content.AddChild(eventsPanel);
 
+        var familyBody = new VBoxContainer();
+        var familyHeading = new HBoxContainer();
+        var familyTitle = new Label { Text = "Family Tree", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        familyTitle.AddThemeFontSizeOverride("font_size", 18);
+        familyHeading.AddChild(familyTitle);
+        var closeFamily = new Button { Text = "×", TooltipText = "Close family tree" };
+        StyleButton(closeFamily);
+        closeFamily.Pressed += () => familyTreePanel.Hide();
+        familyHeading.AddChild(closeFamily);
+        familyBody.AddChild(familyHeading);
+        familyTreeStatus.Text = "Green: parent–child   ·   Pink: partnership   ·   Click a person to inspect";
+        familyBody.AddChild(familyTreeStatus);
+        var familyScroll = new ScrollContainer
+        {
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
+        };
+        familyScroll.AddChild(familyTreeView);
+        familyBody.AddChild(familyScroll);
+        familyTreeView.PersonRequested += SelectFromFamilyTree;
+        AddPanelContents(familyTreePanel, familyBody);
+        familyTreePanel.ZIndex = 85;
+        familyTreePanel.Hide();
+        content.AddChild(familyTreePanel);
+
         ConfigureTextPanel(worldDetails, 320);
         AddPanelContents(settlementPanel, "Settlement · stores and projects", worldDetails);
         settlementPanel.CustomMinimumSize = new Vector2(420, 380);
@@ -1946,6 +2021,12 @@ public partial class Main : Control
         ConfigureTextPanel(inhabitantSocialDetails, 104);
         body.AddChild(inhabitantSocialDetails);
 
+        familyTreeButton.Text = "Family Tree";
+        familyTreeButton.TooltipText = "Inspect ancestry and partnerships, including deceased relatives.";
+        StyleButton(familyTreeButton);
+        familyTreeButton.Pressed += OpenFamilyTree;
+        body.AddChild(familyTreeButton);
+
         var instructionHeading = new Label { Text = "Speak to them" };
         instructionHeading.AddThemeFontSizeOverride("font_size", 13);
         instructionHeading.AddThemeColorOverride("font_color", new Color("D8C6A5"));
@@ -1983,6 +2064,7 @@ public partial class Main : Control
     private void ToggleInhabitants()
     {
         var show = !rosterPanel.Visible;
+        familyTreePanel.Hide();
         settlementPanel.Hide();
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
@@ -1993,6 +2075,7 @@ public partial class Main : Control
     private void ToggleEvents()
     {
         var show = !eventsPanel.Visible;
+        familyTreePanel.Hide();
         settlementPanel.Hide();
         rosterPanel.Hide();
         worldOverviewPanel.Hide();
@@ -2003,11 +2086,51 @@ public partial class Main : Control
     private void ToggleWorldInfo()
     {
         var show = !worldInfoPanel.Visible;
+        familyTreePanel.Hide();
         settlementPanel.Hide();
         rosterPanel.Hide();
         eventsPanel.Hide();
         worldOverviewPanel.Hide();
         worldInfoPanel.Visible = show;
+    }
+
+    private void OpenFamilyTree()
+    {
+        if (selectedInhabitantId is not { } id || observationSession.Current is not { } current)
+            return;
+        ShowFamilyTree(current.Baseline.Snapshot, id);
+    }
+
+    private void ShowFamilyTree(OwnerWorldSnapshot snapshot, string id)
+    {
+        familyTreeView.SetPeople(snapshot.WorldId, snapshot.Inhabitants, id);
+        UpdateFamilyTreeStatus();
+        rosterPanel.Hide();
+        eventsPanel.Hide();
+        worldOverviewPanel.Hide();
+        worldInfoPanel.Hide();
+        settlementPanel.Hide();
+        familyTreePanel.Show();
+        ApplyResponsiveLayout();
+    }
+
+    private void UpdateFamilyTreeStatus()
+    {
+        familyTreeStatus.Text = familyTreeView.ParentEdgeCount + familyTreeView.PartnerEdgeCount == 0
+            ? "No family links recorded yet. Housemates are not automatically relatives."
+            : "Green: parent–child   ·   Pink: partnership   ·   Click a person to inspect";
+    }
+
+    private void SelectFromFamilyTree(string id)
+    {
+        familyTreePanel.Hide();
+        selectedInhabitantId = id;
+        if (observationSession.Current is not { } current) return;
+        var snapshot = current.Baseline.Snapshot;
+        RenderInhabitantList(snapshot);
+        RenderInhabitantDetails(snapshot);
+        RenderSelectedInhabitantCard(snapshot);
+        RenderMap(snapshot);
     }
 
     private async Task TogglePauseAsync()
@@ -2026,6 +2149,7 @@ public partial class Main : Control
 
         rosterPanel.Hide();
         eventsPanel.Hide();
+        familyTreePanel.Hide();
         menuHeadingLabel.Text = "Paused";
         settlementPanel.Hide();
         gameMenuPanel.Show();
@@ -2140,7 +2264,10 @@ public partial class Main : Control
     private void Render(OwnerWorldSnapshot snapshot, IReadOnlyList<OwnerWorldEvent> appendedEvents)
     {
         if (cameraWorldId is not null && cameraWorldId != snapshot.WorldId)
+        {
             knownEvents.Clear();
+            familyTreePanel.Hide();
+        }
         foreach (var worldEvent in appendedEvents)
         {
             knownEvents[worldEvent.EventId] = worldEvent;
@@ -2156,6 +2283,11 @@ public partial class Main : Control
         RenderWorldInfo(snapshot);
         RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
+        if (familyTreePanel.Visible && selectedInhabitantId is { } center)
+        {
+            familyTreeView.SetPeople(snapshot.WorldId, snapshot.Inhabitants, center);
+            UpdateFamilyTreeStatus();
+        }
         RenderWorldDetails(snapshot);
         RenderDesignPackages(snapshot);
         RenderEventLog();
@@ -2663,6 +2795,7 @@ public partial class Main : Control
 
     private void ClearInhabitantSelection()
     {
+        familyTreePanel.Hide();
         selectedInhabitantId = null;
         inhabitantList.DeselectAll();
         if (observationSession.Current is { } current)
@@ -2788,6 +2921,12 @@ public partial class Main : Control
         eventsPanel.Position = new Vector2(
             Math.Max(14, viewport.X - Math.Max(eventsPanel.Size.X, eventsPanel.CustomMinimumSize.X) - 14),
             14);
+        var familySize = new Vector2(Math.Clamp(viewport.X - 28, 320, 840),
+            Math.Clamp(viewport.Y - 28, 280, 600));
+        familyTreePanel.Size = familySize;
+        familyTreePanel.Position = new Vector2(
+            Math.Max(14, (viewport.X - familySize.X) / 2),
+            Math.Max(14, (viewport.Y - familySize.Y) / 2));
 
         var menuWidth = Math.Min(560, Math.Max(320, viewport.X - 28));
         gameMenuPanel.CustomMinimumSize = new Vector2(menuWidth, 0);

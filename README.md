@@ -68,7 +68,8 @@ The paired owner configures two independent roles in the game settings:
 
 Jev and one large-model provider can be active at the same time. Critical
 survival needs suppress strategic work. The current game has a starter content
-path, but richer autonomous planning and society remain roadmap work.
+path, but richer autonomous planning and society remain future work in the
+[vision ledger](docs/vision-interview.md).
 
 ## Repository layout
 

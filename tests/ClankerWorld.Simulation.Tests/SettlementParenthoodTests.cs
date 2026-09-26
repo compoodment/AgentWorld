@@ -45,7 +45,14 @@ public sealed partial class SettlementParenthoodTests
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntime.Restore(forgedPending));
         Assert.Equal(2, restored.Society.Relationships.Count(item => item.Type == SocietyRelationshipType.Caregiver && item.TargetId == birth.ChildId));
-        Assert.Contains(new OwnerWorldObservationStore(restored).GetSnapshot().Inhabitants.Single(person => person.Id == first).SocialNotes,
+        var familySnapshot = new OwnerWorldObservationStore(restored).GetSnapshot();
+        Assert.Contains(familySnapshot.Inhabitants.Single(person => person.Id == first).Relationships,
+            relationship => relationship.OtherPartyId == birth.ChildId &&
+                relationship.Type == "biological_parentage" && relationship.Direction == "parent");
+        Assert.Contains(familySnapshot.Inhabitants.Single(person => person.Id == birth.ChildId).Relationships,
+            relationship => relationship.OtherPartyId == first &&
+                relationship.Type == "biological_parentage" && relationship.Direction == "child");
+        Assert.Contains(familySnapshot.Inhabitants.Single(person => person.Id == first).SocialNotes,
             note => note.Contains("Caring for a child", StringComparison.Ordinal));
 
         state = restored.ExportState();

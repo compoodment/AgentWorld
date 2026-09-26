@@ -61,7 +61,8 @@ public sealed record OwnerWorldInhabitantRelationship(
     string Type,
     string State,
     string PrivacyClass,
-    long EffectiveTick);
+    long EffectiveTick,
+    string? Direction = null);
 
 public sealed record OwnerWorldInhabitant(
     string Id,

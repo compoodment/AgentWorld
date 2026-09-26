@@ -593,7 +593,10 @@ public sealed class OwnerWorldObservationStore
             ToWireValue(relationship.Type),
             ToWireValue(relationship.State),
             relationship.PrivacyClass,
-            relationship.EffectiveTick))
+            relationship.EffectiveTick,
+            relationship.Type == SocietyRelationshipType.BiologicalParentage
+                ? relationship.ProposerId == inhabitantId ? "parent" : "child"
+                : relationship.Type == SocietyRelationshipType.Partnership ? "partner" : null))
         .ToArray();
 
     private static ViewerPublicIntention ToPublicIntention(

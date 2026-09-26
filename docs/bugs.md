@@ -14,17 +14,19 @@ path.
 
 ## Live verification pending
 
-The provider-held tick fix is in the repository build but is not yet installed
-on the current paired client and live host. Its product-path smoke check is
-still pending; see the resolution evidence below.
+The provider-held tick fix is installed on the live VPS host, but its paired
+Windows client build has not been tested on computment's laptop and the world
+is intentionally paused. Its live model-wait playtest remains pending; see
+the resolution evidence below.
 
 ## Original reports and resolution evidence
 
 - **Provider-held tick — fixed in build, live verification pending:** hosted
   provider calls now sit outside the tick transaction. Tests prove an
   indefinitely pending model does not hold the world or deterministic agents,
-  and pause/reload cannot admit the old answer. A live client/host playtest
-  remains before calling the defect fully closed.
+  and pause/reload cannot admit the old answer. The VPS server has been updated
+  without changing the paused save, pairing authority or provider settings;
+  a resumed paired-client playtest remains before calling the defect fully closed.
 
 - **AW-B020 — fixed:** rollback deleted placed buildings and production history
   belonging to the package, despite committed costs and outputs. Referenced
@@ -169,6 +171,6 @@ pages retain reproductions and regression requirements.
 - Put intended features in the [vision ledger](vision-interview.md), not here.
 - Never store credentials, private world contents or raw provider payloads in a
   bug report.
-- When a fix lands, update the affected canonical status/roadmap document in
+- When a fix lands, update the affected canonical current-state document in
   the same change and preserve detailed evidence in tests or the relevant
   implementation ledger.

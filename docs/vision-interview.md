@@ -281,8 +281,8 @@ The supported **integrated private-world host** schedules one world tick per
 real second, and each tick is one in-world minute. A 1,440-minute world day is
 therefore **nominally 24 real minutes**, subject to slowing under load. The
 repository build dispatches hosted cognition outside the tick so a slow
-provider does not hold unrelated agents or the clock; this remains to be
-verified on the live paired client. It gates ticks and provider calls on authenticated
+provider does not hold unrelated agents or the clock; the VPS server has been
+updated, but a resumed paired-client playtest remains. It gates ticks and provider calls on authenticated
 client presence; the last disconnect closes that gate after about five
 seconds, with no offline catch-up. The separate small fixture/kernel schedules
 six ticks per second (**four real minutes per day**) and must **not** be

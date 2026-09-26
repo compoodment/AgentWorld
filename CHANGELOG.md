@@ -8,6 +8,10 @@ release yet.
 
 ### Added
 
+- An interactive Family Tree opens from an agent's card. It draws accepted
+  parent–child and partnership links, keeps unrelated household members
+  separate, and opens living or deceased relatives' profiles when clicked.
+
 - Slow hosted agent-model calls no longer hold the entire world tick in the
   private-host build. Other agents and world systems advance while a request
   waits; pause/disconnect discard the external call, and saved unresolved

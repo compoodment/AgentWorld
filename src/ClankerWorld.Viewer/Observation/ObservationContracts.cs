@@ -60,7 +60,8 @@ public sealed record ViewerInhabitantRelationship(
     string Type,
     string State,
     string PrivacyClass,
-    long EffectiveTick);
+    long EffectiveTick,
+    string? Direction = null);
 
 /// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
