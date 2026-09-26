@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Serialization;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Persistence;
 using ClankerWorld.Simulation.World;
@@ -55,6 +56,7 @@ public sealed record SeededMap(
     IReadOnlyList<MapResource> Resources,
     string ManifestDigest)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public byte[]? ClimateZones { get; init; }
 
     // Keep the index outside the record: a cache field would silently change
