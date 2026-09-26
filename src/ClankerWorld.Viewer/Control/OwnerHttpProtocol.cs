@@ -70,6 +70,11 @@ public sealed record InhabitantProviderAssignment(string InhabitantId, string Ro
 
 public sealed record OwnerProviderCredentialStatus(string Id, string Provider, string Label);
 
+public sealed record OwnerFounderPlacementAction(
+    string FounderId, int X, int Y, OwnerProviderConfigurationAction Cognition);
+
+public sealed record OwnerFounderPlacementReceipt(string FounderId, string HouseholdId, int Placed, int Required);
+
 public sealed record OwnerProviderOptionStatus(
     string Provider,
     string Model,
@@ -188,6 +193,19 @@ public static class OwnerHttpBinding
         if (action.NewCredentialLabel is not null)
             payload += "\ncredential-label=" + EncodeRequired(action.NewCredentialLabel, nameof(action.NewCredentialLabel));
         return payload;
+    }
+
+    public static string FounderPlacementPayload(OwnerFounderPlacementAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var cognition = ProviderConfigurationPayload(action.Cognition);
+        var digest = ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(cognition)));
+        return string.Join('\n',
+            "clankerworld.owner-founder-placement.v1",
+            $"founder={EncodeRequired(action.FounderId, nameof(action.FounderId))}",
+            $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
+            $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
+            $"cognition-sha256={digest}");
     }
 
     public static string InstructionPayload(OwnerInstructionAction action) => string.Join(

@@ -286,6 +286,15 @@ public partial class Main : Control
             if (jevAssistanceToggle.ButtonPressed)
                 throw new InvalidOperationException("World Settings must show when Jev assistance is off.");
             Render(sample, []);
+            Render(sample with { FounderSetup = new OwnerFounderSetup(4, 2, false) }, []);
+            founderSetupPanel.Show();
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!founderSetupButton.Visible || !founderSetupButton.Text.Contains("2/4", StringComparison.Ordinal) ||
+                !startWorldButton.Visible || !startWorldButton.Disabled ||
+                !mapCanvas.GetGlobalRect().Encloses(founderSetupPanel.GetGlobalRect()))
+                throw new InvalidOperationException("Founder setup must show progress and keep Start World gated inside the world view.");
+            founderSetupPanel.Hide();
+            Render(sample, []);
             RenderDesignPackages(sample);
             if (designPackages.ItemCount != 1 || !designPackages.GetItemText(0).Contains("proposed by builder-test", StringComparison.Ordinal))
                 throw new InvalidOperationException("Creation workbench must show inhabitant proposal provenance.");
@@ -1511,6 +1520,7 @@ public partial class Main : Control
 
         BuildTopBar(root);
         BuildWorldColumn(root);
+        BuildFounderSetupPanel(mapCanvas);
         BuildInspectorColumn(mapCanvas);
         BuildOwnerColumn(mapCanvas);
         BuildStatusToast(mapCanvas);
@@ -1586,6 +1596,16 @@ public partial class Main : Control
         StyleButton(eventsButton);
         eventsButton.Pressed += ToggleEvents;
         topBar.AddChild(eventsButton);
+
+        founderSetupButton.Text = "Add founders";
+        StyleButton(founderSetupButton);
+        founderSetupButton.Pressed += () => _ = ToggleFounderSetupAsync();
+        topBar.AddChild(founderSetupButton);
+
+        startWorldButton.Text = "Start World";
+        StyleButton(startWorldButton, primary: true);
+        startWorldButton.Pressed += () => _ = StartFounderWorldAsync();
+        topBar.AddChild(startWorldButton);
 
         pauseButton.Text = "Pause";
         StyleButton(pauseButton, primary: true);
@@ -2639,6 +2659,7 @@ public partial class Main : Control
         RenderInhabitantList(snapshot);
         RenderMap(snapshot);
         RenderWorldHud(snapshot);
+        RenderFounderSetup(snapshot);
         RenderWorldInfo(snapshot);
         RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
@@ -3258,6 +3279,14 @@ public partial class Main : Control
         pairAgainButton.Visible = registration is not null;
         pairAgainButton.Disabled = isPairingOperation || isOwnerAction || isRefreshing;
         pauseButton.Disabled = actionDisabled || snapshot is null;
+        pauseButton.Visible = snapshot?.FounderSetup is not { Started: false };
+        founderSetupButton.Disabled = actionDisabled || snapshot?.FounderSetup is not { Started: false };
+        startWorldButton.Disabled = actionDisabled || snapshot?.FounderSetup is not { Started: false, Placed: 4 };
+        founderProviderChoice.Disabled = actionDisabled;
+        founderCredentialChoice.Disabled = actionDisabled;
+        founderModelInput.Editable = !actionDisabled;
+        founderApiKeyInput.Editable = !actionDisabled;
+        founderKeyLabelInput.Editable = !actionDisabled;
         var infantSelected = selected?.DecisionFactors.Any(factor => factor.Key == "age-band" && factor.Detail == "infant") == true;
         var deceasedSelected = selected?.Lifecycle == "dead";
         submitInstructionButton.Disabled = actionDisabled || selected is null || selected.IsDraft || infantSelected || deceasedSelected;
@@ -3454,7 +3483,14 @@ public partial class Main : Control
 
         if (@event is InputEventMouseButton mouse)
         {
-            if (mouse.ButtonIndex == MouseButton.Middle)
+            if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left && founderSetupPanel.Visible &&
+                snapshot.FounderSetup is { Started: false })
+            {
+                var tile = (mouse.Position - mapStage.Position) / (currentTileSize + TileGap);
+                _ = PlaceFounderAtAsync(new Vector2I(Mathf.FloorToInt(tile.X), Mathf.FloorToInt(tile.Y)));
+                mapCanvas.AcceptEvent();
+            }
+            else if (mouse.ButtonIndex == MouseButton.Middle)
             {
                 draggingMap = mouse.Pressed;
                 mapCanvas.AcceptEvent();

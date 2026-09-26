@@ -14,7 +14,7 @@ public sealed partial class PrivateWorldRuntime
     private static bool ActiveParenthood(SettlementParenthood? plan) => plan?.Stage is "requested" or "preparing";
 
     private bool Partners(string actor, string other) => AdultResident(actor) && AdultResident(other) && !CloseKin(actor, other) &&
-        society.Checkpoint.GetInhabitant(actor).HouseholdId == HouseholdId && society.Checkpoint.GetInhabitant(other).HouseholdId == HouseholdId &&
+        society.Checkpoint.GetInhabitant(actor).HouseholdId is { } household && society.Checkpoint.GetInhabitant(other).HouseholdId == household &&
         Partnerships(actor).Any(item => item.State == SocietyRelationshipState.Accepted &&
             (item.ProposerId == other || item.TargetId == other));
 
@@ -29,13 +29,14 @@ public sealed partial class PrivateWorldRuntime
             item.State == SocietyRelationshipState.Accepted && item.EffectiveTick <= WorldTick &&
             item.ProposerId == actor && item.TargetId == person.InhabitantId));
 
-    private bool FamilyResourcesReady() => BuildingsWithTag("shelter").Any() &&
-        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdId && lot.ItemKind == "food")
-            .Sum(AvailableLotQuantity) >= inhabitants.Count * 2 + 4 &&
-        BirthFood() is not null;
+    private bool FamilyResourcesReady(string actor) => BuildingsWithTag("shelter").Any() &&
+        society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == "food")
+            .Sum(AvailableLotQuantity) >= society.Checkpoint.Inhabitants.Count(person => person.HouseholdId == HouseholdFor(actor) &&
+                person.Status == SocietyInhabitantStatus.Active) * 2 + 4 &&
+        BirthFood(actor) is not null;
 
-    private InventoryLot? BirthFood() => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdId && lot.ItemKind == "food" && AvailableLotQuantity(lot) >= 4);
+    private InventoryLot? BirthFood(string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
+        lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == "food" && AvailableLotQuantity(lot) >= 4);
 
     private void AddParenthoodCandidates(List<CognitionCandidate> candidates, string actor)
     {
@@ -52,7 +53,7 @@ public sealed partial class PrivateWorldRuntime
         {
             if (person.Parenthood is { Stage: "requested" } && person.InhabitantId != actor)
             {
-                if (FamilyResourcesReady())
+                if (FamilyResourcesReady(actor))
                 {
                     candidates.Add(new("parent_accept:" + person.InhabitantId, "Agree to parenthood and caregiving with your partner; preparation takes time and needs food and shelter.", 25));
                 }
@@ -63,7 +64,7 @@ public sealed partial class PrivateWorldRuntime
                 candidates.Add(new("parent_cancel:" + person.InhabitantId, "Withdraw consent before the planned birth.", 110));
             }
         }
-        if (!FamilyResourcesReady() || inhabitants.Values.Any(person => ActiveParenthood(person.Parenthood) &&
+        if (!FamilyResourcesReady(actor) || inhabitants.Values.Any(person => ActiveParenthood(person.Parenthood) &&
                 (person.InhabitantId == actor || person.Parenthood!.PartnerId == actor)) ||
             society.Checkpoint.Relationships.Any(item => item.Type == SocietyRelationshipType.Caregiver && item.ProposerId == actor &&
                 item.State == SocietyRelationshipState.Accepted && inhabitants.ContainsKey(item.TargetId) &&
@@ -92,7 +93,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (candidate.StartsWith("parent_propose:", StringComparison.Ordinal))
         {
-            if (Partners(actor, target) && FamilyResourcesReady() &&
+            if (Partners(actor, target) && FamilyResourcesReady(actor) &&
                 !inhabitants.Values.Any(person => ActiveParenthood(person.Parenthood) &&
                     (person.InhabitantId == actor || person.InhabitantId == target || person.Parenthood!.PartnerId == actor || person.Parenthood.PartnerId == target)))
             {
@@ -107,7 +108,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         if (candidate.StartsWith("parent_accept:", StringComparison.Ordinal) && actor == plan.PartnerId &&
-            plan.Stage == "requested" && Partners(target, actor) && FamilyResourcesReady())
+            plan.Stage == "requested" && Partners(target, actor) && FamilyResourcesReady(actor))
         {
             SetParenthood(target, plan with { Stage = "preparing" });
         }
@@ -132,7 +133,7 @@ public sealed partial class PrivateWorldRuntime
                 SetParenthood(person.InhabitantId, plan with { Stage = "cancelled" });
                 continue;
             }
-            if (plan.Stage != "preparing" || WorldTick - plan.LastTransitionTick < 600 || !FamilyResourcesReady() ||
+            if (plan.Stage != "preparing" || WorldTick - plan.LastTransitionTick < 600 || !FamilyResourcesReady(person.InhabitantId) ||
                 !ReadyForLesson(person.InhabitantId) || !ReadyForLesson(plan.PartnerId))
             {
                 continue;
@@ -147,8 +148,8 @@ public sealed partial class PrivateWorldRuntime
             }
             var requestId = $"family:{person.InhabitantId}:{plan.RequestedTick}";
             society.Apply(checkpoint => SocietyFixture.CommitBirth(checkpoint,
-                new(requestId, 1, person.InhabitantId, plan.PartnerId, HouseholdId,
-                    [person.InhabitantId, plan.PartnerId], [person.InhabitantId, plan.PartnerId], BirthFood()!.Id, 4, WorldTick,
+                new(requestId, 1, person.InhabitantId, plan.PartnerId, HouseholdFor(person.InhabitantId),
+                    [person.InhabitantId, plan.PartnerId], [person.InhabitantId, plan.PartnerId], BirthFood(person.InhabitantId)!.Id, 4, WorldTick,
                     ChildName: $"{ChildNames[society.Checkpoint.Births.Count % ChildNames.Length]} {society.Checkpoint.Births.Count + 1}")));
             var birth = society.Checkpoint.Births.FirstOrDefault(item => item.RequestId == requestId);
             if (birth is null)
@@ -172,7 +173,7 @@ public sealed partial class PrivateWorldRuntime
         var child = inhabitants[childId];
         if (child.HungerBasisPoints < 7_000 && !HasCarriedItem(actor, "food"))
         {
-            if (SharedItem("food") is not null)
+            if (SharedItem("food", actor) is not null)
             {
                 var camp = map.GetObject("bedroll").Position;
                 if (!IsWithinInteractionRange(parent.Position, camp, ResourceInteractionRange))
@@ -180,9 +181,9 @@ public sealed partial class PrivateWorldRuntime
                     MoveToward(actor, parent, camp, "care_food", ResourceInteractionRange);
                     return;
                 }
-                var food = SharedItem("food")!;
+                var food = SharedItem("food", actor)!;
                 ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"care-food:{WorldTick}:{actor}",
-                    HouseholdId, actor, food.Id, 1, "caregiver_food"));
+                    HouseholdFor(actor), actor, food.Id, 1, "caregiver_food"));
             }
             else
             {

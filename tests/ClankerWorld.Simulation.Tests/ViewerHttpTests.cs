@@ -23,6 +23,67 @@ public sealed partial class ViewerHttpTests(ViewerWebApplicationFactory factory)
         "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     [Fact]
+    public async Task NewPrivateWorldRequiresFourConfiguredFoundersAndAnExplicitSignedStart()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-founder-http-");
+        try
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            using var host = new ViewerWebApplicationFactory(directory.FullName, null, privateWorld: true,
+                legacyPrivateWorld: false);
+            using var client = host.CreateClient();
+            var device = await StartAndActivateAsync(host, client, key);
+            var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+            Assert.Empty(runtime.Inhabitants);
+            using var premature = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/control/resume", new OwnerControlAction("resume"), OwnerHttpBinding.EmptyPayload("resume"));
+            Assert.Equal(HttpStatusCode.Conflict, premature.StatusCode);
+
+            var positions = new[] { new GridPoint(0, 0), new GridPoint(1, 2), new GridPoint(2, 2), new GridPoint(3, 2) };
+            var slotId = Guid.NewGuid().ToString("N");
+            for (var index = 0; index < positions.Length; index++)
+            {
+                var id = "founder:" + Guid.NewGuid().ToString("N");
+                var cognition = new OwnerProviderConfigurationAction("personal", "openai", "gpt-5-mini",
+                    index == 0 ? "test-secret-key" : null, false, id, slotId,
+                    index == 0 ? "Test account" : null);
+                var action = new OwnerFounderPlacementAction(id, positions[index].X, positions[index].Y, cognition);
+                const string path = "/api/v1/owner/founders/place";
+                if (index == 0)
+                {
+                    var envelope = await CreateSignedRequestAsync(host, client, key, device.DeviceId, path, action,
+                        OwnerHttpBinding.FounderPlacementPayload(action));
+                    using var tampered = await client.PostAsJsonAsync(path, envelope with
+                    {
+                        Action = action with { X = positions[index].X + 1 },
+                    });
+                    Assert.False(tampered.IsSuccessStatusCode);
+                    Assert.Empty(runtime.Inhabitants);
+                }
+                using var placed = await SendSignedAsync(host, client, key, device.DeviceId, path, action,
+                    OwnerHttpBinding.FounderPlacementPayload(action));
+                Assert.Equal(HttpStatusCode.OK, placed.StatusCode);
+                var receipt = await placed.Content.ReadFromJsonAsync<OwnerFounderPlacementReceipt>();
+                Assert.Equal(index + 1, receipt!.Placed);
+            }
+
+            Assert.True(runtime.Society.IsPaused);
+            Assert.Equal(2, runtime.Society.Households.Single(item => item.Id == "household:camp-beta").MemberIds.Count);
+            var start = new OwnerControlAction("start-world");
+            using var started = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/control/start-world", start, OwnerHttpBinding.EmptyPayload("start-world"));
+            Assert.Equal(HttpStatusCode.OK, started.StatusCode);
+            Assert.False(runtime.Society.IsPaused);
+            Assert.True(runtime.FounderSetup!.Started);
+            Assert.DoesNotContain("test-secret-key", File.ReadAllText(host.Services.GetRequiredService<PrivateWorldStateFile>().Path));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task JevAssistanceIsSignedPauseOnlyAndSurvivesReloadWithoutChangingProviderCredentials()
     {
         var directory = Directory.CreateTempSubdirectory("clankerworld-jev-world-");
@@ -67,7 +128,7 @@ public sealed partial class ViewerHttpTests(ViewerWebApplicationFactory factory)
                 Assert.False(runtime.JevEnabled);
                 Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, runtime.ExportState().SchemaVersion);
                 Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(
-                    runtime.ExportState() with { SchemaVersion = PrivateWorldRuntime.StateSchemaVersion - 1 }));
+                    runtime.ExportState() with { SchemaVersion = 14 }));
                 Assert.Equal(1, runtime.JevPolicyRevision);
                 savedProviderEpoch = host.Services.GetRequiredService<ConfigurableDecisionProvider>().ProviderEpoch;
                 Assert.Equal(initialProviderEpoch + 1, savedProviderEpoch);
@@ -1097,6 +1158,7 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
     private readonly bool ownsStateDirectory;
     private readonly string? approvedAssetCatalogPath;
     private readonly bool privateWorld;
+    private readonly bool legacyPrivateWorld;
 
     public ViewerWebApplicationFactory()
         : this(null)
@@ -1106,7 +1168,8 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
     internal ViewerWebApplicationFactory(
         string? persistedStateDirectory,
         string? approvedAssetCatalogPath = null,
-        bool privateWorld = false)
+        bool privateWorld = false,
+        bool legacyPrivateWorld = true)
     {
         ownsStateDirectory = persistedStateDirectory is null;
         stateDirectory = persistedStateDirectory ?? System.IO.Path.Combine(
@@ -1114,11 +1177,20 @@ public sealed class ViewerWebApplicationFactory : WebApplicationFactory<Program>
             $"clankerworld-viewer-http-{Guid.NewGuid():N}");
         this.approvedAssetCatalogPath = approvedAssetCatalogPath;
         this.privateWorld = privateWorld;
+        this.legacyPrivateWorld = legacyPrivateWorld;
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         Directory.CreateDirectory(stateDirectory);
+        // Existing protocol tests exercise a populated world. New-world setup has its
+        // own integration test; seed the older fixture explicitly instead of quietly
+        // depending on the production host's default genesis.
+        if (privateWorld && legacyPrivateWorld && !File.Exists(System.IO.Path.Combine(stateDirectory, "runtime.json")))
+        {
+            using var seeded = new PrivateWorldStateFile(System.IO.Path.Combine(stateDirectory, "runtime.json"),
+                newWorldPace: WorldStartPace.Legacy).LoadOrCreate(SeededWorldObservationStore.SampleSeed);
+        }
         // The compatibility suite uses fixture mode; selected tests opt into
         // the integrated private runtime through the same real host boundary.
         builder.UseSetting("ClankerWorld:Runtime:WorldMode", privateWorld ? "private" : "fixture");

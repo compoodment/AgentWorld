@@ -11,8 +11,8 @@ public sealed partial class PrivateWorldRuntime
             edge.State == SocietyRelationshipState.Accepted && edge.TargetId == child && inhabitants.ContainsKey(edge.ProposerId));
 
     private bool EligibleCaregiver(string adult, string child) => AdultResident(adult) && NeedsCaregiver(child) &&
-        society.Checkpoint.GetInhabitant(adult).HouseholdId == HouseholdId &&
-        society.Checkpoint.GetInhabitant(child).HouseholdId == HouseholdId;
+        society.Checkpoint.GetInhabitant(adult).HouseholdId is { } household &&
+        society.Checkpoint.GetInhabitant(child).HouseholdId == household;
 
     private IEnumerable<SocietyRelationship> CareProposals() => society.Checkpoint.Relationships.Where(edge =>
         edge.Type == SocietyRelationshipType.Caregiver && edge.State == SocietyRelationshipState.Proposed &&
@@ -85,7 +85,7 @@ public sealed partial class PrivateWorldRuntime
             {
                 society.Apply(checkpoint => SocietyFixture.ProposeRelationship(checkpoint,
                     new($"settlement-care:{actor}:{target}:{WorldTick}", 1, SocietyRelationshipType.Caregiver,
-                        actor, target, WorldTick, PrivacyClass: "public", HouseholdId: HouseholdId)));
+                        actor, target, WorldTick, PrivacyClass: "public", HouseholdId: HouseholdFor(actor))));
                 AppendEvent("caregiver_proposed", target);
             }
             return;

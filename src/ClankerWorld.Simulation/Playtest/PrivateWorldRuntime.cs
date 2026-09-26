@@ -45,6 +45,8 @@ public sealed record PlaytestWorldEvent(
     string Detail,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GridPoint? Position = null);
 
+public sealed record FounderSetupState(IReadOnlyList<string> FounderIds, bool Started);
+
 public sealed record PrivateWorldRuntimeState(
     int SchemaVersion,
     string WorldSeed,
@@ -66,7 +68,8 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementCouncil? Council = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlaytestDeceasedInhabitantState>? DeceasedInhabitants = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? JevEnabled = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long JevPolicyRevision = 0);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long JevPolicyRevision = 0,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FounderSetupState? FounderSetup = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,
@@ -84,9 +87,11 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 15;
+    public const int StateSchemaVersion = 16;
     private const int MaximumRecentThoughts = 8;
     private const string HouseholdId = "household:camp-alpha";
+    private const string SecondHouseholdId = "household:camp-beta";
+    public const int RequiredFounders = 4;
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
     private const long CognitionReevaluationIntervalTicks = 30;
@@ -121,6 +126,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private int checkpointSchemaVersion = StateSchemaVersion;
     private bool jevEnabled = true;
     private long jevPolicyRevision;
+    private FounderSetupState? founderSetup;
     private long nextInstructionSequence = 1;
     private readonly Dictionary<string, PendingHostedDecision> pendingHosted = new(StringComparer.Ordinal);
 
@@ -158,7 +164,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         worldContent = new DeclarativeWorldContentState([], []);
         worldSimulation = WorldContentSimulationState.Empty;
         assetReservations = new WorldAssetReservationLedger();
-        map = SeededMapGenerator.Generate(this.worldSeed);
+        map = startPace == WorldStartPace.FounderSetup
+            ? BaseCampMapGenerator.Generate(this.worldSeed)
+            : SeededMapGenerator.Generate(this.worldSeed);
         worldSystems = CreateWorldSystems(this.worldSeed, map, startPace);
         society = CreateSociety(
             this.worldSeed,
@@ -167,11 +175,14 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             maxCognitionDispatchPerCycle,
             minimumCognitionConfidence,
             startPace);
-        if (startPace == WorldStartPace.DecidedPlaytest)
+        if (startPace is WorldStartPace.DecidedPlaytest or WorldStartPace.FounderSetup)
         {
             society.Pause();
         }
-        CreatePhysicalState();
+        if (startPace == WorldStartPace.FounderSetup)
+            founderSetup = new FounderSetupState([], false);
+        else
+            CreatePhysicalState();
         foreach (var resource in map.Resources)
         {
             resources.Add(resource.Id, ResourceState.Available);
@@ -191,6 +202,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     public bool JevEnabled => jevEnabled;
 
     public long JevPolicyRevision => jevPolicyRevision;
+
+    public FounderSetupState? FounderSetup => founderSetup;
 
     public WorldContentSimulationState WorldSimulation => worldSimulation;
 
@@ -225,7 +238,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             providerFactory,
             state.Society.Cognition.MaxQueueLength,
             maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence);
+            minimumCognitionConfidence,
+            state.FounderSetup is null ? WorldStartPace.Legacy : WorldStartPace.FounderSetup);
         if (!IsCompatibleSavedMap(runtime.map, state))
         {
             runtime.Dispose();
@@ -238,6 +252,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.checkpointSchemaVersion = Math.Max(3, state.SchemaVersion);
         runtime.jevEnabled = state.JevEnabled ?? true;
         runtime.jevPolicyRevision = state.JevPolicyRevision;
+        runtime.founderSetup = state.FounderSetup;
         runtime.society.Dispose();
         runtime.society = SocietyWorldRuntime.Restore(
             state.Society,
@@ -1121,12 +1136,79 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         gate.Wait();
         try
         {
+            if (founderSetup is { Started: false })
+                throw new InvalidOperationException("Place four founders and explicitly start the world before time can run.");
             var wasPaused = society.Checkpoint.IsPaused;
             var result = society.Resume();
             if (wasPaused && !result.Checkpoint.IsPaused)
             {
                 AppendEvent("resumed", $"epoch:{result.Checkpoint.RunEpoch}");
             }
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public string PlaceFounder(string founderId, GridPoint position)
+    {
+        gate.Wait();
+        try
+        {
+            ValidateFounderPlacementUnsafe(founderId, position);
+            var setup = founderSetup!;
+
+            var ordinal = setup.FounderIds.Count + 1;
+            var householdId = ordinal <= 2 ? HouseholdId : SecondHouseholdId;
+            var name = $"Founder {ordinal}";
+            var founder = SocietyFixture.CreateFounder(founderId, name, config: society.Checkpoint.Config);
+            society.Apply(checkpoint => SocietyFixture.PlaceFounder(checkpoint, founder, householdId));
+            inhabitants.Add(founderId, new PlaytestInhabitantState(founderId, position, 6_500, 6_500, 0,
+                "undecided", "find a purpose"));
+            founderSetup = setup with { FounderIds = [.. setup.FounderIds, founderId] };
+            AppendEvent("founder_placed", $"{founderId}:{householdId}");
+            return householdId;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public void ValidateFounderPlacement(string founderId, GridPoint position)
+    {
+        gate.Wait();
+        try { ValidateFounderPlacementUnsafe(founderId, position); }
+        finally { gate.Release(); }
+    }
+
+    private void ValidateFounderPlacementUnsafe(string founderId, GridPoint position)
+    {
+        if (founderSetup is not { Started: false } setup || !society.Checkpoint.IsPaused ||
+            WorldTick != 0 || setup.FounderIds.Count >= RequiredFounders)
+            throw new InvalidOperationException("Founders can only be placed during the initial paused setup.");
+        if (founderId is null || !founderId.StartsWith("founder:", StringComparison.Ordinal) ||
+            !Guid.TryParseExact(founderId["founder:".Length..], "N", out _) ||
+            inhabitants.ContainsKey(founderId))
+            throw new ArgumentException("The founder ID is invalid or already used.", nameof(founderId));
+        if (!map.IsPassable(position) || map.CampObjects.Any(item => item.Position == position) ||
+            map.Resources.Any(item => item.Position == position) ||
+            inhabitants.Values.Any(person => person.Position == position))
+            throw new ArgumentException("Choose an empty passable tile for this founder.", nameof(position));
+    }
+
+    public void StartWorld()
+    {
+        gate.Wait();
+        try
+        {
+            if (founderSetup is not { Started: false } setup || setup.FounderIds.Count != RequiredFounders ||
+                !society.Checkpoint.IsPaused || WorldTick != 0)
+                throw new InvalidOperationException("Place and configure all four founders before starting time.");
+            founderSetup = setup with { Started = true };
+            society.Resume();
+            AppendEvent("world_started", "four_founders_ready");
         }
         finally
         {
@@ -1166,7 +1248,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             throw new InvalidDataException("The private-world richer-systems state does not match the authoritative clock or seed.");
         }
-        var mapValidation = MapAcceptance.Validate(map);
+        var mapValidation = MapAcceptance.Validate(map, allowEmptyCamp: founderSetup is not null);
         if (!mapValidation.IsValid)
         {
             throw new InvalidDataException($"The private-world map is invalid: {mapValidation.Failure}");
@@ -1181,6 +1263,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             throw new InvalidDataException("The private-world physical and society populations disagree.");
         }
+        ValidateFounderSetup(founderSetup, society.Checkpoint);
         ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
@@ -1220,6 +1303,25 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             expectedEventId++;
             previousTick = worldEvent.WorldTick;
         }
+    }
+
+    private static void ValidateFounderSetup(FounderSetupState? setup, SocietyCheckpoint society)
+    {
+        if (setup is null) return;
+        if (setup.FounderIds is null || setup.FounderIds.Count > RequiredFounders ||
+            setup.FounderIds.Distinct(StringComparer.Ordinal).Count() != setup.FounderIds.Count ||
+            setup.FounderIds.Any(id => string.IsNullOrWhiteSpace(id) ||
+                !society.Inhabitants.Any(person => person.Id == id)))
+            throw new InvalidDataException("Founder setup references invalid or duplicate agents.");
+        if (setup.Started)
+        {
+            if (setup.FounderIds.Count != RequiredFounders)
+                throw new InvalidDataException("A started world requires four configured founders.");
+        }
+        else if (!society.IsPaused || society.WorldTick != 0 ||
+                 society.Inhabitants.Count != setup.FounderIds.Count ||
+                 society.Inhabitants.Any(person => person.Status != SocietyInhabitantStatus.Active))
+            throw new InvalidDataException("An incomplete founder setup must remain paused at creation time.");
     }
 
     public void Dispose()
@@ -1268,7 +1370,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         worldSimulation,
         assetReservations.ExportState(), eventHistoryFloor, historyArchiveHead, survivalState, council,
         deceasedInhabitants.Count == 0 ? null : deceasedInhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray(),
-        jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision);
+        jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup);
 
     public DeclarativeWorldContentState WorldContent => worldContent;
 
@@ -1834,13 +1936,24 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             SocietyFixture.CreateFounder("founder-rowan", "Rowan", "model:rowan", config: config),
             SocietyFixture.CreateFounder("founder-ilya", "Ilya", "model:ilya", config: config),
         };
+        var initialFounders = startPace == WorldStartPace.FounderSetup ? [] : founders;
         var checkpoint = SocietyFixture.CreateGenesis(
             worldSeed,
-            founders,
+            initialFounders,
             [
                 new InventoryLot(FoodLotId, "food", HouseholdId, 32, 10_000, 10_000, 0),
                 new InventoryLot("wood:camp-alpha", "wood", HouseholdId, 48, 10_000, 10_000, 0),
                 new InventoryLot("tools:camp-alpha", "tool", HouseholdId, 4, 10_000, 10_000, 0),
+                ..(startPace == WorldStartPace.FounderSetup ? new InventoryLot[]
+                {
+                    new("food:camp-beta", "food", SecondHouseholdId, 16, 10_000, 10_000, 0),
+                    new("wood:camp-beta", "wood", SecondHouseholdId, 24, 10_000, 10_000, 0),
+                    new("tools:camp-beta", "tool", SecondHouseholdId, 2, 10_000, 10_000, 0),
+                    new("seeds:camp-alpha", "seed", HouseholdId, 8, 10_000, 10_000, 0),
+                    new("clothing:camp-alpha", "clothing", HouseholdId, 2, 10_000, 10_000, 0),
+                    new("seeds:camp-beta", "seed", SecondHouseholdId, 8, 10_000, 10_000, 0),
+                    new("clothing:camp-beta", "clothing", SecondHouseholdId, 2, 10_000, 10_000, 0),
+                } : []),
             ],
             config,
             "model:world-default");
@@ -1848,11 +1961,16 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             checkpoint,
             HouseholdId,
             "Camp Alpha",
-            founders.Select(item => item.Id)).Checkpoint;
-        checkpoint = SocietyFixture.AssignRole(checkpoint, "founder-scout", SocietyWorkRole.Trader).Checkpoint;
-        checkpoint = SocietyFixture.AssignRole(checkpoint, "founder-mira", SocietyWorkRole.Farmer).Checkpoint;
-        checkpoint = SocietyFixture.AssignRole(checkpoint, "founder-rowan", SocietyWorkRole.Builder).Checkpoint;
-        checkpoint = SocietyFixture.AssignRole(checkpoint, "founder-ilya", SocietyWorkRole.Teacher).Checkpoint;
+            initialFounders.Select(item => item.Id)).Checkpoint;
+        if (startPace == WorldStartPace.FounderSetup)
+            checkpoint = SocietyFixture.CreateHousehold(checkpoint, SecondHouseholdId, "Camp Beta", []).Checkpoint;
+        if (startPace != WorldStartPace.FounderSetup)
+        {
+            checkpoint = SocietyFixture.AssignRole(checkpoint, "founder-scout", SocietyWorkRole.Trader).Checkpoint;
+            checkpoint = SocietyFixture.AssignRole(checkpoint, "founder-mira", SocietyWorkRole.Farmer).Checkpoint;
+            checkpoint = SocietyFixture.AssignRole(checkpoint, "founder-rowan", SocietyWorkRole.Builder).Checkpoint;
+            checkpoint = SocietyFixture.AssignRole(checkpoint, "founder-ilya", SocietyWorkRole.Teacher).Checkpoint;
+        }
         return new SocietyWorldRuntime(
             checkpoint,
             providerFactory,
@@ -2417,7 +2535,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         AppendEvent("food_harvested", $"{inhabitantId}:{HarvestFoodYield}");
     }
 
-    private InventoryLot? AvailableSharedFood(string actor) => MayCollectSharedFood(actor) ? PreferredFood(HouseholdId, actor).FirstOrDefault() : null;
+    private string HouseholdFor(string actor) => society.Checkpoint.GetInhabitant(actor).HouseholdId ?? HouseholdId;
+
+    private InventoryLot? AvailableSharedFood(string actor) => MayCollectSharedFood(actor) ? PreferredFood(HouseholdFor(actor), actor).FirstOrDefault() : null;
 
     private void CollectSharedFood(string inhabitantId, PlaytestInhabitantState state)
     {
@@ -2434,7 +2554,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         }
 
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(
-            inventory, $"household-food:{WorldTick}:{inhabitantId}", HouseholdId, inhabitantId,
+            inventory, $"household-food:{WorldTick}:{inhabitantId}", HouseholdFor(inhabitantId), inhabitantId,
             lot.Id, 1, "household_food_share"));
         AppendEvent("household_food_collected", $"{inhabitantId}:{lot.Id}:1");
     }
@@ -2739,6 +2859,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         if (state.JevPolicyRevision < 0 || state.JevEnabled is null && state.JevPolicyRevision != 0 ||
             state.SchemaVersion < 15 && (state.JevEnabled is not null || state.JevPolicyRevision != 0))
             throw new InvalidDataException("The saved Jev routing policy is invalid.");
+        if (state.SchemaVersion < 16 && state.FounderSetup is not null)
+            throw new InvalidDataException("Founder setup requires private-world schema 16.");
+        ValidateFounderSetup(state.FounderSetup, state.Society.Society);
         var hasArchivedEvents = state.EventHistoryFloor > 0 || state.Society.Society.EventHistoryFloor > 0 ||
             state.Society.Society.Inventory.EventHistoryFloor > 0 || state.Society.Cognition.EventHistoryFloor > 0 ||
             state.Society.Cognition.Runtimes.Any(runtime => runtime.EventHistoryFloor > 0);
@@ -2749,7 +2872,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             throw new InvalidDataException("The private-world history reference or schema is invalid.");
         }
 
-        if (!MapAcceptance.Validate(state.Map).IsValid)
+        if (!MapAcceptance.Validate(state.Map, allowEmptyCamp: state.FounderSetup is not null).IsValid)
         {
             throw new InvalidDataException("The private-world runtime contains an invalid map.");
         }

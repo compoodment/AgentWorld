@@ -8,6 +8,7 @@ public enum WorldStartPace
 {
     Legacy,
     DecidedPlaytest,
+    FounderSetup,
 }
 
 internal static class WorldStartPaceRules
@@ -15,7 +16,7 @@ internal static class WorldStartPaceRules
     public static WorldSystemsConfig WorldSystems(WorldStartPace pace) => pace switch
     {
         WorldStartPace.Legacy => WorldSystemsConfig.Default,
-        WorldStartPace.DecidedPlaytest => WorldSystemsConfig.Default with
+        WorldStartPace.DecidedPlaytest or WorldStartPace.FounderSetup => WorldSystemsConfig.Default with
         {
             ContractVersion = 2,
             TicksPerDay = 360,
@@ -31,7 +32,7 @@ internal static class WorldStartPaceRules
     public static SocietyConfig Society(WorldStartPace pace) => pace switch
     {
         WorldStartPace.Legacy => new SocietyConfig(),
-        WorldStartPace.DecidedPlaytest => new SocietyConfig(
+        WorldStartPace.DecidedPlaytest or WorldStartPace.FounderSetup => new SocietyConfig(
             TicksPerWorldDay: 360,
             DaysPerWorldYear: 40,
             ContractVersion: 3,

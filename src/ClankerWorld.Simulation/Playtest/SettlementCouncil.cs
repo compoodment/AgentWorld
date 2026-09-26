@@ -14,7 +14,7 @@ public sealed partial class PrivateWorldRuntime
     private SettlementCouncil? council;
 
     private string[] CouncilMembers() => society.Checkpoint.Inhabitants.Where(person =>
-            person.Status == SocietyInhabitantStatus.Active && person.HouseholdId == HouseholdId &&
+            person.Status == SocietyInhabitantStatus.Active && person.HouseholdId is not null &&
             person.AgeBand is SocietyAgeBand.Adult or SocietyAgeBand.Elder)
         .Select(person => person.Id).Order(StringComparer.Ordinal).ToArray();
 
@@ -23,7 +23,8 @@ public sealed partial class PrivateWorldRuntime
                 memory.Id.StartsWith("lesson-gratitude:", StringComparison.Ordinal))) +
         (inhabitants.GetValueOrDefault(actor)?.Project?.Stage == "completed" ? 1 : 0);
 
-    private int SharedFoodQuantity() => society.Checkpoint.Inventory.Lots.Where(lot => lot.OwnerId == HouseholdId && lot.ItemKind == "food")
+    private int SharedFoodQuantity() => society.Checkpoint.Inventory.Lots.Where(lot =>
+            society.Checkpoint.Households.Any(household => household.Id == lot.OwnerId) && lot.ItemKind == "food")
         .Sum(AvailableLotQuantity);
 
     private string? ProposedFoodPolicy(string actor)

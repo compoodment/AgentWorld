@@ -148,6 +148,28 @@ public static class SeededMapGenerator
     }
 }
 
+/// <summary>A starter camp with facilities but no pre-created person.</summary>
+public static class BaseCampMapGenerator
+{
+    public static SeededMap Generate(string worldSeed)
+    {
+        var fixture = SeededMapGenerator.Generate(worldSeed);
+        var objects = fixture.CampObjects
+            .Where(item => item.Kind != "founder")
+            .Concat([
+                new CampObject("second-shelter", "shelter", new GridPoint(3, 0)),
+                new CampObject("workshop", "workshop", new GridPoint(0, 2)),
+                new CampObject("camp-path", "path", new GridPoint(2, 1)),
+            ]).ToArray();
+        var candidate = fixture with { CampObjects = objects, ManifestDigest = string.Empty };
+        var map = candidate with { ManifestDigest = MapManifestCodec.Digest(candidate) };
+        var validation = MapAcceptance.Validate(map, allowEmptyCamp: true);
+        if (!validation.IsValid)
+            throw new InvalidOperationException($"The generated base camp is invalid: {validation.Failure}");
+        return map;
+    }
+}
+
 /// <summary>
 /// Explicit canonical bytes for the genesis map manifest. The digest is not
 /// included in its own input, avoiding self-referential serialization.
@@ -212,7 +234,7 @@ public sealed record MapValidationResult(bool IsValid, string? Failure)
 /// </summary>
 public static class MapAcceptance
 {
-    public static MapValidationResult Validate(SeededMap map)
+    public static MapValidationResult Validate(SeededMap map, bool allowEmptyCamp = false)
     {
         ArgumentNullException.ThrowIfNull(map);
         if (map.Width <= 0 || map.Height <= 0 || map.GenerationAttempt < 0 ||
@@ -230,10 +252,12 @@ public static class MapAcceptance
 
         var founder = map.CampObjects.SingleOrDefault(mapObject =>
             string.Equals(mapObject.Kind, "founder", StringComparison.Ordinal));
-        if (founder is null || !map.IsPassable(founder.Position))
+        if (!allowEmptyCamp && (founder is null || !map.IsPassable(founder.Position)))
         {
             return MapValidationResult.Invalid("The founder must occupy passable ground.");
         }
+        if (allowEmptyCamp && founder is not null)
+            return MapValidationResult.Invalid("An empty base camp cannot contain a founder marker.");
 
         var requiredKinds = new[] { "shelter", "bedroll", "storage", "cooking" };
         if (requiredKinds.Any(kind => !map.CampObjects.Any(mapObject =>
@@ -264,7 +288,8 @@ public static class MapAcceptance
             return MapValidationResult.Invalid("Reachable food, construction, or fertile-land resources are missing.");
         }
 
-        var reachable = ReachableFrom(map, founder.Position);
+        var startingPoint = founder?.Position ?? map.GetObject("bedroll").Position;
+        var reachable = ReachableFrom(map, startingPoint);
         if (map.CampObjects.Any(mapObject => !reachable.Contains(mapObject.Position)) ||
             map.Resources.Any(resource => !reachable.Contains(resource.Position)))
         {

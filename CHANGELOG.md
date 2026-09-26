@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- A fresh private world now opens with an empty two-household base camp. The
+  paired player picks a provider, model and saved or new API key for each of
+  four unrelated founders, then places them on empty map tiles. Progress is
+  saved after every placement; time cannot resume until the player explicitly
+  chooses **Start World**. Existing development worlds keep their state.
+
 - In World Settings, an inhabitant can now use one personal provider/model for
   both daily and project decisions. Players can save multiple named API keys
   for the same provider and choose which one an agent uses. Keys remain in

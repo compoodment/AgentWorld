@@ -76,7 +76,11 @@ public static partial class SocietyFixture
         Validate(checkpoint);
         var id = NormalizeRequiredText(householdId, nameof(householdId));
         var householdName = NormalizeRequiredText(name, nameof(name));
-        var members = CanonicalIds(memberIds, nameof(memberIds));
+        var requestedMembers = memberIds?.ToArray() ?? throw new ArgumentNullException(nameof(memberIds));
+        var members = requestedMembers.Length == 0 && checkpoint.WorldTick == 0 &&
+            checkpoint.Inhabitants.Count == 0
+                ? []
+                : CanonicalIds(requestedMembers, nameof(memberIds));
         if (checkpoint.Households.Any(item => item.Id == id))
         {
             throw new InvalidOperationException("A household ID may be used only once.");
@@ -123,6 +127,38 @@ public static partial class SocietyFixture
             Relationships = relationships.OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
         };
         return Commit(next, "household_created", $"{id}:{string.Join(',', members)}", id);
+    }
+
+    public static SocietyOperationResult PlaceFounder(
+        SocietyCheckpoint checkpoint,
+        SocietyInhabitant founder,
+        string householdId)
+    {
+        Validate(checkpoint);
+        ArgumentNullException.ThrowIfNull(founder);
+        if (checkpoint.WorldTick != 0 || !checkpoint.IsPaused ||
+            founder.Status != SocietyInhabitantStatus.Active || founder.HouseholdId is not null ||
+            checkpoint.Inhabitants.Any(person => person.Id == founder.Id))
+            throw new InvalidOperationException("A founder can only be placed once during paused world setup.");
+        var household = checkpoint.GetHousehold(householdId);
+        var memberIds = household.MemberIds.Append(founder.Id).Order(StringComparer.Ordinal).ToArray();
+        var membership = new SocietyRelationship(
+            $"{householdId}:membership:{founder.Id}", 1,
+            SocietyRelationshipType.HouseholdMembership,
+            householdId, founder.Id, SocietyRelationshipState.Accepted,
+            SocietyConsentState.ProtectedLifecycle, 0, 0,
+            "household", householdId,
+            new[] { householdId, founder.Id }.Order(StringComparer.Ordinal).ToArray());
+        var next = checkpoint with
+        {
+            Inhabitants = checkpoint.Inhabitants.Append(founder with { HouseholdId = householdId })
+                .OrderBy(person => person.Id, StringComparer.Ordinal).ToArray(),
+            Households = checkpoint.Households.Select(item => item.Id == householdId
+                ? item with { MemberIds = memberIds } : item).ToArray(),
+            Relationships = checkpoint.Relationships.Append(membership)
+                .OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+        };
+        return Commit(next, "founder_placed", $"{founder.Id}:{householdId}", founder.Id);
     }
 
     public static SocietyOperationResult ProposeRelationship(

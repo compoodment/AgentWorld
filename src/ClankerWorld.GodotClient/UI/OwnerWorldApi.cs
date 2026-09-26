@@ -67,6 +67,7 @@ public sealed record OwnerWorldInhabitantRelationship(
 public sealed record OwnerWorldPrivateThought(long WorldTick, string Text);
 public sealed record OwnerWorldAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
 public sealed record OwnerWorldCalendarPace(int TicksPerDay, int DaysPerYear);
+public sealed record OwnerFounderSetup(int Required, int Placed, bool Started);
 
 public sealed record OwnerWorldInhabitant(
     string Id,
@@ -224,6 +225,7 @@ public sealed record OwnerWorldSnapshot(
     public int? LifePaceRate { get; init; }
     public OwnerWorldCalendarPace? CalendarPace { get; init; }
     public bool? JevEnabled { get; init; }
+    public OwnerFounderSetup? FounderSetup { get; init; }
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
 
     public OwnerWorldAuthoringState? Authoring { get; init; }
@@ -290,6 +292,11 @@ public sealed record OwnerProviderConfigurationAction(
 public sealed record InhabitantProviderAssignment(string InhabitantId, string Role, string Provider, string? Model = null, string? CredentialSlotId = null);
 
 public sealed record OwnerProviderCredentialStatus(string Id, string Provider, string Label);
+
+public sealed record OwnerFounderPlacementAction(
+    string FounderId, int X, int Y, OwnerProviderConfigurationAction Cognition);
+
+public sealed record OwnerFounderPlacementReceipt(string FounderId, string HouseholdId, int Placed, int Required);
 
 public sealed record OwnerProviderOptionStatus(
     string Provider,
@@ -569,6 +576,19 @@ public static class OwnerWorldActionPayload
         return payload;
     }
 
+    public static string FounderPlacement(OwnerFounderPlacementAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var cognition = ProviderConfiguration(action.Cognition);
+        var digest = ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(cognition)));
+        return string.Join('\n',
+            "clankerworld.owner-founder-placement.v1",
+            $"founder={EncodeRequired(action.FounderId, nameof(action.FounderId))}",
+            $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
+            $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
+            $"cognition-sha256={digest}");
+    }
+
     public static string Instruction(OwnerInstructionAction action) => string.Join(
         '\n',
         "clankerworld.owner-instruction.v1",
@@ -807,6 +827,26 @@ public sealed class OwnerWorldApi
             deviceKey,
             cancellationToken);
     }
+
+    public Task<OwnerControlReceipt> StartWorldAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerControlAction("start-world");
+        return pairing.SendSignedActionAsync<OwnerControlAction, OwnerControlReceipt>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerStartWorld,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("start-world"),
+            action, deviceKey, cancellationToken);
+    }
+
+    public Task<OwnerFounderPlacementReceipt> PlaceFounderAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerFounderPlacementAction action, IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerFounderPlacementAction, OwnerFounderPlacementReceipt>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerFounderPlace,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.FounderPlacement(action),
+            action, deviceKey, cancellationToken);
 
     public Task<OwnerControlReceipt> SetLifePaceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
         int rate, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)

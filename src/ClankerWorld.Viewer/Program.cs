@@ -104,7 +104,7 @@ builder.Services.AddSingleton<OwnerWorldRuntime>(services => services
 builder.Services.AddSingleton<PrivateWorldStateFile>(services => new PrivateWorldStateFile(
     privateRuntimeStatePath,
     _ => services.GetRequiredService<IDecisionProvider>(),
-    WorldStartPace.DecidedPlaytest));
+    WorldStartPace.FounderSetup));
 builder.Services.AddSingleton<PrivateWorldRuntime>(services =>
 {
     var runtime = services.GetRequiredService<PrivateWorldStateFile>().LoadOrCreate(runtimeSeed);
@@ -141,6 +141,7 @@ if (advanceRuntime)
 }
 
 var app = builder.Build();
+var founderSetupGate = new object();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
@@ -446,6 +447,8 @@ app.MapPost("/api/v1/owner/control/resume", (
     if (isPrivateWorld)
     {
         var privateRuntime = services.GetRequiredService<PrivateWorldRuntime>();
+        if (privateRuntime.FounderSetup is { Started: false })
+            return Results.Conflict(new { message = "Place four configured founders, then select Start World." });
         var privateStateFile = services.GetRequiredService<PrivateWorldStateFile>();
         var wasPaused = privateRuntime.Society.IsPaused;
         privateRuntime.Resume();
@@ -467,6 +470,87 @@ app.MapPost("/api/v1/owner/control/resume", (
     }
 
     return Results.Ok(OwnerControlReceipt.From("resume", legacyChanged, runtime.Capture().Snapshot));
+});
+
+app.MapPost("/api/v1/owner/founders/place", (
+    OwnerSignedHttpRequest<OwnerFounderPlacementAction> request,
+    OwnerRequestAuthorizer authorizer,
+    ProviderConfigurationStore providers,
+    IServiceProvider services) =>
+{
+    if (!isPrivateWorld || request?.Action is not { Cognition: { } cognition } action)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = ["A founder placement is required in a private world."] });
+    string payload;
+    try { payload = OwnerHttpBinding.FounderPlacementPayload(action); }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+    }
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/founders/place", payload);
+    if (!authorization.IsSuccess)
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (cognition.InhabitantId != action.FounderId || cognition.Role != PlayerDecisionProviders.PersonalRole ||
+        cognition.ForgetCredential || cognition.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["cognition"] = ["Choose one personal hosted model for this founder."] });
+
+    lock (founderSetupGate)
+    {
+        try
+        {
+            var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+            var position = new GridPoint(action.X, action.Y);
+            runtime.ValidateFounderPlacement(action.FounderId, position);
+            providers.Configure(cognition);
+            var household = runtime.PlaceFounder(action.FounderId, position);
+            services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+            var placed = runtime.FounderSetup!.FounderIds.Count;
+            return Results.Ok(new OwnerFounderPlacementReceipt(action.FounderId, household, placed, PrivateWorldRuntime.RequiredFounders));
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+        }
+    }
+});
+
+app.MapPost("/api/v1/owner/control/start-world", (
+    OwnerSignedHttpRequest<OwnerControlAction> request,
+    OwnerRequestAuthorizer authorizer,
+    ProviderConfigurationStore providers,
+    IServiceProvider services,
+    OwnerWorldObservationStore observations) =>
+{
+    if (!isPrivateWorld || !IsControl(request, "start-world"))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["action.operation"] = ["This endpoint starts a configured private world."] });
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/control/start-world",
+        OwnerHttpBinding.EmptyPayload("start-world"));
+    if (!authorization.IsSuccess)
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+
+    lock (founderSetupGate)
+    {
+        var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+        var setup = runtime.FounderSetup;
+        if (setup is null || setup.Started || setup.FounderIds.Count != PrivateWorldRuntime.RequiredFounders)
+            return Results.Conflict(new { message = "Place all four founders before starting the world." });
+        var providerStatus = providers.CaptureStatus();
+        var assignments = providerStatus.Assignments ?? [];
+        foreach (var founderId in setup.FounderIds)
+        {
+            var personal = assignments.Where(item => item.InhabitantId == founderId).ToArray();
+            if (personal.Length != 2 || !personal.Any(item => item.Role == PlayerDecisionProviders.RoutineRole) ||
+                !personal.Any(item => item.Role == PlayerDecisionProviders.PlanningRole) ||
+                personal.Any(item => item.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud)) ||
+                personal.Select(item => (item.Provider, item.Model, item.CredentialSlotId)).Distinct().Count() != 1 ||
+                personal.Any(item => item.CredentialSlotId is { } slot
+                    ? !(providerStatus.CredentialSlots ?? []).Any(saved => saved.Id == slot && saved.Provider == item.Provider)
+                    : !providerStatus.Providers.Any(option => option.Provider == item.Provider && option.HasCredential)))
+                return Results.Conflict(new { message = "Every founder needs one configured personal model and credential." });
+        }
+        runtime.StartWorld();
+        services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+        return Results.Ok(OwnerControlReceipt.From("start-world", true, observations.GetSnapshot()));
+    }
 });
 
 app.MapPost("/api/v1/owner/instructions", (

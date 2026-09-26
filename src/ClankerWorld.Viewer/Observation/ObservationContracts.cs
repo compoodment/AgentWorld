@@ -206,6 +206,8 @@ public sealed record ViewerAuthoringState(
 
 public sealed record ViewerEvent(long EventId, long WorldTick, string Kind, string Detail, ViewerPosition? Position = null);
 
+public sealed record ViewerFounderSetup(int Required, int Placed, bool Started);
+
 public sealed record ViewerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -221,6 +223,7 @@ public sealed record ViewerWorldSnapshot(
     public int? LifePaceRate { get; init; }
     public ViewerCalendarPace? CalendarPace { get; init; }
     public bool? JevEnabled { get; init; }
+    public ViewerFounderSetup? FounderSetup { get; init; }
     /// <summary>
     /// The inspectable population projection. <see cref="Actor"/> remains for
     /// backwards-compatible Phase 2 diagnostic clients.

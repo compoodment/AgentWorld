@@ -36,8 +36,8 @@ public sealed partial class PrivateWorldRuntime
     private bool HasCarriedItem(string actor, string kind) => society.Checkpoint.Inventory.Lots.Any(lot =>
         lot.OwnerId == actor && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
 
-    private InventoryLot? SharedItem(string kind) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
-        lot.OwnerId == HouseholdId && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
+    private InventoryLot? SharedItem(string kind, string actor) => society.Checkpoint.Inventory.Lots.FirstOrDefault(lot =>
+        lot.OwnerId == HouseholdFor(actor) && lot.ItemKind == kind && AvailableLotQuantity(lot) > 0);
 
     private IEnumerable<PlacedBuilding> BuildingsWithTag(string tag) => worldSimulation.Buildings.Where(building =>
         worldContent.Buildings.Any(definition => definition.CanonicalId == building.DefinitionId && definition.Tags.Contains(tag, StringComparer.Ordinal)));
@@ -76,7 +76,8 @@ public sealed partial class PrivateWorldRuntime
             Fires = survivalState.Fires.Where(fire =>
             fire.FuelUntilTick > WorldTick && existingIds.Contains(fire.BuildingId)).ToArray()
         };
-        var shelteredOwners = BuildingsWithTag("storage").Any() ? new HashSet<string>(StringComparer.Ordinal) { HouseholdId } : null;
+        var shelteredOwners = BuildingsWithTag("storage").Any()
+            ? society.Checkpoint.Households.Select(household => household.Id).ToHashSet(StringComparer.Ordinal) : null;
         ApplyInventoryTransition(inventory => InventoryFixture.ProcessSpoilage(inventory, WorldTick, 4,
             PerishableKinds, shelteredOwners));
         foreach (var person in inhabitants.Values.ToArray())
@@ -103,12 +104,12 @@ public sealed partial class PrivateWorldRuntime
         {
             return;
         }
-        if (WeatherExposure > 0 && !HasCarriedItem(actor, "clothing") && SharedItem("clothing") is not null)
+        if (WeatherExposure > 0 && !HasCarriedItem(actor, "clothing") && SharedItem("clothing", actor) is not null)
         {
             candidates.Add(new CognitionCandidate("wear_clothing", "Collect woven clothing from camp to reduce exposure.", 3));
         }
         if (AdultResident(actor) && WeatherExposure > 0 && HeatingBuildings().Any(building => !IsFireLit(building)) &&
-            (SharedItem("wood") is not null || HasCarriedItem(actor, "wood") || MaterialSource("wood") is not null))
+            (SharedItem("wood", actor) is not null || HasCarriedItem(actor, "wood") || MaterialSource("wood") is not null))
         {
             candidates.Add(new CognitionCandidate("tend_fire", "Carry household wood to a hearth and keep the camp warm.", condition.WarmthBasisPoints < 6_000 ? 2 : 4));
         }
@@ -124,7 +125,7 @@ public sealed partial class PrivateWorldRuntime
 
     private void CollectEquipment(string actor, PlaytestInhabitantState person, string kind)
     {
-        if (HasCarriedItem(actor, kind) || SharedItem(kind) is not { } item)
+        if (HasCarriedItem(actor, kind) || SharedItem(kind, actor) is not { } item)
         {
             return;
         }
@@ -135,7 +136,7 @@ public sealed partial class PrivateWorldRuntime
             return;
         }
         ApplyInventoryTransition(inventory => InventoryFixture.Transfer(inventory, $"equipment:{WorldTick}:{actor}:{kind}",
-            HouseholdId, actor, item.Id, 1, "equipment_collected"));
+            HouseholdFor(actor), actor, item.Id, 1, "equipment_collected"));
         AppendEvent("equipment_collected", $"{actor}:{kind}");
     }
 
@@ -148,7 +149,7 @@ public sealed partial class PrivateWorldRuntime
         }
         if (!HasCarriedItem(actor, "wood"))
         {
-            if (SharedItem("wood") is not null)
+            if (SharedItem("wood", actor) is not null)
             {
                 CollectEquipment(actor, person, "wood");
             }
@@ -180,7 +181,7 @@ public sealed partial class PrivateWorldRuntime
 
     private int RestRecovery(PlaytestInhabitantState person) => person.Survival is null ? 2_500 :
         1_500 + (NearShelter(person.Position) ? 800 : 0) +
-        (NearShelter(person.Position) && SharedItem("bedding") is not null ? 700 : 0);
+        (NearShelter(person.Position) && SharedItem("bedding", person.InhabitantId) is not null ? 700 : 0);
 
     private bool NeedsRecipeOutput(RecipeDefinition recipe) => survivalState is null || recipe.Outputs.Any(output =>
     {
