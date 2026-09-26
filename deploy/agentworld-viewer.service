@@ -1,5 +1,5 @@
 [Unit]
-Description=AgentWorld private world host
+Description=ClankerWorld private world host
 After=network-online.target
 Wants=network-online.target
 
@@ -7,22 +7,24 @@ Wants=network-online.target
 Type=simple
 User=clanker
 Group=clanker
+# Keep the existing unit/install/state paths: the live world's files and
+# provider credentials are bound to this installation, not to product branding.
 WorkingDirectory=/opt/agentworld-viewer
 EnvironmentFile=-/etc/agentworld-viewer/provider.env
 Environment=ASPNETCORE_ENVIRONMENT=Production
-Environment=AgentWorld__Runtime__WorldMode=private
-Environment=AgentWorld__Runtime__AdvanceScript=true
-Environment=AgentWorld__Runtime__ClientPresenceTimeoutSeconds=5
-Environment=AgentWorld__Http__Port=5188
-Environment=AgentWorld__Pairing__LocalApprovalPort=5189
-Environment=AgentWorld__Pairing__StatePath=/var/lib/agentworld-viewer/private-owner-authority.json
-Environment=AgentWorld__Runtime__StatePath=/var/lib/agentworld-viewer/private-world.json
-Environment=AgentWorld__Runtime__ProviderStatePath=/var/lib/agentworld-viewer/provider-configuration.json
-Environment=AgentWorld__Runtime__LegacyStatePath=/var/lib/agentworld-viewer/phase-two-runtime.json
-Environment=AgentWorld__Assets__CatalogPath=/etc/agentworld-viewer/approved-assets.json
+Environment=ClankerWorld__Runtime__WorldMode=private
+Environment=ClankerWorld__Runtime__AdvanceScript=true
+Environment=ClankerWorld__Runtime__ClientPresenceTimeoutSeconds=5
+Environment=ClankerWorld__Http__Port=5188
+Environment=ClankerWorld__Pairing__LocalApprovalPort=5189
+Environment=ClankerWorld__Pairing__StatePath=/var/lib/agentworld-viewer/private-owner-authority.json
+Environment=ClankerWorld__Runtime__StatePath=/var/lib/agentworld-viewer/private-world.json
+Environment=ClankerWorld__Runtime__ProviderStatePath=/var/lib/agentworld-viewer/provider-configuration.json
+Environment=ClankerWorld__Runtime__LegacyStatePath=/var/lib/agentworld-viewer/phase-two-runtime.json
+Environment=ClankerWorld__Assets__CatalogPath=/etc/agentworld-viewer/approved-assets.json
 Environment=DOTNET_NOLOGO=1
 StateDirectory=agentworld-viewer
-ExecStart=/home/clanker/.local/bin/dotnet /opt/agentworld-viewer/AgentWorld.Viewer.dll
+ExecStart=/home/clanker/.local/bin/dotnet /opt/agentworld-viewer/ClankerWorld.Viewer.dll
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

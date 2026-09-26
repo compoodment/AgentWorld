@@ -7,9 +7,9 @@ updated: 2026-09-26
 
 # Documentation
 
-The product is **ClankerWorld**; the repository and current code still use the
-AgentWorld name. Keep the difference explicit until a code/package rename is
-planned and verified.
+**ClankerWorld** is the product, repository and codebase name. Some old
+internal save, content and pairing identifiers deliberately retain the former
+name so existing worlds and paired devices continue to work.
 
 | Question | Read |
 | --- | --- |

@@ -1,6 +1,6 @@
-# Contributing to AgentWorld
+# Contributing to ClankerWorld
 
-AgentWorld is an early private alpha with a substantial deterministic and
+ClankerWorld is an early private alpha with a substantial deterministic and
 security foundation but incomplete connected gameplay. Start with the
 [current-state matrix](docs/current-state.md), then read the
 [roadmap](docs/roadmap.md), [vision ledger](docs/vision-interview.md), and

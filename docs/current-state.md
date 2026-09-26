@@ -7,7 +7,7 @@ updated: 2026-09-26
 
 # Current product state
 
-This is the canonical answer to **what the AgentWorld prototype actually does
+This is the canonical answer to **what the ClankerWorld prototype actually does
 today**. It
 describes the default private-world runtime and Godot client, not only schemas,
 contracts or isolated fixtures.

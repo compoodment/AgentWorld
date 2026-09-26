@@ -14,12 +14,12 @@ readonly GODOT_TEMPLATES_ARCHIVE="Godot_v${GODOT_VERSION}-stable_mono_export_tem
 readonly GODOT_TEMPLATES_SHA256="92f8681e349ef1f90891b792da95e3b2b0bd1ed610b78018c58feb2d87e15a9d"
 readonly GODOT_RELEASE_URL="https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}"
 readonly EXPORT_PRESET="Windows 11 x64"
-readonly EXPORT_EXE="AgentWorld.exe"
-readonly CLIENT_ASSEMBLY="AgentWorld.GodotClient.dll"
+readonly EXPORT_EXE="ClankerWorld.exe"
+readonly CLIENT_ASSEMBLY="ClankerWorld.GodotClient.dll"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-project_dir="${repo_root}/src/AgentWorld.GodotClient"
-project_file="${project_dir}/AgentWorld.GodotClient.csproj"
+project_dir="${repo_root}/src/ClankerWorld.GodotClient"
+project_file="${project_dir}/ClankerWorld.GodotClient.csproj"
 default_output_dir="${repo_root}/export/windows-x64"
 
 usage() {
@@ -107,11 +107,11 @@ if [[ -d "${output_dir}" ]] && [[ -n "$(find "${output_dir}" -mindepth 1 -maxdep
 fi
 mkdir -p "${output_dir}"
 
-cache_dir="${GODOT_DOWNLOAD_CACHE:-${XDG_CACHE_HOME:-${HOME}/.cache}/agentworld-godot}"
+cache_dir="${GODOT_DOWNLOAD_CACHE:-${XDG_CACHE_HOME:-${HOME}/.cache}/clankerworld-godot}"
 editor_archive_path="${cache_dir}/${GODOT_ARCHIVE}"
 templates_archive_path="${cache_dir}/${GODOT_TEMPLATES_ARCHIVE}"
 scratch_parent="${RUNNER_TEMP:-/tmp}"
-scratch_root="$(mktemp -d "${scratch_parent%/}/agentworld-godot-windows-export.XXXXXX")"
+scratch_root="$(mktemp -d "${scratch_parent%/}/clankerworld-godot-windows-export.XXXXXX")"
 
 cleanup() {
     rm -rf -- "${scratch_root}"
@@ -127,9 +127,9 @@ tool_root="${scratch_root}/tool"
 export XDG_DATA_HOME="${scratch_root}/data"
 template_unpack_root="${scratch_root}/templates"
 staged_repo_root="${scratch_root}/repository"
-staged_project_dir="${staged_repo_root}/src/AgentWorld.GodotClient"
-staged_project_file="${staged_project_dir}/AgentWorld.GodotClient.csproj"
-staged_solution_path="${staged_project_dir}/AgentWorld.GodotClient.sln"
+staged_project_dir="${staged_repo_root}/src/ClankerWorld.GodotClient"
+staged_project_file="${staged_project_dir}/ClankerWorld.GodotClient.csproj"
+staged_solution_path="${staged_project_dir}/ClankerWorld.GodotClient.sln"
 
 printf 'Extracting Godot .NET editor\n'
 unzip -q "${editor_archive_path}" -d "${tool_root}"
@@ -177,7 +177,7 @@ if [[ ! -f "${staged_project_file}" ]]; then
 fi
 
 printf 'Creating temporary Godot C# solution for export\n'
-dotnet new sln --name "AgentWorld.GodotClient" --output "${staged_project_dir}" --format sln
+dotnet new sln --name "ClankerWorld.GodotClient" --output "${staged_project_dir}" --format sln
 dotnet sln "${staged_solution_path}" add "${staged_project_file}"
 
 export_exe_path="${output_dir}/${EXPORT_EXE}"
@@ -207,7 +207,7 @@ fi
 manifest_path="${output_dir}/manifest.sha256"
 printf 'Writing export manifest\n'
 {
-    printf '# AgentWorld Windows 11 x64 release export\n'
+    printf '# ClankerWorld Windows 11 x64 release export\n'
     printf '# Godot editor: %s (%s)\n' "${GODOT_ARCHIVE}" "${GODOT_ARCHIVE_SHA256}"
     printf '# Godot .NET templates: %s (%s)\n' "${GODOT_TEMPLATES_ARCHIVE}" "${GODOT_TEMPLATES_SHA256}"
     printf '# Godot template version: %s\n' "${GODOT_TEMPLATE_VERSION}"

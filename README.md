@@ -1,7 +1,6 @@
-# ClankerWorld (AgentWorld repository)
+# ClankerWorld
 
-**ClankerWorld** is the intended game; this repository and current prototype
-still use the AgentWorld name in code. The prototype is a private, persistent
+**ClankerWorld** is a private, persistent
 simulation inhabited by autonomous people. The player observes the whole
 world, inspects its inhabitants, gives
 suggestive or mandatory instructions, and watches a deterministic simulation
@@ -75,10 +74,10 @@ path, but richer autonomous planning and society remain roadmap work.
 
 | Path | Purpose |
 | --- | --- |
-| `src/AgentWorld.Simulation` | Authoritative simulation, cognition, society, content and persistence |
-| `src/AgentWorld.Viewer` | Headless HTTP host, pairing, signed owner API and live runtime |
-| `src/AgentWorld.GodotClient` | Player-facing Godot client and Windows export |
-| `tests/AgentWorld.Simulation.Tests` | Deterministic, protocol, persistence, security and client-contract tests |
+| `src/ClankerWorld.Simulation` | Authoritative simulation, cognition, society, content and persistence |
+| `src/ClankerWorld.Viewer` | Headless HTTP host, pairing, signed owner API and live runtime |
+| `src/ClankerWorld.GodotClient` | Player-facing Godot client and Windows export |
+| `tests/ClankerWorld.Simulation.Tests` | Deterministic, protocol, persistence, security and client-contract tests |
 | `docs/vision-interview.md` | Canonical finished-game intent and open decisions |
 | `docs/current-state.md` | Canonical implemented/playable status |
 | `docs/roadmap.md` | Canonical future sequence and acceptance gates |
@@ -117,7 +116,7 @@ The short version:
 4. [Architecture](docs/architecture.md)
 5. [Known bugs](docs/bugs.md)
 
-## What AgentWorld is not yet
+## What ClankerWorld is not yet
 
 - a finished game or final-art UI;
 - a complete autonomous economy or society;
@@ -133,4 +132,4 @@ schema or fixture with a player-visible feature.
 
 ## License
 
-AgentWorld is released under the [MIT License](LICENSE).
+ClankerWorld is released under the [MIT License](LICENSE).

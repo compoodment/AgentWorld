@@ -16,7 +16,7 @@ updated: 2026-09-26
 
 This file is the **living ledger of computment's intended finished-game
 experience** during the interview. A decision here is not a claim that the
-current AgentWorld prototype implements it, nor an instruction to build every
+current ClankerWorld prototype implements it, nor an instruction to build every
 accepted feature immediately. The repository's current-state and architecture
 documents must describe what actually runs; its roadmap chooses implementation
 order. This ledger is versioned in the game repository as the single authority
@@ -35,7 +35,7 @@ still distinguishes the finished-game vision from the present prototype.
 - **Preferred** means a strong current leaning, but not yet a final choice.
 - **Proposed** means Clanker's suggestion, not yet accepted as canon.
 - **Open** means we really have not settled the question.
-- The finished-game vision is distinct from what the existing AgentWorld
+- The finished-game vision is distinct from what the existing ClankerWorld
   prototype currently implements. Repository code and documents are evidence,
   not automatic authority over ClankerWorld's future design.
 

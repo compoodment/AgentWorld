@@ -33,13 +33,13 @@ portable bundle and Tailnet reachability, not the Godot editor.
 ## Project boundary
 
 ```text
-src/AgentWorld.Simulation/        pure authoritative simulation library
-src/AgentWorld.Viewer/            separate ASP.NET Core observation host
-src/AgentWorld.GodotClient/       separate Godot paired-owner projection/request client
-tests/AgentWorld.Simulation.Tests/ deterministic, replay, and viewer-contract tests
+src/ClankerWorld.Simulation/        pure authoritative simulation library
+src/ClankerWorld.Viewer/            separate ASP.NET Core observation host
+src/ClankerWorld.GodotClient/       separate Godot paired-owner projection/request client
+tests/ClankerWorld.Simulation.Tests/ deterministic, replay, and viewer-contract tests
 ```
 
-`AgentWorld.Simulation` must remain runnable and testable without Godot, a
+`ClankerWorld.Simulation` must remain runnable and testable without Godot, a
 window manager, an LLM provider, or a network connection after dependencies are
 restored. The headless HTTP host references the simulation, never the reverse,
 and projects its own protocol DTOs. The Godot client does not reference the

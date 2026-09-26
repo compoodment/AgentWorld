@@ -138,14 +138,14 @@ pages retain reproductions and regression requirements.
 
 | Issues | Status in implementation | Defect |
 | --- | --- | --- |
-| [#107](https://github.com/compoodment/AgentWorld/issues/107) | Fixed; activation and rollback regressions | Dependency quarantine/activation order; active dependents must be rolled back first |
-| [#108](https://github.com/compoodment/AgentWorld/issues/108) | Implemented; archive/restart and stale-cursor regression coverage | Unbounded checkpoint event history and rewrite cost |
-| [#109](https://github.com/compoodment/AgentWorld/issues/109), [#116](https://github.com/compoodment/AgentWorld/issues/116) | Fixed; stalled-provider, pause, cancellation and concurrent-tick tests | Partial ticks and provider-held authoritative locks |
-| [#110](https://github.com/compoodment/AgentWorld/issues/110), [#111](https://github.com/compoodment/AgentWorld/issues/111), [#112](https://github.com/compoodment/AgentWorld/issues/112) | Fixed; boundary and clock-advance regressions | Expired barter acceptance and reservation expiry |
-| [#113](https://github.com/compoodment/AgentWorld/issues/113), [#114](https://github.com/compoodment/AgentWorld/issues/114), [#115](https://github.com/compoodment/AgentWorld/issues/115) | Fixed; atomic rejection and restore regressions | Asset ordering, conflicting shared charges and overflow |
-| [#117](https://github.com/compoodment/AgentWorld/issues/117), [#118](https://github.com/compoodment/AgentWorld/issues/118) | Fixed; projection and restore regressions | Missing crop jobs and empty-population observation crash |
-| [#119](https://github.com/compoodment/AgentWorld/issues/119) | Fixed; declared/chunked/misreported size tests | Unbounded provider response buffering |
-| [#120](https://github.com/compoodment/AgentWorld/issues/120) | Fixed; 600 signed polls with no authority writes | Idle authority write amplification |
+| [#107](https://github.com/compoodment/ClankerWorld/issues/107) | Fixed; activation and rollback regressions | Dependency quarantine/activation order; active dependents must be rolled back first |
+| [#108](https://github.com/compoodment/ClankerWorld/issues/108) | Implemented; archive/restart and stale-cursor regression coverage | Unbounded checkpoint event history and rewrite cost |
+| [#109](https://github.com/compoodment/ClankerWorld/issues/109), [#116](https://github.com/compoodment/ClankerWorld/issues/116) | Fixed; stalled-provider, pause, cancellation and concurrent-tick tests | Partial ticks and provider-held authoritative locks |
+| [#110](https://github.com/compoodment/ClankerWorld/issues/110), [#111](https://github.com/compoodment/ClankerWorld/issues/111), [#112](https://github.com/compoodment/ClankerWorld/issues/112) | Fixed; boundary and clock-advance regressions | Expired barter acceptance and reservation expiry |
+| [#113](https://github.com/compoodment/ClankerWorld/issues/113), [#114](https://github.com/compoodment/ClankerWorld/issues/114), [#115](https://github.com/compoodment/ClankerWorld/issues/115) | Fixed; atomic rejection and restore regressions | Asset ordering, conflicting shared charges and overflow |
+| [#117](https://github.com/compoodment/ClankerWorld/issues/117), [#118](https://github.com/compoodment/ClankerWorld/issues/118) | Fixed; projection and restore regressions | Missing crop jobs and empty-population observation crash |
+| [#119](https://github.com/compoodment/ClankerWorld/issues/119) | Fixed; declared/chunked/misreported size tests | Unbounded provider response buffering |
+| [#120](https://github.com/compoodment/ClankerWorld/issues/120) | Fixed; 600 signed polls with no authority writes | Idle authority write amplification |
 
 - **AW-B022 — fixed:** the client ignored placed-building observations, so
   completed structures were absent from the map. Stable markers now show their

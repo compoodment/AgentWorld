@@ -1,4 +1,4 @@
-# AgentWorld — Delivery Rules
+# ClankerWorld — Delivery Rules
 
 ## GitHub sync
 
@@ -10,7 +10,7 @@ done: commit the intended changes, push them, and verify `main` matches
 ## Release versioning
 
 Follow [the release-version policy](docs/releasing.md)
-for every AgentWorld release. Keep the public game release version separate
+for every ClankerWorld release. Keep the public game release version separate
 from saved-world compatibility versions. Do not create a release tag merely
 because a commit exists.
 

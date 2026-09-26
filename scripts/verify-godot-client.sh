@@ -11,7 +11,7 @@ readonly GODOT_SHA256="129f82db7bafd54ae14bb5bb284041c73860e8c7a009a3a026ca5e946
 readonly GODOT_URL="https://github.com/godotengine/godot/releases/download/${GODOT_RELEASE}/${GODOT_ARCHIVE}"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-scratch_root="${RUNNER_TEMP:-$(mktemp -d)}/agentworld-godot-${GODOT_VERSION}"
+scratch_root="${RUNNER_TEMP:-$(mktemp -d)}/clankerworld-godot-${GODOT_VERSION}"
 archive_path="${scratch_root}/${GODOT_ARCHIVE}"
 tool_root="${scratch_root}/tool"
 
@@ -40,6 +40,6 @@ godot_bin="$(find "${tool_root}" -type f -name "Godot_v${GODOT_VERSION}-stable_m
 test -n "${godot_bin}"
 
 printf 'Building Godot C# scripts and starting the scene headlessly\n'
-"${godot_bin}" --headless --path "${repo_root}/src/AgentWorld.GodotClient" --build-solutions --quit
-"${godot_bin}" --headless --path "${repo_root}/src/AgentWorld.GodotClient" --quit-after 120
-"${godot_bin}" --headless --path "${repo_root}/src/AgentWorld.GodotClient" -- --ui-smoke-test
+"${godot_bin}" --headless --path "${repo_root}/src/ClankerWorld.GodotClient" --build-solutions --quit
+"${godot_bin}" --headless --path "${repo_root}/src/ClankerWorld.GodotClient" --quit-after 120
+"${godot_bin}" --headless --path "${repo_root}/src/ClankerWorld.GodotClient" -- --ui-smoke-test

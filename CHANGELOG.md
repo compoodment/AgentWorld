@@ -1,7 +1,7 @@
 # Changelog
 
 All notable player-facing, world-simulation, save-compatibility, deployment,
-and security changes are documented here. AgentWorld has not published a
+and security changes are documented here. ClankerWorld has not published a
 release yet.
 
 ## Unreleased
@@ -236,6 +236,10 @@ release yet.
 
 ### Changed
 
+- Renamed the game, .NET projects, Godot client and Windows export to
+  **ClankerWorld**. Existing save/content format markers, built-in package IDs,
+  owner-device key names and private-host state paths remain stable so the
+  current world and paired client survive the branding change.
 - Changed private-world lifetime so simulation ticks and hosted-provider calls
   run only while at least one authenticated game client remains connected.
   Closing or losing the last client stops the world after a five-second grace
