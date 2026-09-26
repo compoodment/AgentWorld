@@ -64,6 +64,7 @@ public sealed record ViewerInhabitantRelationship(
     string? Direction = null);
 
 public sealed record ViewerPrivateThought(long WorldTick, string Text);
+public sealed record ViewerAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
 
 /// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
@@ -95,6 +96,8 @@ public sealed record ViewerInhabitant(
     public IReadOnlyList<ViewerInhabitantRelationship> Relationships { get; init; } = [];
 
     public IReadOnlyList<ViewerPrivateThought> RecentPrivateThoughts { get; init; } = [];
+
+    public IReadOnlyList<ViewerAgentMemory> RecentMemories { get; init; } = [];
 }
 
 public sealed record ViewerProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);

@@ -93,6 +93,9 @@ public partial class Main : Control
     private readonly RichTextLabel inhabitantDetails = new();
     private readonly RichTextLabel inhabitantSocialDetails = new();
     private readonly RichTextLabel privateThoughtHistory = new();
+    private readonly Button memoriesButton = new();
+    private readonly PanelContainer memoriesPanel = new();
+    private readonly RichTextLabel memoryHistory = new();
     private readonly RichTextLabel worldDetails = new();
     private readonly RichTextLabel worldInfoText = new();
     private readonly RichTextLabel eventLog = new();
@@ -105,6 +108,8 @@ public partial class Main : Control
     private readonly ColorRect menuShade = new();
     private readonly Label menuHeadingLabel = new();
     private readonly Button menuResumeButton = new();
+    private readonly Button quitGameButton = new();
+    private readonly ConfirmationDialog quitGameConfirmation = new();
     private readonly CheckBox fullscreenToggle = new();
     private readonly OptionButton resolutionChoice = new();
     private readonly OptionButton clockFormatChoice = new();
@@ -346,6 +351,8 @@ public partial class Main : Control
                 new OwnerWorldSpatialKnowledge(formerPosition, [formerPosition], [formerPosition]), false)
             {
                 RecentPrivateThoughts = [new OwnerWorldPrivateThought(1, "I hope Rowan remembers our garden.")],
+                RecentMemories = [new OwnerWorldAgentMemory(1, "living-parent", "Rowan",
+                    "I hid the garden tools where Rowan cannot see them.", "private")],
             };
             var historicalSnapshot = sample with
             {
@@ -365,6 +372,12 @@ public partial class Main : Control
             if (!privateThoughtHistory.Text.Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
                 !privateThoughtHistory.Text.Contains("historical", StringComparison.Ordinal))
                 throw new InvalidOperationException("Deceased profiles must retain their saved private thoughts without generating new ones.");
+            memoriesButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (!memoriesPanel.Visible ||
+                !memoryHistory.Text.Contains("I hid the garden tools", StringComparison.Ordinal) ||
+                inhabitantSocialDetails.Text.Contains("I hid the garden tools", StringComparison.Ordinal))
+                throw new InvalidOperationException("Historical private memories must be inspectable separately from public social notes.");
+            memoriesPanel.Hide();
             var originalPreferences = displayPreferences;
             displayPreferences = displayPreferences with { NotifyDeaths = true };
             notificationWorldId = historicalSnapshot.WorldId;
@@ -435,7 +448,11 @@ public partial class Main : Control
             if (familyTreeView.VisiblePersonIds.Count != 1 || familyTreeView.ParentEdgeCount != 0)
                 throw new InvalidOperationException("Household membership must not create a family link.");
             familyTreePanel.Hide();
-            GD.Print("UI checks passed: menus/workbench, settlement panel, resource hover, building footprints, zoom, middle-drag, WASD, overview navigation, event jumps, event pop-ups, private thoughts, deceased inspection and family tree.");
+            quitGameButton.EmitSignal(BaseButton.SignalName.Pressed);
+            if (!quitGameConfirmation.Visible)
+                throw new InvalidOperationException("Quit Game must ask for confirmation before exiting.");
+            quitGameConfirmation.Hide();
+            GD.Print("UI checks passed: menus/workbench, confirmed quit, settlement panel, resource hover, building footprints, zoom, middle-drag, WASD, overview navigation, event jumps, event pop-ups, private thoughts, memories, deceased inspection and family tree.");
             GetTree().Quit();
         }
         catch (Exception exception)
@@ -1789,6 +1806,24 @@ public partial class Main : Control
         familyTreePanel.Hide();
         content.AddChild(familyTreePanel);
 
+        var memoriesBody = new VBoxContainer();
+        var memoriesHeading = new HBoxContainer();
+        var memoriesTitle = new Label { Text = "Memories", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        memoriesTitle.AddThemeFontSizeOverride("font_size", 18);
+        memoriesHeading.AddChild(memoriesTitle);
+        var closeMemories = new Button { Text = "×", TooltipText = "Close memories" };
+        StyleButton(closeMemories);
+        closeMemories.Pressed += () => memoriesPanel.Hide();
+        memoriesHeading.AddChild(closeMemories);
+        memoriesBody.AddChild(memoriesHeading);
+        ConfigureTextPanel(memoryHistory, 300);
+        memoryHistory.TooltipText = "This is the selected agent's saved memory, not the authoritative world event log.";
+        memoriesBody.AddChild(memoryHistory);
+        AddPanelContents(memoriesPanel, memoriesBody);
+        memoriesPanel.ZIndex = 85;
+        memoriesPanel.Hide();
+        content.AddChild(memoriesPanel);
+
         ConfigureTextPanel(worldDetails, 320);
         AddPanelContents(settlementPanel, "Settlement · stores and projects", worldDetails);
         settlementPanel.CustomMinimumSize = new Vector2(420, 380);
@@ -1872,10 +1907,14 @@ public partial class Main : Control
         };
         menuActions.AddChild(developerToggleButton);
 
-        var quitButton = new Button { Text = "Quit" };
-        StyleButton(quitButton);
-        quitButton.Pressed += () => GetTree().Quit();
-        menuActions.AddChild(quitButton);
+        quitGameButton.Text = "Quit Game";
+        StyleButton(quitGameButton);
+        quitGameButton.Pressed += () => quitGameConfirmation.PopupCentered(new Vector2I(440, 170));
+        menuActions.AddChild(quitGameButton);
+        quitGameConfirmation.Title = "Quit ClankerWorld?";
+        quitGameConfirmation.DialogText = "Quit the game? Your committed world progress remains saved.";
+        quitGameConfirmation.Confirmed += () => GetTree().Quit();
+        AddChild(quitGameConfirmation);
         body.AddChild(menuActions);
 
         gameSettingsContent.AddThemeConstantOverride("separation", 8);
@@ -2088,11 +2127,19 @@ public partial class Main : Control
         privateThoughtHistory.TooltipText = "Only you can inspect these in-character thoughts. Other agents do not learn them automatically.";
         body.AddChild(privateThoughtHistory);
 
+        memoriesButton.Text = "Memories";
+        memoriesButton.TooltipText = "Inspect this agent's saved memories, including private memories and historical records after death.";
+        StyleButton(memoriesButton);
+        memoriesButton.Pressed += OpenMemories;
+        var historyActions = new HBoxContainer();
+        historyActions.AddChild(memoriesButton);
+
         familyTreeButton.Text = "Family Tree";
         familyTreeButton.TooltipText = "Inspect ancestry and partnerships, including deceased relatives.";
         StyleButton(familyTreeButton);
         familyTreeButton.Pressed += OpenFamilyTree;
-        body.AddChild(familyTreeButton);
+        historyActions.AddChild(familyTreeButton);
+        body.AddChild(historyActions);
 
         var instructionHeading = new Label { Text = "Speak to them" };
         instructionHeading.AddThemeFontSizeOverride("font_size", 13);
@@ -2182,6 +2229,7 @@ public partial class Main : Control
 
     private void ShowFamilyTree(OwnerWorldSnapshot snapshot, string id)
     {
+        memoriesPanel.Hide();
         familyTreeView.SetPeople(snapshot.WorldId, snapshot.Inhabitants, id);
         UpdateFamilyTreeStatus();
         rosterPanel.Hide();
@@ -2212,6 +2260,19 @@ public partial class Main : Control
         RenderMap(snapshot);
     }
 
+    private void OpenMemories()
+    {
+        if (selectedInhabitantId is null) return;
+        familyTreePanel.Hide();
+        rosterPanel.Hide();
+        eventsPanel.Hide();
+        worldOverviewPanel.Hide();
+        worldInfoPanel.Hide();
+        settlementPanel.Hide();
+        memoriesPanel.Show();
+        ApplyResponsiveLayout();
+    }
+
     private async Task TogglePauseAsync()
     {
         var paused = observationSession.Current?.Baseline.Snapshot.Authoring?.IsPaused == true;
@@ -2229,6 +2290,7 @@ public partial class Main : Control
         rosterPanel.Hide();
         eventsPanel.Hide();
         familyTreePanel.Hide();
+        memoriesPanel.Hide();
         menuHeadingLabel.Text = "Paused";
         settlementPanel.Hide();
         gameMenuPanel.Show();
@@ -2737,6 +2799,8 @@ public partial class Main : Control
             selectedActorSummaryLabel.Text = string.Empty;
             inhabitantSocialDetails.Clear();
             privateThoughtHistory.Clear();
+            memoryHistory.Clear();
+            memoriesPanel.Hide();
             selectedInhabitantCard.Hide();
             return;
         }
@@ -2796,6 +2860,10 @@ public partial class Main : Control
             ? thoughtHeading + "\nNone recorded yet."
             : thoughtHeading + "\n" + string.Join("\n", inhabitant.RecentPrivateThoughts
                 .Reverse().Select(thought => $"{DisplayWorldClock(thought.WorldTick)}  {thought.Text}"));
+        memoryHistory.Text = inhabitant.RecentMemories.Count == 0
+            ? "No saved memories for this agent yet."
+            : string.Join("\n\n", inhabitant.RecentMemories.Select(memory =>
+                $"{DisplayWorldClock(memory.WorldTick)} · {Pretty(memory.Visibility)} · about {memory.SubjectName}\n{memory.Summary}"));
         inhabitantSocialDetails.TooltipText = decision is null ? "" :
             $"Last accepted decision\nRole: {decision.Role ?? "not reported"}\nModel: {decision.Model ?? "not reported"}\nConfidence: {decision.Confidence:P0}\n" +
             $"Latency: {decision.LatencyMilliseconds?.ToString(CultureInfo.CurrentCulture) ?? "—"} ms\n" +
@@ -2955,6 +3023,7 @@ public partial class Main : Control
     private void ClearInhabitantSelection()
     {
         familyTreePanel.Hide();
+        memoriesPanel.Hide();
         selectedInhabitantId = null;
         inhabitantList.DeselectAll();
         if (observationSession.Current is { } current)
@@ -3091,6 +3160,12 @@ public partial class Main : Control
         familyTreePanel.Position = new Vector2(
             Math.Max(14, (viewport.X - familySize.X) / 2),
             Math.Max(14, (viewport.Y - familySize.Y) / 2));
+        var memoriesSize = new Vector2(Math.Clamp(viewport.X - 28, 320, 600),
+            Math.Clamp(viewport.Y - 28, 280, 430));
+        memoriesPanel.Size = memoriesSize;
+        memoriesPanel.Position = new Vector2(
+            Math.Max(14, (viewport.X - memoriesSize.X) / 2),
+            Math.Max(14, (viewport.Y - memoriesSize.Y) / 2));
 
         var menuWidth = Math.Min(560, Math.Max(320, viewport.X - 28));
         gameMenuPanel.CustomMinimumSize = new Vector2(menuWidth, 0);

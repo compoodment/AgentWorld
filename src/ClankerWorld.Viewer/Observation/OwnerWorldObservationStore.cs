@@ -493,6 +493,7 @@ public sealed class OwnerWorldObservationStore
             Relationships = RelationshipsFor(state, inhabitant.Id),
             RecentPrivateThoughts = (physical.RecentThoughts ?? [])
                 .Select(thought => new ViewerPrivateThought(thought.WorldTick, thought.Text)).ToArray(),
+            RecentMemories = MemoriesFor(state, inhabitant.Id),
             Project = physical.Project is { } project
                 ? new ViewerProject(project.Label, project.Stage, project.WorkDone, 10, project.Blocker, project.StartedTick)
                 : null,
@@ -521,8 +522,7 @@ public sealed class OwnerWorldObservationStore
                         edge.State == SocietyRelationshipState.Accepted && edge.TargetId == inhabitant.Id &&
                         state.Society.Society.GetInhabitant(edge.ProposerId).Status == SocietyInhabitantStatus.Active)
                     ? ["No active caregiver; household adults may offer support."] : Array.Empty<string>())
-                .Concat(state.Society.Society.Memories.Where(memory => memory.OwnerId == inhabitant.Id && memory.Visibility == "public")
-                    .OrderByDescending(memory => memory.SourceTick).Take(3).Select(memory => memory.Summary)).ToArray(),
+                .ToArray(),
         };
     }
 
@@ -557,11 +557,26 @@ public sealed class OwnerWorldObservationStore
             Relationships = RelationshipsFor(state, inhabitant.Id),
             RecentPrivateThoughts = (lastPhysical.RecentThoughts ?? [])
                 .Select(thought => new ViewerPrivateThought(thought.WorldTick, thought.Text)).ToArray(),
+            RecentMemories = MemoriesFor(state, inhabitant.Id),
             Proficiency = lastPhysical.Proficiency is { } practice
                 ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
             SocialStanding = SocialStandingFor(state, inhabitant.Id, lastPhysical),
         };
     }
+
+    private static ViewerAgentMemory[] MemoriesFor(PrivateWorldRuntimeState state, string ownerId) =>
+        state.Society.Society.Memories
+            .Where(memory => memory.OwnerId == ownerId && memory.TombstonedTick is null)
+            .OrderByDescending(memory => memory.SourceTick)
+            .ThenBy(memory => memory.Id, StringComparer.Ordinal)
+            .Take(16)
+            .Select(memory => new ViewerAgentMemory(
+                memory.SourceTick,
+                memory.SubjectId,
+                state.Society.Society.Inhabitants.FirstOrDefault(person => person.Id == memory.SubjectId)?.Name ?? memory.SubjectId,
+                memory.Summary,
+                memory.Visibility))
+            .ToArray();
 
     private static ViewerSocialStanding[] SocialStandingFor(
         PrivateWorldRuntimeState state,

@@ -25,6 +25,9 @@ public sealed class DeceasedInhabitantArchiveTests
         society = society with
         {
             Config = config,
+            Memories = society.Inhabitants.Select(person => new SocietySocialMemory(
+                $"last-memory:{person.Id}", person.Id, "founder-scout",
+                "I remember the first campfire.", "private", 0)).ToArray(),
             Inhabitants = society.Inhabitants.Select(person => person with
             {
                 BirthTick = -18,
@@ -60,6 +63,7 @@ public sealed class DeceasedInhabitantArchiveTests
             historical.DecisionFactors.Single(factor => factor.Key == "death-tick").Detail);
         Assert.Null(historical.PublicIntention);
         Assert.Equal("I hope the camp lasts.", Assert.Single(historical.RecentPrivateThoughts).Text);
+        Assert.Equal("I remember the first campfire.", Assert.Single(historical.RecentMemories).Summary);
         Assert.DoesNotContain(restored.Inhabitants, person => person.InhabitantId == deceased.InhabitantId);
 
         var invalid = archived with
@@ -70,5 +74,40 @@ public sealed class DeceasedInhabitantArchiveTests
                     : person).ToArray(),
         };
         Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(invalid));
+    }
+
+    [Fact]
+    public void OwnerMemoryProjectionKeepsPrivateRecordsWithTheirOwnerAndOmitsForgottenOnes()
+    {
+        using var seed = new PrivateWorldRuntime("memory-inspection");
+        var state = seed.ExportState();
+        state = state with
+        {
+            Society = state.Society with
+            {
+                Society = state.Society.Society with
+                {
+                    Memories = new[]
+                    {
+                        new SocietySocialMemory("secret", "founder-scout", "founder-mira",
+                            "I hid a tool behind the storehouse.", "private", 0),
+                        new SocietySocialMemory("other", "founder-mira", "founder-scout",
+                            "Scout helped me harvest.", "public", 0),
+                        new SocietySocialMemory("forgotten", "founder-scout", "founder-mira",
+                            "An old abandoned belief.", "private", 0, TombstonedTick: 0),
+                    }.OrderBy(memory => memory.Id, StringComparer.Ordinal).ToArray(),
+                },
+            },
+        };
+        using var world = PrivateWorldRuntime.Restore(state);
+        var inhabitants = new OwnerWorldObservationStore(world).GetSnapshot().Inhabitants;
+        var scout = inhabitants.Single(person => person.Id == "founder-scout");
+        var mira = inhabitants.Single(person => person.Id == "founder-mira");
+        Assert.Equal("I hid a tool behind the storehouse.", Assert.Single(scout.RecentMemories).Summary);
+        Assert.Equal("private", scout.RecentMemories[0].Visibility);
+        Assert.Equal("Mira", scout.RecentMemories[0].SubjectName);
+        Assert.DoesNotContain(scout.SocialNotes, note => note.Contains("hid a tool", StringComparison.Ordinal));
+        Assert.Equal("Scout helped me harvest.", Assert.Single(mira.RecentMemories).Summary);
+        Assert.DoesNotContain(mira.RecentMemories, memory => memory.Summary.Contains("hid a tool", StringComparison.Ordinal));
     }
 }

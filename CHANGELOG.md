@@ -8,6 +8,11 @@ release yet.
 
 ### Added
 
+- Agent profiles now open a separate Memories panel showing that agent's
+  saved records, including private memories and memories retained after death.
+  These records no longer masquerade as public social notes. Quit Game now
+  asks for confirmation before closing the client.
+
 - Agent profiles now show a small scrollable history of recent private thoughts
   written alongside accepted personal-model decisions. These thoughts survive
   saves and remain inspectable after death; routine fallback and hidden model

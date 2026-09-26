@@ -65,7 +65,11 @@ fixture methods still support synchronous provider dispatch for isolated tests.
   decisions can include a short in-character private thought; the last eight
   are saved and projected only into that agent's owner-visible profile. They
   are not hidden model reasoning, public dialogue, or knowledge transferred to
-  another agent. The broader inspectable Memories UI is not implemented yet.
+  another agent. The owner can inspect up to 16 recent, non-tombstoned social
+  memories per agent, including private records and deceased profiles; this is
+  distinct from public dialogue and the authoritative event log. Belief
+  uncertainty, broad episodic recall and Jev-assisted compaction are not yet
+  implemented.
 - Live physical actors remain separate from saved deceased records. On death,
   the runtime archives the last physical state and frozen age alongside the
   society death record, then removes the actor from active movement and work.

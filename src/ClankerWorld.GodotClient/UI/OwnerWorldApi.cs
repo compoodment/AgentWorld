@@ -65,6 +65,7 @@ public sealed record OwnerWorldInhabitantRelationship(
     string? Direction = null);
 
 public sealed record OwnerWorldPrivateThought(long WorldTick, string Text);
+public sealed record OwnerWorldAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
 
 public sealed record OwnerWorldInhabitant(
     string Id,
@@ -92,6 +93,8 @@ public sealed record OwnerWorldInhabitant(
     public IReadOnlyList<OwnerWorldInhabitantRelationship> Relationships { get; init; } = [];
 
     public IReadOnlyList<OwnerWorldPrivateThought> RecentPrivateThoughts { get; init; } = [];
+
+    public IReadOnlyList<OwnerWorldAgentMemory> RecentMemories { get; init; } = [];
 }
 
 public sealed record OwnerWorldProject(string Label, string Stage, int WorkDone, int WorkRequired, string? Blocker, long StartedTick);
