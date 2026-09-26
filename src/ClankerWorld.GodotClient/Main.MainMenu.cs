@@ -25,10 +25,14 @@ public partial class Main
     private readonly OptionButton worldSizeChoice = new();
     private readonly OptionButton worldWaterChoice = new();
     private readonly CheckBox worldWrapChoice = new();
+    private readonly WorldOverview worldPreview = new();
+    private readonly Label worldPreviewStatus = new();
+    private readonly Button worldPreviewButton = new();
     private readonly ItemList worldSelectionList = new();
     private readonly Button worldCreateButton = new();
     private readonly Button worldSelectButton = new();
     private CatalogWorld[] listedWorlds = [];
+    private OwnerWorldCreationAction? previewedWorldOptions;
     private bool worldMenuBusy;
     private readonly ConfirmationDialog quitToMenuConfirmation = new();
     private bool isInWorld;
@@ -223,25 +227,45 @@ public partial class Main
         body.AddChild(worldNameInput);
         worldSeedInput.PlaceholderText = "Generation seed";
         worldSeedInput.MaxLength = 100;
+        worldSeedInput.TextChanged += _ => InvalidateWorldPreview();
         var seedRow = new HBoxContainer();
         worldSeedInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         seedRow.AddChild(worldSeedInput);
         var reroll = new Button { Text = "Reroll seed" };
         StyleButton(reroll);
-        reroll.Pressed += () => worldSeedInput.Text = Guid.NewGuid().ToString("N")[..12];
+        reroll.Pressed += () =>
+        {
+            worldSeedInput.Text = Guid.NewGuid().ToString("N")[..12];
+            if (!worldMenuBusy) _ = PreviewWorldAsync();
+        };
         seedRow.AddChild(reroll);
         body.AddChild(seedRow);
         worldSizeChoice.AddItem("Small · 256 × 128", 0);
         worldSizeChoice.AddItem("Medium · 512 × 256", 1);
+        worldSizeChoice.ItemSelected += _ => InvalidateWorldPreview();
         body.AddChild(worldSizeChoice);
         worldWaterChoice.AddItem("Less water · 35%", 35);
         worldWaterChoice.AddItem("Balanced water · 45%", 45);
         worldWaterChoice.AddItem("More water · 55%", 55);
         worldWaterChoice.Select(1);
+        worldWaterChoice.ItemSelected += _ => InvalidateWorldPreview();
         body.AddChild(worldWaterChoice);
         worldWrapChoice.Text = "Wrap east/west";
         worldWrapChoice.ButtonPressed = true;
+        worldWrapChoice.Toggled += _ => InvalidateWorldPreview();
         body.AddChild(worldWrapChoice);
+        worldPreviewButton.Text = "Preview map";
+        StyleButton(worldPreviewButton);
+        worldPreviewButton.Pressed += () => _ = PreviewWorldAsync();
+        body.AddChild(worldPreviewButton);
+        worldPreview.ShowCameraBounds = false;
+        worldPreview.MouseFilter = MouseFilterEnum.Ignore;
+        worldPreview.TooltipText = "Generated map preview; the gold marker shows the starting camp.";
+        worldPreview.CustomMinimumSize = new Vector2(400, 170);
+        worldPreview.Hide();
+        body.AddChild(worldPreview);
+        worldPreviewStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        body.AddChild(worldPreviewStatus);
         worldSelectionList.CustomMinimumSize = new Vector2(0, 240);
         worldSelectionList.ItemSelected += _ => worldSelectButton.Disabled = false;
         worldSelectionList.Hide();
@@ -249,6 +273,7 @@ public partial class Main
         worldCreateButton.Text = "Create World";
         StyleButton(worldCreateButton, primary: true);
         worldCreateButton.Pressed += () => _ = CreateSelectedWorldAsync();
+        worldCreateButton.Disabled = true;
         body.AddChild(worldCreateButton);
         worldSelectButton.Text = "Open World";
         StyleButton(worldSelectButton, primary: true);
@@ -276,14 +301,19 @@ public partial class Main
         worldSizeChoice.Visible = create;
         worldWaterChoice.Visible = create;
         worldWrapChoice.Visible = create;
+        worldPreviewButton.Visible = create;
+        worldPreviewStatus.Visible = create;
+        worldPreview.Visible = create && previewedWorldOptions is not null;
         worldCreateButton.Visible = create;
         worldSelectionList.Visible = !create;
         worldSelectButton.Visible = !create;
         worldSelectButton.Disabled = true;
         worldNameInput.Text = "New World";
         worldSeedInput.Text = Guid.NewGuid().ToString("N")[..12];
+        InvalidateWorldPreview();
         worldMenuOverlay.Show();
-        if (!create) _ = RefreshWorldListAsync();
+        if (create) _ = PreviewWorldAsync();
+        else _ = RefreshWorldListAsync();
     }
 
     private async Task RefreshWorldListAsync()
@@ -310,6 +340,68 @@ public partial class Main
         }
     }
 
+    private OwnerWorldCreationAction CurrentWorldOptions() => new(
+        worldNameInput.Text.Trim(), worldSeedInput.Text.Trim(),
+        worldSizeChoice.GetSelectedId() == 1 ? "Medium" : "Small",
+        worldWaterChoice.GetSelectedId(), worldWrapChoice.ButtonPressed);
+
+    private static bool SameGeneration(OwnerWorldCreationAction? first, OwnerWorldCreationAction second) =>
+        first is not null && first.Seed == second.Seed && first.Size == second.Size &&
+        first.WaterPercent == second.WaterPercent && first.WrapEastWest == second.WrapEastWest;
+
+    private void InvalidateWorldPreview()
+    {
+        previewedWorldOptions = null;
+        worldCreateButton.Disabled = true;
+        worldPreview.Hide();
+        worldPreviewStatus.Text = "Preview this seed and its options before creating the world.";
+    }
+
+    private async Task PreviewWorldAsync()
+    {
+        if (worldMenuBusy || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        var action = CurrentWorldOptions();
+        if (action.Name.Length is < 1 or > 80 || action.Seed.Length is < 1 or > 100 ||
+            action.Name.Any(char.IsControl) || action.Seed.Any(char.IsControl))
+        {
+            worldPreviewStatus.Text = "Enter a world name and generation seed first.";
+            return;
+        }
+        worldMenuBusy = true;
+        worldPreviewButton.Disabled = true;
+        worldCreateButton.Disabled = true;
+        worldPreviewStatus.Text = "Generating map preview…";
+        try
+        {
+            await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
+                signer, CancellationToken.None);
+            var result = await ownerApi.PreviewWorldAsync(ResolveWorldUri(), authority,
+                deviceId, action, signer, CancellationToken.None);
+            if (!SameGeneration(action, CurrentWorldOptions()))
+            {
+                InvalidateWorldPreview();
+                return;
+            }
+            worldPreview.MarkerTile = new Vector2(result.Camp.X, result.Camp.Y);
+            worldPreview.SetWorld(WorldTerrainMap.FromPacked(result.Terrain));
+            worldPreview.Show();
+            previewedWorldOptions = action;
+            worldCreateButton.Disabled = false;
+            worldPreviewStatus.Text = $"Map preview · camp at {result.Camp.X}, {result.Camp.Y}. " +
+                "The world you create will use this terrain.";
+        }
+        catch (Exception exception)
+        {
+            InvalidateWorldPreview();
+            worldPreviewStatus.Text = "Could not preview map: " + FriendlyFailure(exception);
+        }
+        finally
+        {
+            worldMenuBusy = false;
+            worldPreviewButton.Disabled = false;
+        }
+    }
+
     private async Task CreateSelectedWorldAsync()
     {
         if (worldMenuBusy || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
@@ -321,6 +413,13 @@ public partial class Main
             worldMenuStatus.Text = "Enter a world name (1–80 characters) and seed (1–100 characters).";
             return;
         }
+        var action = CurrentWorldOptions();
+        if (!SameGeneration(previewedWorldOptions, action))
+        {
+            worldPreviewStatus.Text = "Preview the current seed and options before creating the world.";
+            worldCreateButton.Disabled = true;
+            return;
+        }
         worldMenuBusy = true;
         worldCreateButton.Disabled = true;
         worldMenuStatus.Text = "Generating world…";
@@ -328,9 +427,6 @@ public partial class Main
         {
             await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
                 signer, CancellationToken.None);
-            var action = new OwnerWorldCreationAction(name, seed,
-                worldSizeChoice.GetSelectedId() == 1 ? "Medium" : "Small",
-                worldWaterChoice.GetSelectedId(), worldWrapChoice.ButtonPressed);
             await ownerApi.CreateWorldAsync(ResolveWorldUri(), authority, deviceId,
                 action, signer, CancellationToken.None);
             observationSession.ResetAfterLoad();
@@ -345,7 +441,7 @@ public partial class Main
         finally
         {
             worldMenuBusy = false;
-            worldCreateButton.Disabled = false;
+            worldCreateButton.Disabled = !SameGeneration(previewedWorldOptions, CurrentWorldOptions());
         }
     }
 

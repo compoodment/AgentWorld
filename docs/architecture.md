@@ -65,6 +65,10 @@ world files. The active recovery checkpoint wins if a crash interrupts the
 catalog selection update. Named manual saves are listed only for their world.
 World creation and selection require the paired owner's signed request and
 leave the selected world paused.
+The signed preview regenerates the same deterministic Small/Medium map and
+returns its packed terrain, camp point and manifest digest without changing the
+active world or catalog. The client draws that data atlas before Create World
+is enabled; changed generation options invalidate the preview.
 The existing paired-device authority ID remains installation-stable across
 world selection; it does not become the selected simulation world's ID. A
 restart checks the server authority and restores the paired key even when the

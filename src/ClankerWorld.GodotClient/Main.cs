@@ -231,12 +231,17 @@ public partial class Main : Control
                     manualSaveOverlay.GetGlobalRect().GetCenter().DistanceTo(manualSaveCard.GetGlobalRect().GetCenter()) > 2)
                     throw new InvalidOperationException($"Save/load panel escaped its centered bounds at {size}.");
                 manualSaveOverlay.Hide();
+                worldMenuHeading.Text = "New World";
+                worldMenuStatus.Text = "Choose a seed and size. The new world opens paused at its empty camp; add four founders before starting time.";
+                worldPreviewStatus.Text = "Map preview · camp at 100, 60. The world you create will use this terrain.";
+                worldPreview.Show();
                 worldMenuOverlay.Show();
                 await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
                 if (!worldMenuOverlay.GetGlobalRect().Encloses(worldMenuCard.GetGlobalRect()) ||
                     worldMenuOverlay.GetGlobalRect().GetCenter().DistanceTo(worldMenuCard.GetGlobalRect().GetCenter()) > 2)
                     throw new InvalidOperationException($"World creation/selection panel escaped its centered bounds at {size}.");
                 worldMenuOverlay.Hide();
+                worldPreview.Hide();
             }
             OpenMainMenuSettings();
             if (mainMenuOverlay.Visible || !gameMenuPanel.Visible || !gameSettingsContent.Visible)

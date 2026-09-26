@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- New World now shows a signed, read-only terrain preview before creation.
+  Changing the seed, size, water share or wrapping marks it stale; rerolling
+  the seed can regenerate it, and Create World only enables for the previewed
+  options. The camp location is marked on the atlas. The preview and created
+  world use the same deterministic map and do not alter the current world.
+
 - Main Menu **New World** now creates a separately saved Small or Medium map
   from a chosen seed, water share and east/west-wrap choice, then opens its
   empty camp paused for four-founder setup. **Load World** selects an archived

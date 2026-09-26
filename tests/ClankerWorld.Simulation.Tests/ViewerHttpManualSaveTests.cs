@@ -55,6 +55,16 @@ public sealed partial class ViewerHttpTests
                     Action = create with { Seed = "different-seed" },
                 });
                 Assert.False(tampered.IsSuccessStatusCode);
+                using var previewed = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/worlds/preview", create,
+                    OwnerHttpBinding.WorldCreationPayload(create));
+                Assert.Equal(HttpStatusCode.OK, previewed.StatusCode);
+                var preview = (await previewed.Content.ReadFromJsonAsync<ViewerWorldPreview>())!;
+                Assert.Equal(256, preview.Terrain.Width);
+                Assert.Contains(selectionLog.Messages, message => message.Contains(
+                    "world_preview outcome=generated width=256", StringComparison.Ordinal));
+                Assert.Null(host.Services.GetRequiredService<PrivateWorldRuntime>().ExportState().Geography);
+                Assert.Single(host.Services.GetRequiredService<WorldCatalogStore>().Capture().Worlds);
                 using var created = await SendSignedAsync(host, client, key, device.DeviceId,
                     createPath, create, OwnerHttpBinding.WorldCreationPayload(create));
                 Assert.Equal(HttpStatusCode.OK, created.StatusCode);
@@ -65,6 +75,7 @@ public sealed partial class ViewerHttpTests
                 Assert.Empty(runtime.Inhabitants);
                 Assert.Equal(WorldSizePreset.Small, runtime.ExportState().Geography?.Size);
                 Assert.Equal(256, runtime.ExportState().Map.Width);
+                Assert.Equal(preview.ManifestDigest, runtime.ExportState().Map.ManifestDigest);
                 var reconnect = new OwnerReconnectAction(0);
                 using var observed = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/reconnect", reconnect,

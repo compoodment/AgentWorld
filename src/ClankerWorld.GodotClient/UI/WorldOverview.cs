@@ -18,6 +18,8 @@ public partial class WorldOverview : Control
     public event Action<Vector2>? CenterRequested;
 
     public Rect2 VisibleTiles => visibleTiles;
+    public bool ShowCameraBounds { get; set; } = true;
+    public Vector2? MarkerTile { get; set; }
 
     public WorldOverview()
     {
@@ -82,6 +84,15 @@ public partial class WorldOverview : Control
         if (atlasTexture is not null) DrawTextureRect(atlasTexture, atlas, tile: false);
 
         DrawRect(atlas, new Color("AFC4BA"), filled: false, width: 1);
+        if (MarkerTile is { } markerTile)
+        {
+            var marker = atlas.Position + new Vector2(
+                markerTile.X * atlas.Size.X / mapWidth,
+                markerTile.Y * atlas.Size.Y / mapHeight);
+            DrawRect(new Rect2(marker - new Vector2(3, 3), new Vector2(6, 6)),
+                new Color("FFF0B5"));
+        }
+        if (!ShowCameraBounds) return;
         var view = new Rect2(
             atlas.Position + new Vector2(visibleTiles.Position.X * atlas.Size.X / mapWidth,
                 visibleTiles.Position.Y * atlas.Size.Y / mapHeight),

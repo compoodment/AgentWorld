@@ -376,7 +376,7 @@ public sealed class OwnerWorldObservationStore
         };
     }
 
-    private static ViewerPackedTerrain PackTerrain(SeededMap map)
+    internal static ViewerPackedTerrain PackTerrain(SeededMap map)
     {
         var bytes = new byte[checked(map.Width * map.Height)];
         foreach (var tile in map.Tiles)

@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Control;
@@ -21,6 +22,22 @@ public sealed class WorldSelectionCoordinator(
     public WorldCatalogSnapshot List()
     {
         lock (gate) return catalog.Capture();
+    }
+
+    public ViewerWorldPreview Preview(GeographyOptions geography)
+    {
+        ArgumentNullException.ThrowIfNull(geography);
+        if (geography.Size is not (WorldSizePreset.Small or WorldSizePreset.Medium))
+            throw new ArgumentException("Only Small and Medium are playable yet.", nameof(geography));
+        lock (gate)
+        {
+            RequirePaused();
+            var map = GeneratedCampMapGenerator.Generate(geography);
+            var camp = map.GetObject("bedroll").Position;
+            WorldSelectionTelemetry.Previewed(logger, map.Width, map.Height);
+            return new ViewerWorldPreview(OwnerWorldObservationStore.PackTerrain(map),
+                new ViewerPosition(camp.X, camp.Y), map.ManifestDigest);
+        }
     }
 
     public CatalogWorld Create(string name, GeographyOptions geography)

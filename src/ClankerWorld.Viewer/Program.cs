@@ -544,17 +544,33 @@ app.MapPost("/api/v1/owner/worlds/create", (
         creationPayload);
     if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
     if (!isPrivateWorld) return Results.Conflict(new { error = "World creation requires a private world." });
-    if (action.Name.Length is < 1 or > 80 || action.Name.Any(char.IsControl) ||
-        action.Seed.Length is < 1 or > 100 || action.Seed.Any(char.IsControl) ||
-        !Enum.TryParse<WorldSizePreset>(action.Size, true, out var size) ||
-        !Enum.IsDefined(size) || action.WaterPercent is < 10 or > 80)
+    if (!TryWorldOptions(action, out var options))
         return Results.BadRequest(new { error = "World seed, size, or water choice is invalid." });
     try
     {
-        var entry = services.GetRequiredService<WorldSelectionCoordinator>().Create(action.Name,
-            new GeographyOptions(action.Seed, size, action.WrapEastWest, action.WaterPercent));
+        var entry = services.GetRequiredService<WorldSelectionCoordinator>().Create(action.Name, options!);
         return Results.Ok(entry);
     }
+    catch (ArgumentException exception) { return Results.BadRequest(new { error = exception.Message }); }
+    catch (InvalidOperationException exception) { return Results.Conflict(new { error = exception.Message }); }
+});
+
+app.MapPost("/api/v1/owner/worlds/preview", (
+    OwnerSignedHttpRequest<OwnerWorldCreationAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services) =>
+{
+    if (request?.Action is not { } action)
+        return Results.BadRequest(new { error = "World options are required." });
+    string payload;
+    try { payload = OwnerHttpBinding.WorldCreationPayload(action); }
+    catch (ArgumentException) { return Results.BadRequest(new { error = "World name, seed, and size are required." }); }
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/worlds/preview", payload);
+    if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (!isPrivateWorld) return Results.Conflict(new { error = "World preview requires a private world." });
+    if (!TryWorldOptions(action, out var options))
+        return Results.BadRequest(new { error = "World seed, size, or water choice is invalid." });
+    try { return Results.Ok(services.GetRequiredService<WorldSelectionCoordinator>().Preview(options!)); }
     catch (ArgumentException exception) { return Results.BadRequest(new { error = exception.Message }); }
     catch (InvalidOperationException exception) { return Results.Conflict(new { error = exception.Message }); }
 });
@@ -1704,6 +1720,19 @@ app.Run();
 static bool IsControl(OwnerSignedHttpRequest<OwnerControlAction>? request, string expectedOperation) =>
     request?.Action is not null &&
     string.Equals(request.Action.Operation, expectedOperation, StringComparison.Ordinal);
+
+static bool TryWorldOptions(OwnerWorldCreationAction action, out GeographyOptions? options)
+{
+    options = null;
+    if (action.Name is null || action.Name.Length is < 1 or > 80 || action.Name.Any(char.IsControl) ||
+        action.Seed is null || action.Seed.Length is < 1 or > 100 || action.Seed.Any(char.IsControl) ||
+        !Enum.TryParse<WorldSizePreset>(action.Size, true, out var size) ||
+        !Enum.IsDefined(size) || size is not (WorldSizePreset.Small or WorldSizePreset.Medium) ||
+        action.WaterPercent is < 10 or > 80)
+        return false;
+    options = new GeographyOptions(action.Seed, size, action.WrapEastWest, action.WaterPercent);
+    return true;
+}
 
 static bool TryParseInstructionKind(string? value, out OwnerInstructionKind kind)
 {

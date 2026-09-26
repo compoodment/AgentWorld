@@ -272,6 +272,8 @@ public sealed record CatalogWorld(string Id, string Name, string WorldId, string
     DateTimeOffset UpdatedUtc, IReadOnlyList<InhabitantProviderAssignment> Assignments,
     WorldAutosaveSettings? AutosaveSettings);
 public sealed record WorldCatalogSnapshot(string ActiveId, IReadOnlyList<CatalogWorld> Worlds);
+public sealed record OwnerWorldPreview(OwnerWorldPackedTerrain Terrain, OwnerWorldPosition Camp,
+    string ManifestDigest);
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
     bool IsAutosave = false);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
@@ -969,6 +971,14 @@ public sealed class OwnerWorldApi
         OwnerWorldCreationAction action, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
         pairing.SendSignedActionAsync<OwnerWorldCreationAction, CatalogWorld>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerWorldCreate,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.WorldCreation(action),
+            action, deviceKey, cancellationToken);
+
+    public Task<OwnerWorldPreview> PreviewWorldAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerWorldCreationAction action, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerWorldCreationAction, OwnerWorldPreview>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerWorldPreview,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.WorldCreation(action),
             action, deviceKey, cancellationToken);
 
