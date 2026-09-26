@@ -341,6 +341,11 @@ accounting details need design and playtesting.
   cacti, grass, stone, snow, water depths, and transitions for their locations.
   A dense tree stand can be one resource-bearing object with art depicting
   several trees; cutting leaves a stump/trunk and regrowth can occur.
+- Generated geography includes **rivers** as well as oceans, shores and lakes.
+  Rivers belong to the 2D, top-down tile world and its hydrology layer; they
+  must remain continuous across an enabled east/west world seam. A noise
+  function may sample three input coordinates to make a seamless **2D** map;
+  that does not imply 3D graphics or 3D gameplay.
 - Agents can reshape some terrain through activity. They can cross water with
   crafted boats and shore-connected ports and can later invent improvements.
   Roads exist and influence travel and building placement.
@@ -357,6 +362,17 @@ Climate's long-run
 rainfall/moisture is distinct from any individual rain event. The 64×64 chunk
 and preset dimensions need
 benchmarks before becoming implementation promises.
+
+**Proposed river-generation approach, not yet a locked algorithm:** generate
+elevation and long-run rainfall, route water downhill toward coasts or inland
+lakes, accumulate upstream flow, and mark sufficiently fed channels as rivers.
+Handle trapped low areas as lakes/outlets and use east/west-wrapped neighbors
+when wrapping is enabled. River abundance, width, crossings, seasonal behavior,
+and exact effects on farms and settlements remain open. Noise is a candidate
+for the terrain fields, not a substitute for drainage routing. Relevant
+references: [Red Blob's noise-map guide](https://www.redblobgames.com/maps/terrain-from-noise/),
+[Mapgen4's rivers and rainfall](https://www.redblobgames.com/maps/mapgen4/),
+and the [FastNoiseLite library](https://github.com/Auburn/FastNoiseLite).
 
 Regional weather can be updated by world systems rather than requiring an LLM
 call for each weather change.

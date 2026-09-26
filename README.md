@@ -25,7 +25,8 @@ authoritative simulation, saves, cognition and provider adapters
 
 Today the integrated private world has:
 
-- four initial inhabitants, with bounded births and descendants;
+- a fresh paused base camp; the player adds four configured founders in-world
+  before starting time, after which births and descendants are possible;
 - movement, hunger, energy, harvesting, eating and sleep;
 - a seeded map, renewable resources, calendar, seasons and weather;
 - inspectable needs, intentions, inventories, relationships and events;
@@ -61,15 +62,11 @@ and [known bugs](docs/bugs.md) for confirmed defects and gaps.
 
 ## Cognition roles
 
-The paired owner configures two independent roles in the game settings:
-
-- **Routine survival:** Deterministic or Jev
-- **Planning and work:** Deterministic, OpenAI or Ollama Cloud
-
-Jev and one large-model provider can be active at the same time. Critical
-survival needs suppress strategic work. The current game has a starter content
-path, but richer autonomous planning and society remain future work in the
-[vision ledger](docs/vision-interview.md).
+Each founder has a selected personal provider, model and saved API-key slot.
+Jev is an optional per-world support layer, not a replacement for that
+personal selection. Critical survival needs suppress strategic work. The
+current game has a starter content path, but richer autonomous planning and
+society remain future work in the [vision ledger](docs/vision-interview.md).
 
 ## Repository layout
 

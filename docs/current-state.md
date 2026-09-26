@@ -48,9 +48,11 @@ can continue, but new projects wait for a valid answer. Pause, client absence,
 provider changes and quit discard the external call, not the queued decision.
 Late answers are admitted only against the same request/provider/run epoch and
 a still-legal action. Deterministic decisions remain in the isolated tick.
-The server build is installed on the live VPS, but the preserved world is
-paused and the matching Windows artifact has not been tested on computment's
-laptop; a live model-wait playtest is still outstanding.
+The server build is installed on the live VPS. Its active world is now a fresh,
+paused empty camp at tick 0 with no founders; the previous development save is
+only a rollback backup. Pairing and provider credentials remain configured.
+The matching Windows artifact has not been tested on computment's laptop; a
+live model-wait playtest is still outstanding.
 
 Save schema 16 preserves the per-world Jev switch and incomplete four-founder setup; bounded private thoughts from accepted personal-model decisions, deceased records, optional bounded directed trust and work practice alongside biological
 life-clock anchors, parenthood preparation, practical lessons and council
@@ -105,7 +107,7 @@ not a claim that all interview proposals should be implemented at once.
 | Priority | Decided behavior | Current playable behavior / remaining work |
 | --- | --- | --- |
 | 1 | A slow or unavailable personal model does not stop unrelated agents or invent an important choice | The private-world host dispatches hosted decisions between committed ticks; unrelated agents and world systems keep advancing. Failed or low-confidence requests can select only `safe_idle`, never complete an instruction or invent a strategic choice. Pending decisions survive save/reload and stale answers after pause/provider changes are rejected. A live Windows/VPS model-wait playtest remains to be done. |
-| 2 | New World creates a map and empty base camp; four configured founders are added in-world, then Start World begins time | In the repository build, a fresh world has a small empty camp with two houses/households, shared facilities and starter supplies. The paired client chooses each founder's model/key and clicks an empty tile; setup saves after each placement. Start World requires all four and explicit owner action. The map remains fixed at 6×5: climate, world-size generation, multiple-world selection and self-chosen founder identities are not yet built. The live VPS may still hold a paused prior world rather than this new genesis. |
+| 2 | New World creates a map and empty base camp; four configured founders are added in-world, then Start World begins time | The active live world is now a fresh paused camp with no founders. The paired client chooses each founder's model/key and clicks an empty tile; setup saves after each placement. Start World requires all four and explicit owner action. The map remains fixed at 6×5: climate, world-size generation, rivers, multiple-world selection and self-chosen founder identities are not yet built. |
 | 3 | Playtest a six-minute day and custom 40-day/four-season year, with at most six hours of life from birth | Fresh host-created worlds save 360 ticks/day, 40 days/year and four 10-day seasons; day-based stages and a hard 60-day lifespan use the same saved pace. The host still aims for one tick per real second, subject to load. The live VPS has a paused development world with this calendar; its former save is archived. The decided pacing and founder setup still need a Windows/VPS playtest. |
 | 4 | Each agent owns a personal model and key; Jev is an optional per-world support layer | The selected agent card and World Settings can choose one provider/model and a named saved key for an inhabitant, applying to both routine and planning decisions. The founder setup uses that same private key routing before Start World. Several keys from the same provider can coexist in private host storage. The per-world Jev switch is saved and functional; Jev-assisted memory work remains unbuilt. |
 | 5 | One continuous zoomable pixel-art world view with an always-available draggable overview and inspection controls | The Godot prototype has the single zoomable view, draggable overview, located event-log navigation, out-of-view event notices, private-thought history for accepted personal-model decisions and an ancestry/partnership family tree, but not the decided Main Menu, large world map, filters or rich belief/compaction memory system. Art and UI are prototype-quality. |
