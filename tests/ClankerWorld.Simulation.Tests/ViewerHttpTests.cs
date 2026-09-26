@@ -32,6 +32,8 @@ public sealed partial class ViewerHttpTests(ViewerWebApplicationFactory factory)
             using var host = new ViewerWebApplicationFactory(directory.FullName, null, privateWorld: true,
                 legacyPrivateWorld: false);
             using var client = host.CreateClient();
+            var placementLog = new RecordingLogger<ViewerHttpTests>();
+            host.Services.GetRequiredService<ILoggerFactory>().AddProvider(new RecordingLoggerProvider<ViewerHttpTests>(placementLog));
             var device = await StartAndActivateAsync(host, client, key);
             var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
             Assert.Empty(runtime.Inhabitants);
@@ -75,6 +77,33 @@ public sealed partial class ViewerHttpTests(ViewerWebApplicationFactory factory)
             Assert.Equal(HttpStatusCode.OK, started.StatusCode);
             Assert.False(runtime.Society.IsPaused);
             Assert.True(runtime.FounderSetup!.Started);
+            var agentId = "agent:" + Guid.NewGuid().ToString("N");
+            var adult = new OwnerAgentPlacementAction(agentId, 4, 2,
+                new OwnerProviderConfigurationAction("personal", "openai", "gpt-5-mini", null,
+                    false, agentId, slotId));
+            const string agentPath = "/api/v1/owner/agents/place";
+            var signedAdult = await CreateSignedRequestAsync(host, client, key, device.DeviceId, agentPath,
+                adult, OwnerHttpBinding.AgentPlacementPayload(adult));
+            using var tamperedAdult = await client.PostAsJsonAsync(agentPath, signedAdult with
+            {
+                Action = adult with { X = 5 },
+            });
+            Assert.False(tamperedAdult.IsSuccessStatusCode);
+            Assert.Equal(4, runtime.Inhabitants.Count);
+            using var added = await SendSignedAsync(host, client, key, device.DeviceId, agentPath,
+                adult, OwnerHttpBinding.AgentPlacementPayload(adult));
+            Assert.Equal(HttpStatusCode.OK, added.StatusCode);
+            var addedReceipt = await added.Content.ReadFromJsonAsync<OwnerAgentPlacementReceipt>();
+            Assert.Equal("household:" + agentId, addedReceipt!.HouseholdId);
+            Assert.Equal(5, runtime.Inhabitants.Count);
+            var observedAdult = host.Services.GetRequiredService<OwnerWorldObservationStore>()
+                .GetSnapshot().Inhabitants.Single(person => person.Id == agentId);
+            Assert.Equal("active", observedAdult.Lifecycle);
+            using var duplicate = await SendSignedAsync(host, client, key, device.DeviceId, agentPath,
+                adult, OwnerHttpBinding.AgentPlacementPayload(adult));
+            Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
+            Assert.Contains(placementLog.Messages, message => message.Contains("AgentPlaced AgentId=" + agentId, StringComparison.Ordinal));
+            Assert.DoesNotContain(placementLog.Messages, message => message.Contains("test-secret-key", StringComparison.Ordinal));
             Assert.DoesNotContain("test-secret-key", File.ReadAllText(host.Services.GetRequiredService<PrivateWorldStateFile>().Path));
         }
         finally

@@ -312,6 +312,9 @@ public partial class Main : Control
                 !mapCanvas.GetGlobalRect().Encloses(founderSetupPanel.GetGlobalRect()))
                 throw new InvalidOperationException("Founder setup must show progress and keep Start World gated inside the world view.");
             founderSetupPanel.Hide();
+            Render(sample with { FounderSetup = new OwnerFounderSetup(4, 4, true) }, []);
+            if (!addAgentButton.Visible || founderSetupButton.Visible || startWorldButton.Visible)
+                throw new InvalidOperationException("Started worlds must offer Add Agent instead of founder setup controls.");
             Render(sample, []);
             RenderDesignPackages(sample);
             if (designPackages.ItemCount != 1 || !designPackages.GetItemText(0).Contains("proposed by builder-test", StringComparison.Ordinal))
@@ -1629,6 +1632,11 @@ public partial class Main : Control
         StyleButton(pauseButton, primary: true);
         pauseButton.Pressed += () => _ = TogglePauseAsync();
         topBar.AddChild(pauseButton);
+
+        addAgentButton.Text = "Add Agent";
+        StyleButton(addAgentButton);
+        addAgentButton.Pressed += () => _ = ToggleAddAgentAsync();
+        topBar.AddChild(addAgentButton);
 
         menuButton.Text = "Menu";
         StyleButton(menuButton);
@@ -3317,6 +3325,7 @@ public partial class Main : Control
         pauseButton.Disabled = actionDisabled || snapshot is null;
         pauseButton.Visible = snapshot?.FounderSetup is not { Started: false };
         founderSetupButton.Disabled = actionDisabled || snapshot?.FounderSetup is not { Started: false };
+        addAgentButton.Disabled = actionDisabled || snapshot?.FounderSetup is not { Started: true };
         startWorldButton.Disabled = actionDisabled || snapshot?.FounderSetup is not { Started: false, Placed: 4 };
         founderProviderChoice.Disabled = actionDisabled;
         founderCredentialChoice.Disabled = actionDisabled;
@@ -3524,6 +3533,13 @@ public partial class Main : Control
             {
                 var tile = (mouse.Position - mapStage.Position) / (currentTileSize + TileGap);
                 _ = PlaceFounderAtAsync(new Vector2I(Mathf.FloorToInt(tile.X), Mathf.FloorToInt(tile.Y)));
+                mapCanvas.AcceptEvent();
+            }
+            else if (mouse.Pressed && mouse.ButtonIndex == MouseButton.Left && founderSetupPanel.Visible &&
+                placingAddedAgent && snapshot.FounderSetup is { Started: true })
+            {
+                var tile = (mouse.Position - mapStage.Position) / (currentTileSize + TileGap);
+                _ = PlaceAgentAtAsync(new Vector2I(Mathf.FloorToInt(tile.X), Mathf.FloorToInt(tile.Y)));
                 mapCanvas.AcceptEvent();
             }
             else if (mouse.ButtonIndex == MouseButton.Middle)

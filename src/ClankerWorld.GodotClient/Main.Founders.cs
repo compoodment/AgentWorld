@@ -6,6 +6,7 @@ namespace ClankerWorld.GodotClient;
 public partial class Main
 {
     private readonly Button founderSetupButton = new();
+    private readonly Button addAgentButton = new();
     private readonly Button startWorldButton = new();
     private readonly PanelContainer founderSetupPanel = new();
     private readonly Label founderSetupHint = new();
@@ -14,6 +15,7 @@ public partial class Main
     private readonly LineEdit founderModelInput = new();
     private readonly LineEdit founderKeyLabelInput = new();
     private readonly LineEdit founderApiKeyInput = new();
+    private bool placingAddedAgent;
 
     private void BuildFounderSetupPanel(Control canvas)
     {
@@ -34,7 +36,7 @@ public partial class Main
         };
         body.AddChild(founderProviderChoice);
 
-        founderModelInput.PlaceholderText = "Model ID for this founder";
+        founderModelInput.PlaceholderText = "Model ID for this agent";
         founderModelInput.Text = DefaultProviderModel("openai");
         body.AddChild(founderModelInput);
 
@@ -54,7 +56,7 @@ public partial class Main
             founderSetupPanel.Hide();
         };
         body.AddChild(close);
-        AddPanelContents(founderSetupPanel, "Add a founder", body);
+        AddPanelContents(founderSetupPanel, "Add an agent", body);
         founderSetupPanel.Position = new Vector2(350, 14);
         founderSetupPanel.ZIndex = 90;
         founderSetupPanel.Hide();
@@ -79,7 +81,9 @@ public partial class Main
         }
         founderCredentialChoice.AddItem("Add a new API key…");
         founderCredentialChoice.SetItemMetadata(founderCredentialChoice.ItemCount - 1, "new");
-        founderCredentialChoice.Select(founderCredentialChoice.ItemCount > 2 ? 1 : founderCredentialChoice.ItemCount - 1);
+        var defaultAvailable = providerConfiguration?.Providers.Any(option =>
+            option.Provider == SelectedFounderProvider() && option.HasCredential) == true;
+        founderCredentialChoice.Select(founderCredentialChoice.ItemCount > 2 ? 1 : defaultAvailable ? 0 : founderCredentialChoice.ItemCount - 1);
         RenderFounderCredentialInputs();
     }
 
@@ -97,6 +101,7 @@ public partial class Main
 
     private async Task ToggleFounderSetupAsync()
     {
+        placingAddedAgent = false;
         if (founderSetupPanel.Visible)
         {
             founderApiKeyInput.Text = string.Empty;
@@ -112,6 +117,77 @@ public partial class Main
             founderSetupPanel.Show();
             return "Choose a model and key, then click an empty tile to place the founder";
         });
+    }
+
+    private async Task ToggleAddAgentAsync()
+    {
+        if (founderSetupPanel.Visible && placingAddedAgent)
+        {
+            founderApiKeyInput.Text = string.Empty;
+            founderSetupPanel.Hide();
+            placingAddedAgent = false;
+            return;
+        }
+        if (observationSession.Current?.Baseline.Snapshot is not { FounderSetup: { Started: true } }) return;
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        await RunOwnerActionAsync(async () =>
+        {
+            providerConfiguration = await ownerApi.GetProviderStatusAsync(
+                ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
+            PopulateFounderCredentials();
+            placingAddedAgent = true;
+            founderSetupHint.Text = "Choose this adult’s provider, model, and key, then click an empty tile. Unclaimed land starts an independent household; this map has no established property borders yet.";
+            founderSetupPanel.Show();
+            return "Click an empty land tile to place the new agent";
+        });
+    }
+
+    private async Task PlaceAgentAtAsync(Vector2I tile)
+    {
+        if (isOwnerAction || observationSession.Current?.Baseline.Snapshot is not { FounderSetup: { Started: true } } snapshot ||
+            !snapshot.Tiles.Any(item => item.X == tile.X && item.Y == tile.Y) ||
+            snapshot.Inhabitants.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y) ||
+            snapshot.Objects.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y) ||
+            snapshot.Resources.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
+        {
+            SetStatus("Choose an empty passable tile", good: false);
+            return;
+        }
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        var provider = SelectedFounderProvider();
+        var model = founderModelInput.Text.Trim();
+        var choice = SelectedFounderCredential();
+        var newKey = choice == "new";
+        if (model.Length == 0 || newKey && (string.IsNullOrWhiteSpace(founderKeyLabelInput.Text) ||
+            string.IsNullOrWhiteSpace(founderApiKeyInput.Text)))
+        {
+            SetStatus("Choose a model and enter both a label and key for a new credential", good: false);
+            return;
+        }
+        var agentId = "agent:" + Guid.NewGuid().ToString("N");
+        var cognition = new OwnerProviderConfigurationAction(
+            "personal", provider, model, newKey ? founderApiKeyInput.Text : null,
+            ForgetCredential: false, InhabitantId: agentId,
+            CredentialSlotId: newKey ? Guid.NewGuid().ToString("N") : choice == "default" ? null : choice,
+            NewCredentialLabel: newKey ? founderKeyLabelInput.Text.Trim() : null);
+        try
+        {
+            await RunOwnerActionAsync(async () =>
+            {
+                var receipt = await ownerApi.PlaceAgentAsync(ResolveWorldUri(), authority, deviceId,
+                    new OwnerAgentPlacementAction(agentId, tile.X, tile.Y, cognition), signer, CancellationToken.None);
+                providerConfiguration = await ownerApi.GetProviderStatusAsync(
+                    ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
+                placingAddedAgent = false;
+                founderSetupPanel.Hide();
+                return $"Agent placed in independent household {receipt.HouseholdId}";
+            });
+        }
+        finally
+        {
+            founderApiKeyInput.Text = string.Empty;
+            founderKeyLabelInput.Text = string.Empty;
+        }
     }
 
     private async Task PlaceFounderAtAsync(Vector2I tile)
@@ -177,9 +253,10 @@ public partial class Main
         var setup = snapshot.FounderSetup;
         founderSetupButton.Visible = setup is { Started: false };
         startWorldButton.Visible = setup is { Started: false };
+        addAgentButton.Visible = setup is { Started: true };
         if (setup is not { Started: false })
         {
-            founderSetupPanel.Hide();
+            if (!placingAddedAgent) founderSetupPanel.Hide();
             return;
         }
         founderSetupButton.Text = $"Add founders {setup.Placed}/{setup.Required}";

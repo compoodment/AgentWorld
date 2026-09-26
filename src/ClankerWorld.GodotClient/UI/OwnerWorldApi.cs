@@ -298,6 +298,11 @@ public sealed record OwnerFounderPlacementAction(
 
 public sealed record OwnerFounderPlacementReceipt(string FounderId, string HouseholdId, int Placed, int Required);
 
+public sealed record OwnerAgentPlacementAction(
+    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition);
+
+public sealed record OwnerAgentPlacementReceipt(string AgentId, string HouseholdId);
+
 public sealed record OwnerProviderOptionStatus(
     string Provider,
     string Model,
@@ -589,6 +594,19 @@ public static class OwnerWorldActionPayload
             $"cognition-sha256={digest}");
     }
 
+    public static string AgentPlacement(OwnerAgentPlacementAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var cognition = ProviderConfiguration(action.Cognition);
+        var digest = ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(cognition)));
+        return string.Join('\n',
+            "clankerworld.owner-agent-placement.v1",
+            $"agent={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
+            $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
+            $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
+            $"cognition-sha256={digest}");
+    }
+
     public static string Instruction(OwnerInstructionAction action) => string.Join(
         '\n',
         "clankerworld.owner-instruction.v1",
@@ -846,6 +864,15 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerFounderPlacementAction, OwnerFounderPlacementReceipt>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerFounderPlace,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.FounderPlacement(action),
+            action, deviceKey, cancellationToken);
+
+    public Task<OwnerAgentPlacementReceipt> PlaceAgentAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerAgentPlacementAction action, IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerAgentPlacementAction, OwnerAgentPlacementReceipt>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAgentPlace,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AgentPlacement(action),
             action, deviceKey, cancellationToken);
 
     public Task<OwnerControlReceipt> SetLifePaceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,

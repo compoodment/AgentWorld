@@ -1198,6 +1198,45 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             throw new ArgumentException("Choose an empty passable tile for this founder.", nameof(position));
     }
 
+    public string AddAgent(string agentId, GridPoint position)
+    {
+        gate.Wait();
+        try
+        {
+            ValidateAgentPlacementUnsafe(agentId, position);
+            // The current map has no recorded property or settlement claims. A
+            // newly placed adult therefore starts a separate, unrelated household.
+            var householdId = "household:" + agentId;
+            society.Apply(checkpoint => SocietyFixture.AddAdult(checkpoint, agentId, householdId));
+            inhabitants.Add(agentId, new PlaytestInhabitantState(agentId, position, 6_500, 6_500, 0,
+                "undecided", "find a purpose"));
+            AppendEvent("agent_added", agentId);
+            return householdId;
+        }
+        finally { gate.Release(); }
+    }
+
+    public void ValidateAgentPlacement(string agentId, GridPoint position)
+    {
+        gate.Wait();
+        try { ValidateAgentPlacementUnsafe(agentId, position); }
+        finally { gate.Release(); }
+    }
+
+    private void ValidateAgentPlacementUnsafe(string agentId, GridPoint position)
+    {
+        if (founderSetup is not { Started: true })
+            throw new InvalidOperationException("Start the world with four founders before adding more agents.");
+        if (agentId is null || !agentId.StartsWith("agent:", StringComparison.Ordinal) ||
+            !Guid.TryParseExact(agentId["agent:".Length..], "N", out _) ||
+            society.Checkpoint.Inhabitants.Any(person => person.Id == agentId))
+            throw new ArgumentException("The agent ID is invalid or already used.", nameof(agentId));
+        if (!map.IsPassable(position) || map.CampObjects.Any(item => item.Position == position) ||
+            map.Resources.Any(item => item.Position == position) ||
+            inhabitants.Values.Any(person => person.Position == position))
+            throw new ArgumentException("Choose an empty passable tile for this agent.", nameof(position));
+    }
+
     public void StartWorld()
     {
         gate.Wait();

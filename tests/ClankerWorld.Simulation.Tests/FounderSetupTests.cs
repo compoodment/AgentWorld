@@ -25,6 +25,8 @@ public sealed class FounderSetupTests
                 Assert.DoesNotContain(created.ExportState().Map.CampObjects, item => item.Kind == "founder");
                 Assert.Throws<InvalidOperationException>(created.Resume);
                 Assert.Throws<InvalidOperationException>(created.StartWorld);
+                Assert.Throws<InvalidOperationException>(() => created.AddAgent(
+                    "agent:" + Guid.NewGuid().ToString("N"), new GridPoint(4, 2)));
                 created.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), new GridPoint(0, 0));
                 created.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), new GridPoint(1, 2));
                 file.Save(created);
@@ -43,7 +45,22 @@ public sealed class FounderSetupTests
             Assert.True(resumedSetup.FounderSetup.Started);
             var tick = await resumedSetup.AdvanceOneTickAsync();
             Assert.True(tick.Advanced);
+            var map = resumedSetup.ExportState().Map;
+            var position = map.Tiles.Select(tile => tile.Position).First(point =>
+                map.IsPassable(point) &&
+                !map.CampObjects.Any(item => item.Position == point) &&
+                !map.Resources.Any(item => item.Position == point) &&
+                !resumedSetup.Inhabitants.Any(item => item.Position == point));
+            var agentId = "agent:" + Guid.NewGuid().ToString("N");
+            var householdId = resumedSetup.AddAgent(agentId, position);
+            Assert.Equal("household:" + agentId, householdId);
+            Assert.Equal(agentId, resumedSetup.Society.Households.Single(item => item.Id == householdId).MemberIds.Single());
+            Assert.Equal(4, resumedSetup.Society.Inhabitants.Count(item => item.Id.StartsWith("founder:", StringComparison.Ordinal)));
+            Assert.Throws<ArgumentException>(() => resumedSetup.AddAgent(agentId, new GridPoint(5, 2)));
             file.Save(resumedSetup);
+            using var reloaded = file.LoadOrCreate("new-camp");
+            Assert.Equal(householdId, reloaded.Society.GetInhabitant(agentId).HouseholdId);
+            Assert.Equal(position, reloaded.Inhabitants.Single(item => item.InhabitantId == agentId).Position);
         }
         finally
         {

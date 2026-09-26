@@ -513,6 +513,54 @@ app.MapPost("/api/v1/owner/founders/place", (
     }
 });
 
+app.MapPost("/api/v1/owner/agents/place", (
+    OwnerSignedHttpRequest<OwnerAgentPlacementAction> request,
+    OwnerRequestAuthorizer authorizer,
+    ProviderConfigurationStore providers,
+    IServiceProvider services,
+    ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("ClankerWorld.AgentPlacement");
+    if (!isPrivateWorld || request?.Action is not { Cognition: { } cognition } action)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = ["An agent placement is required in a private world."] });
+    string payload;
+    try { payload = OwnerHttpBinding.AgentPlacementPayload(action); }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+    }
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/agents/place", payload);
+    if (!authorization.IsSuccess)
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (cognition.InhabitantId != action.AgentId || cognition.Role != PlayerDecisionProviders.PersonalRole ||
+        cognition.ForgetCredential || cognition.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["cognition"] = ["Choose one personal hosted model for this agent."] });
+
+    lock (founderSetupGate)
+    {
+        try
+        {
+            var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+            var position = new GridPoint(action.X, action.Y);
+            runtime.ValidateAgentPlacement(action.AgentId, position);
+            providers.Configure(cognition);
+            var household = runtime.AddAgent(action.AgentId, position);
+            services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+            AgentPlacementLog.Placed(logger, action.AgentId, household, runtime.WorldTick, action.X, action.Y);
+            return Results.Ok(new OwnerAgentPlacementReceipt(action.AgentId, household));
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            var loggedId = action.AgentId is { Length: 38 } id &&
+                id.StartsWith("agent:", StringComparison.Ordinal) &&
+                Guid.TryParseExact(id["agent:".Length..], "N", out _)
+                    ? id : "<invalid-id>";
+            AgentPlacementLog.Rejected(logger, loggedId, exception.GetType().Name);
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+        }
+    }
+});
+
 app.MapPost("/api/v1/owner/control/start-world", (
     OwnerSignedHttpRequest<OwnerControlAction> request,
     OwnerRequestAuthorizer authorizer,

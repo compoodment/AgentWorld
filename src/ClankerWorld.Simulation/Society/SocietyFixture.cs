@@ -161,6 +161,40 @@ public static partial class SocietyFixture
         return Commit(next, "founder_placed", $"{founder.Id}:{householdId}", founder.Id);
     }
 
+    public static SocietyOperationResult AddAdult(
+        SocietyCheckpoint checkpoint, string inhabitantId, string householdId)
+    {
+        Validate(checkpoint);
+        var id = NormalizeRequiredText(inhabitantId, nameof(inhabitantId));
+        var home = NormalizeRequiredText(householdId, nameof(householdId));
+        if (checkpoint.Inhabitants.Any(person => person.Id == id) ||
+            checkpoint.Households.Any(household => household.Id == home))
+            throw new InvalidOperationException("The new agent or household ID already exists.");
+
+        var age = checkpoint.Config.FounderStartingAge;
+        var lifeBirth = checked(checkpoint.LifeTickAt(checkpoint.WorldTick) -
+            age * checkpoint.Config.TicksPerLifecycleAge);
+        var person = CreateFounder(id, "New agent", config: checkpoint.Config) with
+        {
+            BirthTick = checkpoint.LifeClock is null ? lifeBirth : checkpoint.WorldTick,
+            BirthLifeTick = checkpoint.LifeClock is null ? null : lifeBirth,
+            HouseholdId = home,
+        };
+        var household = new SocietyHousehold(home, "New household", [id], []);
+        var membership = new SocietyRelationship(
+            $"{home}:membership:{id}", 1, SocietyRelationshipType.HouseholdMembership,
+            home, id, SocietyRelationshipState.Accepted,
+            SocietyConsentState.ProtectedLifecycle, checkpoint.WorldTick, checkpoint.WorldTick,
+            "household", home, new[] { home, id }.Order(StringComparer.Ordinal).ToArray());
+        var next = checkpoint with
+        {
+            Inhabitants = checkpoint.Inhabitants.Append(person).OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+            Households = checkpoint.Households.Append(household).OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+            Relationships = checkpoint.Relationships.Append(membership).OrderBy(item => item.Id, StringComparer.Ordinal).ToArray(),
+        };
+        return Commit(next, "agent_added", $"{id}:{home}", id);
+    }
+
     public static SocietyOperationResult ProposeRelationship(
         SocietyCheckpoint checkpoint,
         SocietyRelationshipProposal proposal)

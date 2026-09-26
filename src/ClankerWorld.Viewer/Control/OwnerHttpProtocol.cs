@@ -75,6 +75,11 @@ public sealed record OwnerFounderPlacementAction(
 
 public sealed record OwnerFounderPlacementReceipt(string FounderId, string HouseholdId, int Placed, int Required);
 
+public sealed record OwnerAgentPlacementAction(
+    string AgentId, int X, int Y, OwnerProviderConfigurationAction Cognition);
+
+public sealed record OwnerAgentPlacementReceipt(string AgentId, string HouseholdId);
+
 public sealed record OwnerProviderOptionStatus(
     string Provider,
     string Model,
@@ -203,6 +208,19 @@ public static class OwnerHttpBinding
         return string.Join('\n',
             "clankerworld.owner-founder-placement.v1",
             $"founder={EncodeRequired(action.FounderId, nameof(action.FounderId))}",
+            $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
+            $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
+            $"cognition-sha256={digest}");
+    }
+
+    public static string AgentPlacementPayload(OwnerAgentPlacementAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var cognition = ProviderConfigurationPayload(action.Cognition);
+        var digest = ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(cognition)));
+        return string.Join('\n',
+            "clankerworld.owner-agent-placement.v1",
+            $"agent={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
             $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
             $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
             $"cognition-sha256={digest}");

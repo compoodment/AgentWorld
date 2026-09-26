@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- After the four-founder start, the top bar now offers **Add Agent**. Choose a
+  provider, model, and saved or new API key, then click an empty passable tile.
+  The adult joins the running world in a separate one-person household and
+  survives save/reload. Placement requires the paired owner and rejects
+  occupied or impassable tiles; the current map has no property claims yet.
+
 - The Windows client now starts at a Main Menu with Continue, Settings,
   connection/pairing and Quit Game. Quit to Menu pauses the host world; Continue
   returns to it. New World and Load World are shown as unavailable until those
