@@ -192,7 +192,7 @@ public sealed record OwnerWorldProductionJob(
     long CompletionTick,
     string State);
 
-public sealed record OwnerWeatherRegion(int X, int Y, string Weather);
+public sealed record OwnerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 
 public sealed record OwnerWorldAuthoringState(
     bool IsPaused,

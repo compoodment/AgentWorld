@@ -44,6 +44,8 @@ public sealed class GeographyGeneratorTests
             projection.WeatherRegions.Count);
         Assert.True(projection.WeatherRegions.Select(region => region.Weather).Distinct().Count() > 1,
             "A generated world must not have one planet-wide weather condition.");
+        Assert.All(projection.WeatherRegions,
+            region => Assert.InRange(region.SoilMoisture ?? -1, 0, 100));
         Assert.DoesNotContain(projection.WeatherRegions,
             region => region.Y is 1 or 2 && region.Weather == "snow");
         var terrainBytes = Convert.FromBase64String(projection.PackedTerrain.Data);

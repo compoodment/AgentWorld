@@ -193,6 +193,7 @@ public sealed class SettlementSurvivalTests
 
     [Theory]
     [InlineData(WeatherKind.Clear, 6)]
+    [InlineData(WeatherKind.Rain, 7)]
     [InlineData(WeatherKind.Snow, 3)]
     public async Task CropFoodYieldReflectsWeather(WeatherKind weather, int expected)
     {

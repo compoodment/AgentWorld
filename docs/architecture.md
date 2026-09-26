@@ -49,8 +49,13 @@ weather value remains the reference condition for the old tiny fixture; no
 per-tick weather grid is serialized. Owner observations include the current
 regional conditions so the Godot HUD can show camera-local weather. Survival,
 travel and crop completion query the relevant location, not the reference
-condition. Weather fronts, soil-moisture history and biome-specific profiles
-are not implemented yet.
+condition. Weather fronts, persisted per-tile moisture and biome-specific
+profiles are not implemented yet.
+Food-crop completion uses a bounded soil-moisture estimate derived from the
+three most recent local weather days. The estimate is recomputed from the
+world seed, calendar and region instead of saving a mutable per-tile moisture
+grid. Wet/dry harvest adjustments are deliberately modest; detailed soil,
+runoff and irrigation are not implemented.
 The physical map now indexes terrain for constant-time passability/build-site
 checks. An internally captured proposed tick reuses its committed map rather
 than regenerating generated geography; external save loads still validate and

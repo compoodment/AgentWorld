@@ -397,14 +397,17 @@ public sealed class OwnerWorldObservationStore
     private static ViewerWeatherRegion[] CreateWeatherRegions(WorldSystemsState systems, SeededMap map)
     {
         if (map.Height <= WeatherRules.RegionSize)
-            return [new ViewerWeatherRegion(0, 0, systems.Climate.Weather.ToString().ToLowerInvariant())];
+            return [new ViewerWeatherRegion(0, 0, systems.Climate.Weather.ToString().ToLowerInvariant(),
+                WeatherRules.SoilMoistureAt(systems, new GridPoint(0, 0), map.Height))];
         var columns = (map.Width + WeatherRules.RegionSize - 1) / WeatherRules.RegionSize;
         var rows = (map.Height + WeatherRules.RegionSize - 1) / WeatherRules.RegionSize;
         var day = WorldCalendarRules.FromTick(systems.WorldTick, systems.Config).DayIndex;
         return Enumerable.Range(0, rows)
             .SelectMany(y => Enumerable.Range(0, columns).Select(x => new ViewerWeatherRegion(x, y,
                 WeatherRules.WeatherForRegion(systems.WorldSeed, day, systems.Climate.Season,
-                    systems.Config, x, y, rows).ToString().ToLowerInvariant())))
+                    systems.Config, x, y, rows).ToString().ToLowerInvariant(),
+                WeatherRules.SoilMoistureAt(systems,
+                    new GridPoint(x * WeatherRules.RegionSize, y * WeatherRules.RegionSize), map.Height))))
             .ToArray();
     }
 

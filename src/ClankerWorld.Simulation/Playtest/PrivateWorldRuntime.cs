@@ -1966,9 +1966,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             AppendEvent("production_input_unusable", job.JobId);
             return false;
         }
-        var cropWeather = recipe.IsCrop && survivalState is not null
-            ? WeatherAt(CropSite(job))
-            : WeatherKind.Clear;
+        var cropSite = recipe.IsCrop && survivalState is not null ? CropSite(job) : default;
+        var cropWeather = recipe.IsCrop && survivalState is not null ? WeatherAt(cropSite) : WeatherKind.Clear;
+        var soilMoisture = recipe.IsCrop && survivalState is not null
+            ? WeatherRules.SoilMoistureAt(worldSystems, cropSite, map.Height)
+            : 35;
         ApplyInventoryTransition(inventory =>
         {
             var current = inventory;
@@ -1985,7 +1987,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                     $"{job.JobId}:output:{outputIndex.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}",
                     output.ResourceId,
                     HouseholdId,
-                    CropOutputQuantity(recipe, output, cropWeather),
+                    CropOutputQuantity(recipe, output, cropWeather, soilMoisture),
                     targetTick);
             }
 
@@ -1994,6 +1996,13 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         if (recipe.IsCrop && survivalState is not null && cropWeather is WeatherKind.Snow or WeatherKind.Storm)
         {
             AppendEvent("crop_weather_loss", $"{job.JobId}:{cropWeather.ToString().ToLowerInvariant()}");
+        }
+        if (recipe.IsCrop && survivalState is not null &&
+            recipe.Outputs.Any(output => output.ResourceId == "food") &&
+            cropWeather is not (WeatherKind.Snow or WeatherKind.Storm) &&
+            (soilMoisture < 15 || soilMoisture >= 50))
+        {
+            AppendEvent("crop_moisture_effect", $"{job.JobId}:{(soilMoisture < 15 ? "dry" : "wet")}:{soilMoisture}");
         }
         CreditCompletedWork(job.WorkerId, recipe.IsCrop ? "farming" : "crafting");
         return true;

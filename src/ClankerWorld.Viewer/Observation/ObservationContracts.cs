@@ -213,7 +213,7 @@ public sealed record ViewerEvent(long EventId, long WorldTick, string Kind, stri
 
 public sealed record ViewerFounderSetup(int Required, int Placed, bool Started);
 
-public sealed record ViewerWeatherRegion(int X, int Y, string Weather);
+public sealed record ViewerWeatherRegion(int X, int Y, string Weather, int? SoilMoisture = null);
 
 public sealed record ViewerWorldSnapshot(
     string WorldId,

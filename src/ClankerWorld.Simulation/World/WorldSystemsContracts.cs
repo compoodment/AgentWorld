@@ -251,6 +251,41 @@ public static class WeatherRules
             position.X / RegionSize, position.Y / RegionSize, (mapHeight + RegionSize - 1) / RegionSize);
     }
 
+    /// <summary>
+    /// A bounded, reproducible moisture estimate from the three most recent
+    /// local weather days. It needs no per-tick save churn; detailed soil and
+    /// drainage state can replace this estimate when farming is expanded.
+    /// </summary>
+    public static int SoilMoistureAt(WorldSystemsState state, GridPoint position, int mapHeight)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentOutOfRangeException.ThrowIfNegative(position.X);
+        ArgumentOutOfRangeException.ThrowIfNegative(position.Y);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(mapHeight);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(position.Y, mapHeight, nameof(position));
+        var day = WorldCalendarRules.FromTick(state.WorldTick, state.Config).DayIndex;
+        var rows = (mapHeight + RegionSize - 1) / RegionSize;
+        var moisture = 35;
+        for (var sample = Math.Max(0, day - 2); sample <= day; sample++)
+        {
+            var season = WorldCalendarRules.GetSeason(sample % state.Config.DaysPerYear, state.Config);
+            var weather = mapHeight <= RegionSize
+                ? WeatherForDay(state.WorldSeed, sample, season, state.Config)
+                : WeatherForRegion(state.WorldSeed, sample, season, state.Config,
+                    position.X / RegionSize, position.Y / RegionSize, rows);
+            moisture = Math.Clamp(moisture + (weather switch
+            {
+                WeatherKind.Clear => -8,
+                WeatherKind.Cloudy => -3,
+                WeatherKind.Rain => 22,
+                WeatherKind.Storm => 28,
+                WeatherKind.Snow => 6,
+                _ => throw new InvalidOperationException("The regional weather value is invalid."),
+            }), 0, 100);
+        }
+        return moisture;
+    }
+
     public static WeatherKind WeatherForRegion(string worldSeed, long dayIndex, SeasonKind season,
         WorldSystemsConfig config, int regionX, int regionY, int regionRows)
     {

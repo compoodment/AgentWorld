@@ -31,6 +31,28 @@ public sealed class WorldSystemsContractTests
     }
 
     [Fact]
+    public void RecentRainRaisesLocalSoilMoistureWhileDryDaysDepleteIt()
+    {
+        var baseConfig = SmallConfig();
+        WorldSystemsState AdvanceWith(WeatherKind weather)
+        {
+            var profiles = Enum.GetValues<SeasonKind>().Select(season => new WeatherProfile(season,
+                weather == WeatherKind.Clear ? 1 : 0, 0, weather == WeatherKind.Rain ? 1 : 0, 0, 0)).ToArray();
+            var state = WorldSystemsRules.CreateGenesis("soil-test", config: baseConfig with { WeatherProfiles = profiles });
+            for (var tick = 0; tick < 8; tick++) state = WorldSystemsRules.AdvanceOneTick(state);
+            return state;
+        }
+
+        var position = new GridPoint(20, 20);
+        var wet = WeatherRules.SoilMoistureAt(AdvanceWith(WeatherKind.Rain), position, 128);
+        var dry = WeatherRules.SoilMoistureAt(AdvanceWith(WeatherKind.Clear), position, 128);
+
+        Assert.InRange(wet, 70, 100);
+        Assert.InRange(dry, 0, 14);
+        Assert.True(wet > dry);
+    }
+
+    [Fact]
     public void EcologyHarvestAndRegenerationAreBoundedAndIdempotent()
     {
         var resource = new EcologyResource(

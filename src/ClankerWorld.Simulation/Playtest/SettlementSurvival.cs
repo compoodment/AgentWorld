@@ -193,14 +193,20 @@ public sealed partial class PrivateWorldRuntime
         return available < target;
     });
 
-    private int CropOutputQuantity(RecipeDefinition recipe, ContentQuantity output, WeatherKind weather) =>
-        !recipe.IsCrop || survivalState is null || output.ResourceId != "food" ? output.Amount :
-        weather switch
+    private int CropOutputQuantity(RecipeDefinition recipe, ContentQuantity output, WeatherKind weather,
+        int soilMoisture)
+    {
+        if (!recipe.IsCrop || survivalState is null || output.ResourceId != "food")
+            return output.Amount;
+        return weather switch
         {
             WeatherKind.Snow => Math.Max(1, output.Amount / 2),
             WeatherKind.Storm => Math.Max(1, checked((int)((long)output.Amount * 3 / 4))),
+            _ when soilMoisture < 15 => Math.Max(1, checked((int)((long)output.Amount * 3 / 4))),
+            _ when soilMoisture >= 50 => checked(output.Amount + Math.Max(1, output.Amount / 4)),
             _ => output.Amount,
         };
+    }
 
     private string FoodSource(InventoryLot lot)
     {

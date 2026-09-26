@@ -430,8 +430,8 @@ public partial class Main : Control
                     "ui-large-map-v1", "clear", "spring", []),
                 WeatherRegionSize = 32,
                 WeatherRegions = Enumerable.Range(0, 4)
-                    .SelectMany(x => Enumerable.Range(0, 2).Select(y => new OwnerWeatherRegion(x, y, "snow")))
-                    .Append(new OwnerWeatherRegion(4, 2, "rain")).ToArray(),
+                    .SelectMany(x => Enumerable.Range(0, 2).Select(y => new OwnerWeatherRegion(x, y, "snow", 12)))
+                    .Append(new OwnerWeatherRegion(4, 2, "rain", 78)).ToArray(),
                 Resources = [],
                 PlacedBuildings = [],
             });
@@ -439,15 +439,17 @@ public partial class Main : Control
             if (terrainLayer.GetChildCount() != 0 || terrainLayer.VisibleTileCount >= largeTerrain.Length / 4 ||
                 worldOverview.VisibleTiles.Size.X >= 256)
                 throw new InvalidOperationException("A regional map must draw only the visible terrain without per-tile nodes.");
-            if (climateLabel.Text != "Spring · Rain")
-                throw new InvalidOperationException("The world HUD must show weather at the camera, not reference weather.");
+            if (climateLabel.Text != "Spring · Rain" ||
+                !worldInfoText.Text.Contains("Soil moisture nearby: 78/100", StringComparison.Ordinal))
+                throw new InvalidOperationException("The world HUD and info must show weather and moisture at the camera.");
             var beforeLargePan = worldOverview.VisibleTiles.Position;
             CenterCameraAt(new Vector2(20, 20));
             if (worldOverview.VisibleTiles.Position.DistanceTo(beforeLargePan) < 1 ||
                 terrainLayer.VisibleTileCount >= largeTerrain.Length / 4)
                 throw new InvalidOperationException("Panning a large map must update the camera-bounded terrain view.");
             if (climateLabel.Text != "Spring · Snow" ||
-                !worldInfoText.Text.Contains("camera: Spring · Snow", StringComparison.Ordinal))
+                !worldInfoText.Text.Contains("camera: Spring · Snow", StringComparison.Ordinal) ||
+                !worldInfoText.Text.Contains("Soil moisture nearby: 12/100", StringComparison.Ordinal))
                 throw new InvalidOperationException($"Panning must update HUD and World Info to local weather: camera={cameraCenterTiles}, HUD={climateLabel.Text}, info={worldInfoText.Text}.");
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("archived-mira", "Mira", "dead", formerPosition,
@@ -3059,14 +3061,16 @@ public partial class Main : Control
     private static int LivingPopulation(OwnerWorldSnapshot snapshot) => snapshot.Inhabitants.Count(inhabitant =>
         !inhabitant.IsDraft && string.Equals(inhabitant.Lifecycle, "active", StringComparison.OrdinalIgnoreCase));
 
-    private string WeatherAtCamera(OwnerWorldSnapshot snapshot)
+    private OwnerWeatherRegion? WeatherRegionAtCamera(OwnerWorldSnapshot snapshot)
     {
         var size = Math.Max(1, snapshot.WeatherRegionSize);
         var x = Math.Max(0, (int)MathF.Floor(cameraCenterTiles.X / size));
         var y = Math.Max(0, (int)MathF.Floor(cameraCenterTiles.Y / size));
-        return snapshot.WeatherRegions.FirstOrDefault(region => region.X == x && region.Y == y)?.Weather
-            ?? snapshot.Authoring?.Weather ?? "unknown";
+        return snapshot.WeatherRegions.FirstOrDefault(region => region.X == x && region.Y == y);
     }
+
+    private string WeatherAtCamera(OwnerWorldSnapshot snapshot) =>
+        WeatherRegionAtCamera(snapshot)?.Weather ?? snapshot.Authoring?.Weather ?? "unknown";
 
     private void RenderWorldInfo(OwnerWorldSnapshot snapshot)
     {
@@ -3081,7 +3085,10 @@ public partial class Main : Control
             $"Map: {width} × {height} tiles\n" +
             $"Buildings: {snapshot.PlacedBuildings.Count}\n" +
             $"Resource sites: {snapshot.Resources.Count}\n" +
-            $"Season and weather at camera: {localWeather}";
+            $"Season and weather at camera: {localWeather}" +
+            (WeatherRegionAtCamera(snapshot)?.SoilMoisture is { } moisture
+                ? $"\nSoil moisture nearby: {moisture}/100"
+                : "");
     }
 
     private void RenderInhabitantList(OwnerWorldSnapshot snapshot)
@@ -3982,6 +3989,9 @@ public partial class Main : Control
             "build_completed" => $"{ThingAt(1)} is ready.",
             "recipe_started" => $"Work began on {ThingAt(1)}.",
             "recipe_completed" => $"{ThingAt(1)} was finished.",
+            "crop_moisture_effect" when parts.Length >= 3 => parts[1] == "wet"
+                ? "Moist soil improved a crop harvest."
+                : "Dry soil reduced a crop harvest.",
             "food_harvested" => $"{NameAt(0)} gathered food.",
             "food_consumed" => $"{NameAt(0)} ate.",
             "inhabitant_slept" => $"{NameAt(0)} slept.",

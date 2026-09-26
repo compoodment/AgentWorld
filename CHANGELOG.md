@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- Recent local rain now raises a bounded soil-moisture estimate, while dry days
+  lower it. Moist soil modestly improves food-crop harvests and very dry soil
+  reduces them; snow and storm crop penalties still take priority. World Info
+  shows the moisture estimate near the camera, and affected harvests explain
+  the change in the event log.
+
 - Generated worlds now have 32×32-tile weather regions instead of one weather
   condition across the whole map. Agents' warmth, clothing/fire choices and
   travel fatigue use weather where they stand or travel; crops use weather at
