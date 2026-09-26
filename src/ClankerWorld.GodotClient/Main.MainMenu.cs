@@ -24,7 +24,10 @@ public partial class Main
     private readonly LineEdit worldSeedInput = new();
     private readonly OptionButton worldSizeChoice = new();
     private readonly OptionButton worldWaterChoice = new();
+    private readonly OptionButton worldClimateModeChoice = new();
+    private readonly OptionButton worldClimateFamilyChoice = new();
     private readonly CheckBox worldWrapChoice = new();
+    private readonly CheckBox worldLatitudeChoice = new();
     private readonly WorldOverview worldPreview = new();
     private readonly Label worldPreviewStatus = new();
     private readonly Button worldPreviewButton = new();
@@ -250,6 +253,28 @@ public partial class Main
         worldWaterChoice.Select(1);
         worldWaterChoice.ItemSelected += _ => InvalidateWorldPreview();
         body.AddChild(worldWaterChoice);
+        worldClimateModeChoice.AddItem("Balanced climates", 0);
+        worldClimateModeChoice.AddItem("Uniform climate", 1);
+        worldClimateModeChoice.AddItem("Dominant climate", 2);
+        worldClimateModeChoice.ItemSelected += _ =>
+        {
+            worldClimateFamilyChoice.Visible = worldClimateModeChoice.GetSelectedId() != 0;
+            InvalidateWorldPreview();
+        };
+        body.AddChild(worldClimateModeChoice);
+        worldClimateFamilyChoice.AddItem("Tropical", 0);
+        worldClimateFamilyChoice.AddItem("Dry", 1);
+        worldClimateFamilyChoice.AddItem("Temperate", 2);
+        worldClimateFamilyChoice.AddItem("Cold", 3);
+        worldClimateFamilyChoice.AddItem("Polar", 4);
+        worldClimateFamilyChoice.Select(2);
+        worldClimateFamilyChoice.ItemSelected += _ => InvalidateWorldPreview();
+        worldClimateFamilyChoice.Visible = false;
+        body.AddChild(worldClimateFamilyChoice);
+        worldLatitudeChoice.Text = "Colder toward the poles";
+        worldLatitudeChoice.ButtonPressed = true;
+        worldLatitudeChoice.Toggled += _ => InvalidateWorldPreview();
+        body.AddChild(worldLatitudeChoice);
         worldWrapChoice.Text = "Wrap east/west";
         worldWrapChoice.ButtonPressed = true;
         worldWrapChoice.Toggled += _ => InvalidateWorldPreview();
@@ -284,7 +309,9 @@ public partial class Main
         StyleButton(back);
         back.Pressed += () => { if (!worldMenuBusy) worldMenuOverlay.Hide(); };
         body.AddChild(back);
-        AddPanelContents(worldMenuCard, body);
+        var scroll = new ScrollContainer { CustomMinimumSize = new Vector2(440, 570) };
+        scroll.AddChild(body);
+        AddPanelContents(worldMenuCard, scroll);
         worldMenuCard.CustomMinimumSize = new Vector2(480, 0);
         worldMenuOverlay.Hide();
     }
@@ -300,6 +327,9 @@ public partial class Main
         worldSeedInput.GetParent<Control>().Visible = create;
         worldSizeChoice.Visible = create;
         worldWaterChoice.Visible = create;
+        worldClimateModeChoice.Visible = create;
+        worldClimateFamilyChoice.Visible = create && worldClimateModeChoice.GetSelectedId() != 0;
+        worldLatitudeChoice.Visible = create;
         worldWrapChoice.Visible = create;
         worldPreviewButton.Visible = create;
         worldPreviewStatus.Visible = create;
@@ -343,11 +373,23 @@ public partial class Main
     private OwnerWorldCreationAction CurrentWorldOptions() => new(
         worldNameInput.Text.Trim(), worldSeedInput.Text.Trim(),
         worldSizeChoice.GetSelectedId() == 1 ? "Medium" : "Small",
-        worldWaterChoice.GetSelectedId(), worldWrapChoice.ButtonPressed);
+        worldWaterChoice.GetSelectedId(), worldWrapChoice.ButtonPressed,
+        worldClimateModeChoice.GetSelectedId() switch { 1 => "Uniform", 2 => "Dominant", _ => "Balanced" },
+        worldClimateFamilyChoice.GetSelectedId() switch
+        {
+            0 => "Tropical",
+            1 => "Dry",
+            3 => "Cold",
+            4 => "Polar",
+            _ => "Temperate",
+        },
+        worldLatitudeChoice.ButtonPressed);
 
     private static bool SameGeneration(OwnerWorldCreationAction? first, OwnerWorldCreationAction second) =>
         first is not null && first.Seed == second.Seed && first.Size == second.Size &&
-        first.WaterPercent == second.WaterPercent && first.WrapEastWest == second.WrapEastWest;
+        first.WaterPercent == second.WaterPercent && first.WrapEastWest == second.WrapEastWest &&
+        first.ClimateMode == second.ClimateMode && first.SelectedClimate == second.SelectedClimate &&
+        first.LatitudeCooling == second.LatitudeCooling;
 
     private void InvalidateWorldPreview()
     {

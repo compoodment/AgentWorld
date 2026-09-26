@@ -238,7 +238,8 @@ public static class WeatherRules
     // northern/southern climate bands.
     public const int RegionSize = 32;
 
-    public static WeatherKind At(WorldSystemsState state, GridPoint position, int mapHeight)
+    public static WeatherKind At(WorldSystemsState state, GridPoint position, int mapHeight,
+        ClimateZone? climate = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentOutOfRangeException.ThrowIfNegative(position.X);
@@ -248,7 +249,8 @@ public static class WeatherRules
         if (mapHeight <= RegionSize) return state.Climate.Weather;
         var day = WorldCalendarRules.FromTick(state.WorldTick, state.Config).DayIndex;
         return WeatherForRegion(state.WorldSeed, day, state.Climate.Season, state.Config,
-            position.X / RegionSize, position.Y / RegionSize, (mapHeight + RegionSize - 1) / RegionSize);
+            position.X / RegionSize, position.Y / RegionSize, (mapHeight + RegionSize - 1) / RegionSize,
+            climate);
     }
 
     /// <summary>
@@ -256,7 +258,8 @@ public static class WeatherRules
     /// local weather days. It needs no per-tick save churn; detailed soil and
     /// drainage state can replace this estimate when farming is expanded.
     /// </summary>
-    public static int SoilMoistureAt(WorldSystemsState state, GridPoint position, int mapHeight)
+    public static int SoilMoistureAt(WorldSystemsState state, GridPoint position, int mapHeight,
+        ClimateZone? climate = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ArgumentOutOfRangeException.ThrowIfNegative(position.X);
@@ -272,7 +275,7 @@ public static class WeatherRules
             var weather = mapHeight <= RegionSize
                 ? WeatherForDay(state.WorldSeed, sample, season, state.Config)
                 : WeatherForRegion(state.WorldSeed, sample, season, state.Config,
-                    position.X / RegionSize, position.Y / RegionSize, rows);
+                    position.X / RegionSize, position.Y / RegionSize, rows, climate);
             moisture = Math.Clamp(moisture + (weather switch
             {
                 WeatherKind.Clear => -8,
@@ -287,7 +290,8 @@ public static class WeatherRules
     }
 
     public static WeatherKind WeatherForRegion(string worldSeed, long dayIndex, SeasonKind season,
-        WorldSystemsConfig config, int regionX, int regionY, int regionRows)
+        WorldSystemsConfig config, int regionX, int regionY, int regionRows,
+        ClimateZone? climate = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worldSeed);
         ArgumentNullException.ThrowIfNull(config);
@@ -297,6 +301,8 @@ public static class WeatherRules
         ArgumentOutOfRangeException.ThrowIfNegative(regionY);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(regionRows);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(regionY, regionRows);
+        if (climate is { } selected && !Enum.IsDefined(selected))
+            throw new ArgumentOutOfRangeException(nameof(climate));
 
         var profile = config.GetWeatherProfile(season);
         // Snow is confined to cold latitudes. This is a coarse first climate
@@ -304,6 +310,32 @@ public static class WeatherRules
         var latitude = Math.Abs(((regionY + 0.5) / regionRows) - 0.5) * 2;
         var snowWeight = latitude >= 0.65 ? profile.SnowWeight : 0;
         var rainWeight = profile.RainWeight + profile.SnowWeight - snowWeight;
+        var clearWeight = profile.ClearWeight;
+        var stormWeight = profile.StormWeight;
+        if (climate is ClimateZone.Dry)
+        {
+            var removedRain = rainWeight / 2;
+            var removedStorm = stormWeight / 2;
+            rainWeight -= removedRain;
+            stormWeight -= removedStorm;
+            clearWeight += removedRain + removedStorm;
+            clearWeight += snowWeight;
+            snowWeight = 0;
+        }
+        else if (climate is ClimateZone.Tropical)
+        {
+            rainWeight += snowWeight;
+            snowWeight = 0;
+            var extraRain = clearWeight / 4;
+            clearWeight -= extraRain;
+            rainWeight += extraRain;
+        }
+        else if (climate is ClimateZone.Cold or ClimateZone.Polar)
+        {
+            var shifted = rainWeight * (climate == ClimateZone.Polar ? 4 : 2) / 5;
+            rainWeight -= shifted;
+            snowWeight += shifted;
+        }
         var random = Pcg32XshRrV1.Create(worldSeed,
             $"weather/day:{dayIndex.ToString(CultureInfo.InvariantCulture)}/region:{regionX.ToString(CultureInfo.InvariantCulture)},{regionY.ToString(CultureInfo.InvariantCulture)}");
         var roll = (int)(random.NextUInt() % (uint)profile.TotalWeight);
@@ -313,11 +345,22 @@ public static class WeatherRules
             {
                 WeatherKind.Rain => rainWeight,
                 WeatherKind.Snow => snowWeight,
+                WeatherKind.Clear => clearWeight,
+                WeatherKind.Storm => stormWeight,
                 _ => profile.WeightFor(weather),
             };
             if (roll < 0) return weather;
         }
         throw new InvalidOperationException("The regional weather profile did not select a weather value.");
+    }
+
+    public static ClimateZone? RegionClimate(SeededMap map, GridPoint position)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (!map.Contains(position)) return null;
+        var x = Math.Min(map.Width - 1, (position.X / RegionSize) * RegionSize + RegionSize / 2);
+        var y = Math.Min(map.Height - 1, (position.Y / RegionSize) * RegionSize + RegionSize / 2);
+        return map.ClimateAt(new GridPoint(x, y));
     }
 
     public static WorldClimate CreateGenesis(string worldSeed, WorldSystemsConfig config)

@@ -8,6 +8,15 @@ release yet.
 
 ### Added
 
+- New World now offers balanced, uniform, or dominant climate generation,
+  a selected climate family for uniform/dominant worlds, and optional
+  equator-to-pole cooling. The preview and created world use the same signed
+  options. Generated ground distinguishes provisional sand, forest, and snow
+  appearances; regional rain/snow likelihood and resulting soil moisture use
+  the saved local climate. Clear-day cold exposure also respects that climate,
+  so tropical winters do not behave like temperate winters. Mountain and peak
+  tiles remain unbuildable.
+
 - Recent local rain now raises a bounded soil-moisture estimate, while dry days
   lower it. Moist soil modestly improves food-crop harvests and very dry soil
   reduces them; snow and storm crop penalties still take priority. World Info
@@ -32,8 +41,7 @@ release yet.
   world and restores its per-agent model/key-slot assignments and autosave
   choices without copying API keys or re-pairing. The current world is saved
   before switching; named checkpoints remain in the pause menu for the selected
-  world. Climate controls and larger playable presets
-  are still pending.
+  world. Larger playable presets are still pending.
 
 - Generated Small/Medium worlds now have a compact row-major terrain payload
   for owner observations instead of tens of thousands of JSON tile objects.

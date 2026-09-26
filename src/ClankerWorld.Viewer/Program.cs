@@ -1728,9 +1728,14 @@ static bool TryWorldOptions(OwnerWorldCreationAction action, out GeographyOption
         action.Seed is null || action.Seed.Length is < 1 or > 100 || action.Seed.Any(char.IsControl) ||
         !Enum.TryParse<WorldSizePreset>(action.Size, true, out var size) ||
         !Enum.IsDefined(size) || size is not (WorldSizePreset.Small or WorldSizePreset.Medium) ||
+        !Enum.TryParse<ClimateMode>(action.ClimateMode, true, out var climateMode) ||
+        !Enum.IsDefined(climateMode) ||
+        !Enum.TryParse<ClimateZone>(action.SelectedClimate, true, out var selectedClimate) ||
+        !Enum.IsDefined(selectedClimate) ||
         action.WaterPercent is < 10 or > 80)
         return false;
-    options = new GeographyOptions(action.Seed, size, action.WrapEastWest, action.WaterPercent);
+    options = new GeographyOptions(action.Seed, size, action.WrapEastWest, action.WaterPercent,
+        climateMode, selectedClimate, action.LatitudeCooling);
     return true;
 }
 

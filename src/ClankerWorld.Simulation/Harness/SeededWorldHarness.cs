@@ -22,6 +22,9 @@ public enum TerrainKind
     Lake,
     Ocean,
     Peak,
+    Sand,
+    Forest,
+    Snow,
 }
 
 public enum ResourceState
@@ -52,6 +55,8 @@ public sealed record SeededMap(
     IReadOnlyList<MapResource> Resources,
     string ManifestDigest)
 {
+    public byte[]? ClimateZones { get; init; }
+
     // Keep the index outside the record: a cache field would silently change
     // record equality and could be copied into a `with` map with new tiles.
     private static readonly ConditionalWeakTable<SeededMap, byte[]> TerrainIndexes = new();
@@ -60,12 +65,20 @@ public sealed record SeededMap(
         point.X >= 0 && point.X < Width && point.Y >= 0 && point.Y < Height;
 
     public bool IsPassable(GridPoint point) =>
-        Contains(point) && TerrainAt(point) == (byte)TerrainKind.Meadow;
+        Contains(point) && IsOpenGround(TerrainAt(point));
 
     // Construction eligibility is separate from travel: future mountain
     // paths must not silently become build sites when traversal is expanded.
     public bool IsBuildable(GridPoint point) =>
-        Contains(point) && TerrainAt(point) == (byte)TerrainKind.Meadow;
+        Contains(point) && IsOpenGround(TerrainAt(point));
+
+    public ClimateZone? ClimateAt(GridPoint point) =>
+        Contains(point) && ClimateZones is { } zones && zones.Length == Width * Height
+            ? (ClimateZone)zones[point.Y * Width + point.X] : null;
+
+    private static bool IsOpenGround(byte kind) => kind is
+        (byte)TerrainKind.Meadow or (byte)TerrainKind.Sand or
+        (byte)TerrainKind.Forest or (byte)TerrainKind.Snow;
 
     private byte TerrainAt(GridPoint point) =>
         TerrainIndexes.GetValue(this, static map =>
@@ -198,9 +211,8 @@ public static class BaseCampMapGenerator
 
 /// <summary>
 /// Projects generated 2D geography into the current physical-map contract and
-/// places the ordinary empty starter camp on a connected clear patch. Climate,
-/// vegetation and surface layers remain in the geography source and are not
-/// yet projected by the playable map contract.
+/// places the ordinary empty starter camp on a connected buildable patch.
+/// Climate is retained independently from its provisional ground appearance.
 /// </summary>
 public static class GeneratedCampMapGenerator
 {
@@ -220,6 +232,7 @@ public static class GeneratedCampMapGenerator
         var height = geography.Height;
         var tiles = new TerrainTile[checked(width * height)];
         var kinds = new TerrainKind[tiles.Length];
+        var climateZones = new byte[tiles.Length];
         for (var y = 0; y < height; y++)
             for (var x = 0; x < width; x++)
             {
@@ -231,10 +244,14 @@ public static class GeneratedCampMapGenerator
                     WaterKind.River => TerrainKind.River,
                     _ when tile.Elevation >= 245 => TerrainKind.Peak,
                     _ when tile.Elevation >= 215 => TerrainKind.Mountain,
+                    _ when tile.Climate is ClimateZone.Polar or ClimateZone.Cold => TerrainKind.Snow,
+                    _ when tile.Climate == ClimateZone.Dry => TerrainKind.Sand,
+                    _ when tile.Rainfall >= 150 && tile.Climate is ClimateZone.Tropical or ClimateZone.Temperate => TerrainKind.Forest,
                     _ => TerrainKind.Meadow,
                 };
                 var index = y * width + x;
                 kinds[index] = kind;
+                climateZones[index] = (byte)tile.Climate;
                 tiles[index] = new TerrainTile(new GridPoint(x, y), kind);
             }
 
@@ -248,7 +265,8 @@ public static class GeneratedCampMapGenerator
         {
             Position = new GridPoint(item.Position.X + origin.X, item.Position.Y + origin.Y),
         }).ToArray();
-        var withoutDigest = new SeededMap(width, height, 0, tiles, objects, resources, string.Empty);
+        var withoutDigest = new SeededMap(width, height, 0, tiles, objects, resources, string.Empty)
+        { ClimateZones = climateZones };
         var map = withoutDigest with { ManifestDigest = MapManifestCodec.Digest(withoutDigest) };
         var validation = MapAcceptance.Validate(map, allowEmptyCamp: true);
         if (!validation.IsValid)
@@ -282,7 +300,8 @@ public static class GeneratedCampMapGenerator
             return false;
         for (var y = top; y < top + CampHeight; y++)
             for (var x = left; x < left + CampWidth; x++)
-                if (kinds[y * width + x] != TerrainKind.Meadow) return false;
+                if (kinds[y * width + x] is not (TerrainKind.Meadow or TerrainKind.Sand or
+                    TerrainKind.Forest or TerrainKind.Snow)) return false;
         return true;
     }
 }
@@ -302,6 +321,8 @@ public static class MapManifestCodec
         builder.Append(Header).Append('\n');
         builder.Append("dimensions=").Append(map.Width).Append('x').Append(map.Height).Append('\n');
         builder.Append("generation_attempt=").Append(map.GenerationAttempt).Append('\n');
+        if (map.ClimateZones is not null)
+            builder.Append("climate-zones=").Append(Convert.ToBase64String(map.ClimateZones)).Append('\n');
         foreach (var tile in map.Tiles.OrderBy(tile => tile.Position.Y).ThenBy(tile => tile.Position.X))
         {
             builder.Append("tile=")
@@ -339,6 +360,9 @@ public static class MapManifestCodec
         TerrainKind.Lake => "lake",
         TerrainKind.Ocean => "ocean",
         TerrainKind.Peak => "peak",
+        TerrainKind.Sand => "sand",
+        TerrainKind.Forest => "forest",
+        TerrainKind.Snow => "snow",
         _ => throw new ArgumentOutOfRangeException(nameof(terrain)),
     };
 }
@@ -370,6 +394,10 @@ public static class MapAcceptance
         {
             return MapValidationResult.Invalid("The logical grid is not a complete bounded rectangle.");
         }
+
+        if (map.ClimateZones is { } zones &&
+            (zones.Length != map.Width * map.Height || zones.Any(zone => !Enum.IsDefined((ClimateZone)zone))))
+            return MapValidationResult.Invalid("The climate layer is invalid.");
 
         var founder = map.CampObjects.SingleOrDefault(mapObject =>
             string.Equals(mapObject.Kind, "founder", StringComparison.Ordinal));

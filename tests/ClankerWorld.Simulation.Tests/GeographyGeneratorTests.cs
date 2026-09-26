@@ -46,8 +46,6 @@ public sealed class GeographyGeneratorTests
             "A generated world must not have one planet-wide weather condition.");
         Assert.All(projection.WeatherRegions,
             region => Assert.InRange(region.SoilMoisture ?? -1, 0, 100));
-        Assert.DoesNotContain(projection.WeatherRegions,
-            region => region.Y is 1 or 2 && region.Weather == "snow");
         var terrainBytes = Convert.FromBase64String(projection.PackedTerrain.Data);
         Assert.Equal(initial.Map.Tiles.Count, terrainBytes.Length);
         Assert.Equal((byte)initial.Map.Tiles[0].Terrain, terrainBytes[0]);
@@ -122,5 +120,61 @@ public sealed class GeographyGeneratorTests
             }
 
         Assert.True(changed > first.Width);
+    }
+
+    [Fact]
+    public void ClimateSelectionChangesPlayableGroundAndKeepsPolarCapsOptional()
+    {
+        var dryOptions = new GeographyOptions("climate-choice", WorldSizePreset.Small,
+            ClimateMode: ClimateMode.Uniform, SelectedClimate: ClimateZone.Dry, LatitudeCooling: false);
+        var dry = GeographyGenerator.Generate(dryOptions);
+        var tropical = GeographyGenerator.Generate(dryOptions with { SelectedClimate = ClimateZone.Tropical });
+        Assert.Equal(ClimateZone.Dry, dry.At(50, 50).Climate);
+        Assert.Equal(ClimateZone.Tropical, tropical.At(50, 50).Climate);
+        Assert.Equal(dry.At(50, 50).Temperature, tropical.At(50, 50).Temperature);
+        var dryMap = GeneratedCampMapGenerator.Generate(dryOptions);
+        var tropicalMap = GeneratedCampMapGenerator.Generate(dryOptions with { SelectedClimate = ClimateZone.Tropical });
+        Assert.Contains(dryMap.Tiles, tile => tile.Terrain == TerrainKind.Sand);
+        Assert.Contains(tropicalMap.Tiles, tile => tile.Terrain == TerrainKind.Forest);
+        Assert.NotEqual(dryMap.ManifestDigest, tropicalMap.ManifestDigest);
+        Assert.True(MapAcceptance.Validate(dryMap, allowEmptyCamp: true).IsValid);
+
+        var capped = GeographyGenerator.Generate(dryOptions with { LatitudeCooling = true });
+        Assert.Equal(ClimateZone.Polar, capped.At(50, 0).Climate);
+        Assert.Equal(ClimateZone.Dry, capped.At(50, capped.Height / 2).Climate);
+
+        var dominant = GeographyGenerator.Generate(dryOptions with { ClimateMode = ClimateMode.Dominant });
+        var dryLand = 0;
+        var otherLand = 0;
+        for (var y = 0; y < dominant.Height; y++)
+            for (var x = 0; x < dominant.Width; x++)
+            {
+                var tile = dominant.At(x, y);
+                if (tile.Water != WaterKind.Land) continue;
+                if (tile.Climate == ClimateZone.Dry) dryLand++;
+                else otherLand++;
+            }
+        Assert.True(dryLand > otherLand, "The selected climate should dominate land.");
+        Assert.True(otherLand > 0, "Dominant mode should still allow natural climate regions.");
+    }
+
+    [Fact]
+    public void RegionalWeatherUsesClimateWithoutChangingTheGlobalCalendar()
+    {
+        var config = WorldSystemsConfig.Default;
+        var dryWetDays = 0;
+        var tropicalWetDays = 0;
+        for (var day = 0; day < 100; day++)
+        {
+            var season = WorldCalendarRules.GetSeason(day % config.DaysPerYear, config);
+            var dry = WeatherRules.WeatherForRegion("climate-choice", day, season, config,
+                1, 1, 4, ClimateZone.Dry);
+            var tropical = WeatherRules.WeatherForRegion("climate-choice", day, season, config,
+                1, 1, 4, ClimateZone.Tropical);
+            if (dry is WeatherKind.Rain or WeatherKind.Storm) dryWetDays++;
+            if (tropical is WeatherKind.Rain or WeatherKind.Storm) tropicalWetDays++;
+            Assert.NotEqual(WeatherKind.Snow, tropical);
+        }
+        Assert.True(tropicalWetDays > dryWetDays);
     }
 }

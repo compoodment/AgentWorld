@@ -21,26 +21,49 @@ public enum WaterKind : byte
     River,
 }
 
+public enum ClimateMode : byte
+{
+    Balanced,
+    Uniform,
+    Dominant,
+}
+
+public enum ClimateZone : byte
+{
+    Tropical,
+    Dry,
+    Temperate,
+    Cold,
+    Polar,
+}
+
 public sealed record GeographyOptions(
     string Seed,
     WorldSizePreset Size,
     bool WrapEastWest = true,
-    int WaterPercent = 45);
+    int WaterPercent = 45,
+    ClimateMode ClimateMode = ClimateMode.Balanced,
+    ClimateZone SelectedClimate = ClimateZone.Temperate,
+    bool LatitudeCooling = true);
 
-public readonly record struct GeographyTile(byte Elevation, byte Rainfall, WaterKind Water);
+public readonly record struct GeographyTile(byte Elevation, byte Rainfall, WaterKind Water,
+    byte Temperature, ClimateZone Climate);
 
 /// <summary>
-/// Compact generated geography. The six-by-five playable camp remains a
-/// separate fixture until the save format and renderer can handle large maps.
+/// Compact generated geography. Elevation, rainfall, temperature and climate
+/// are independent layers; visual terrain is projected from them later.
 /// </summary>
 public sealed class GeneratedGeography
 {
     private readonly byte[] elevation;
     private readonly byte[] rainfall;
     private readonly byte[] water;
+    private readonly byte[] temperature;
+    private readonly byte[] climate;
     private readonly int[] drainage;
 
-    internal GeneratedGeography(int width, int height, bool wrapsEastWest, byte[] elevation, byte[] rainfall, byte[] water, int[] drainage)
+    internal GeneratedGeography(int width, int height, bool wrapsEastWest, byte[] elevation,
+        byte[] rainfall, byte[] water, byte[] temperature, byte[] climate, int[] drainage)
     {
         Width = width;
         Height = height;
@@ -48,6 +71,8 @@ public sealed class GeneratedGeography
         this.elevation = elevation;
         this.rainfall = rainfall;
         this.water = water;
+        this.temperature = temperature;
+        this.climate = climate;
         this.drainage = drainage;
     }
 
@@ -60,7 +85,8 @@ public sealed class GeneratedGeography
         ArgumentOutOfRangeException.ThrowIfNegative(y);
         if (x >= Width || y >= Height) throw new ArgumentOutOfRangeException(x >= Width ? nameof(x) : nameof(y));
         var index = (y * Width) + x;
-        return new GeographyTile(elevation[index], rainfall[index], (WaterKind)water[index]);
+        return new GeographyTile(elevation[index], rainfall[index], (WaterKind)water[index],
+            temperature[index], (ClimateZone)climate[index]);
     }
 
     public int Count(WaterKind kind) => water.Count(value => value == (byte)kind);
@@ -101,14 +127,20 @@ public static class GeographyGenerator
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Seed);
         if (options.WaterPercent is < 10 or > 80)
             throw new ArgumentOutOfRangeException(nameof(options), "Water percentage must be between 10 and 80.");
+        if (!Enum.IsDefined(options.ClimateMode) || !Enum.IsDefined(options.SelectedClimate))
+            throw new ArgumentOutOfRangeException(nameof(options), "The climate selection is invalid.");
 
         var (width, height) = Dimensions(options.Size);
         var length = checked(width * height);
         var elevation = new byte[length];
         var rainfall = new byte[length];
         var water = new byte[length];
+        var temperature = new byte[length];
+        var climate = new byte[length];
         var elevationNoise = NewNoise(NoiseSeed(options.Seed, "elevation"), 0.012f);
         var rainNoise = NewNoise(NoiseSeed(options.Seed, "rainfall"), 0.018f);
+        var temperatureNoise = NewNoise(NoiseSeed(options.Seed, "temperature"), 0.007f);
+        var dominanceNoise = NewNoise(NoiseSeed(options.Seed, "climate-dominance"), 0.006f);
 
         // A circle in noise-input space makes the *flat* map's east and west
         // edges neighbors. Its third coordinate never becomes a game axis.
@@ -133,9 +165,31 @@ public static class GeographyGenerator
                 var wetness = options.WrapEastWest
                     ? rainNoise.GetNoise(circleX[x], y, circleZ[x])
                     : rainNoise.GetNoise(x, y);
+                var temperatureVariation = options.WrapEastWest
+                    ? temperatureNoise.GetNoise(circleX[x], y, circleZ[x])
+                    : temperatureNoise.GetNoise(x, y);
+                var dominantVariation = options.WrapEastWest
+                    ? dominanceNoise.GetNoise(circleX[x], y, circleZ[x])
+                    : dominanceNoise.GetNoise(x, y);
                 var scaled = (byte)Math.Clamp((int)MathF.Round((value + 1f) * 127.5f), 0, 255);
-                elevation[(y * width) + x] = scaled;
-                rainfall[(y * width) + x] = (byte)Math.Clamp((int)MathF.Round((wetness + 1f) * 127.5f), 0, 255);
+                var index = y * width + x;
+                elevation[index] = scaled;
+                rainfall[index] = (byte)Math.Clamp((int)MathF.Round((wetness + 1f) * 127.5f), 0, 255);
+                var latitude = Math.Abs((y + 0.5f) / height - 0.5f) * 2f;
+                var heat = (options.LatitudeCooling ? 224f - 178f * latitude : 160f) +
+                    temperatureVariation * 25f - Math.Max(0, scaled - 175) * 0.45f;
+                temperature[index] = (byte)Math.Clamp((int)MathF.Round(heat), 0, 255);
+                var natural = NaturalClimate(temperature[index], rainfall[index]);
+                var polarCap = options.LatitudeCooling && latitude >= 0.9f;
+                var chosen = polarCap ? ClimateZone.Polar : options.ClimateMode switch
+                {
+                    ClimateMode.Uniform => options.SelectedClimate,
+                    // Coherent noise makes the dominant climate form broad
+                    // regions; its exact land share is a playtest target.
+                    ClimateMode.Dominant when dominantVariation > -0.18f => options.SelectedClimate,
+                    _ => natural,
+                };
+                climate[index] = (byte)chosen;
                 histogram[scaled]++;
             }
         }
@@ -150,8 +204,15 @@ public static class GeographyGenerator
 
         ClassifyOceans(water, width, height, options.WrapEastWest);
         var drainage = RouteRivers(elevation, rainfall, water, width, height, options.WrapEastWest);
-        return new GeneratedGeography(width, height, options.WrapEastWest, elevation, rainfall, water, drainage);
+        return new GeneratedGeography(width, height, options.WrapEastWest, elevation, rainfall, water,
+            temperature, climate, drainage);
     }
+
+    private static ClimateZone NaturalClimate(byte temperature, byte rainfall) =>
+        temperature < 48 ? ClimateZone.Polar :
+        temperature < 105 ? ClimateZone.Cold :
+        rainfall < 77 ? ClimateZone.Dry :
+        temperature > 188 ? ClimateZone.Tropical : ClimateZone.Temperate;
 
     private static FastNoiseLite NewNoise(int seed, float frequency)
     {

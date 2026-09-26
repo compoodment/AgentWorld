@@ -408,6 +408,9 @@ public sealed class SeededWorldObservationStore
         TerrainKind.Lake => "lake",
         TerrainKind.Ocean => "ocean",
         TerrainKind.Peak => "peak",
+        TerrainKind.Sand => "sand",
+        TerrainKind.Forest => "forest",
+        TerrainKind.Snow => "snow",
         _ => throw new ArgumentOutOfRangeException(nameof(terrain)),
     };
 

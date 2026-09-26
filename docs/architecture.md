@@ -39,18 +39,23 @@ remains a large-world blocker.
 The simulation can project Small/Medium deterministic generated geography into
 its existing physical-map contract, place an empty camp on a clear 64×64
 region, then carry generation options through save/reload and founder setup.
-This bridge maps rivers, lakes, ocean, mountain and peak but does not yet
-preserve separate climate, surface and vegetation layers. The signed New World
-action now selects it in the host and client. The larger
+This bridge maps rivers, lakes, ocean, mountain and peak, plus provisional
+sand, forest and snow ground. It saves an independent per-tile climate-zone
+layer in the map manifest; surface and vegetation are still collapsed into
+ground kinds, not full layers. Signed New World preview/create options select
+balanced, uniform or dominant climate and optional latitude cooling. The larger
 geography presets remain compact generator outputs, not playable-map promises.
 Generated-world weather is derived deterministically by 32×32-tile region,
-day and latitude from the saved world seed and calendar. The saved climate's
+day and the saved climate zone at each region's center from the world seed and
+calendar. The saved climate's
 weather value remains the reference condition for the old tiny fixture; no
 per-tick weather grid is serialized. Owner observations include the current
 regional conditions so the Godot HUD can show camera-local weather. Survival,
 travel and crop completion query the relevant location, not the reference
-condition. Weather fronts, persisted per-tile moisture and biome-specific
-profiles are not implemented yet.
+condition. The selected climate shifts rain/snow probabilities and clear-day
+exposure but uses
+provisional weights; weather fronts, persisted per-tile moisture and detailed
+biome-specific profiles are not implemented yet.
 Food-crop completion uses a bounded soil-moisture estimate derived from the
 three most recent local weather days. The estimate is recomputed from the
 world seed, calendar and region instead of saving a mutable per-tile moisture

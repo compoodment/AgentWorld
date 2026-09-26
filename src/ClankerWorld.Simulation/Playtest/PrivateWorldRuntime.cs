@@ -639,7 +639,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                     WorldCalendarRules.FromTick(previousClimate.WorldTick, worldSystems.Config).DayIndex,
                     previousClimate.Season, worldSystems.Config,
                     campPosition.X / WeatherRules.RegionSize, campPosition.Y / WeatherRules.RegionSize,
-                    (map.Height + WeatherRules.RegionSize - 1) / WeatherRules.RegionSize);
+                    (map.Height + WeatherRules.RegionSize - 1) / WeatherRules.RegionSize,
+                    WeatherRules.RegionClimate(map, campPosition));
             var campWeather = WeatherAt(campPosition);
             if (previousClimate.Season != worldSystems.Climate.Season || previousCampWeather != campWeather)
             {
@@ -1969,7 +1970,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         var cropSite = recipe.IsCrop && survivalState is not null ? CropSite(job) : default;
         var cropWeather = recipe.IsCrop && survivalState is not null ? WeatherAt(cropSite) : WeatherKind.Clear;
         var soilMoisture = recipe.IsCrop && survivalState is not null
-            ? WeatherRules.SoilMoistureAt(worldSystems, cropSite, map.Height)
+            ? WeatherRules.SoilMoistureAt(worldSystems, cropSite, map.Height,
+                WeatherRules.RegionClimate(map, cropSite))
             : 35;
         ApplyInventoryTransition(inventory =>
         {

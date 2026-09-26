@@ -46,7 +46,7 @@ public sealed partial class ViewerHttpTests
                 host.Services.GetRequiredService<WorldAutosaveStore>().Configure(false, 1, 0);
 
                 var create = new OwnerWorldCreationAction("Riverland", "riverland-test-seed",
-                    "Small", 45, true);
+                    "Small", 45, true, "Uniform", "Dry", false);
                 const string createPath = "/api/v1/owner/worlds/create";
                 var signed = await CreateSignedRequestAsync(host, client, key, device.DeviceId,
                     createPath, create, OwnerHttpBinding.WorldCreationPayload(create));
@@ -55,6 +55,11 @@ public sealed partial class ViewerHttpTests
                     Action = create with { Seed = "different-seed" },
                 });
                 Assert.False(tampered.IsSuccessStatusCode);
+                using var climateTampered = await client.PostAsJsonAsync(createPath, signed with
+                {
+                    Action = create with { SelectedClimate = "Tropical" },
+                });
+                Assert.False(climateTampered.IsSuccessStatusCode);
                 using var previewed = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/worlds/preview", create,
                     OwnerHttpBinding.WorldCreationPayload(create));
@@ -76,6 +81,9 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(WorldSizePreset.Small, runtime.ExportState().Geography?.Size);
                 Assert.Equal(256, runtime.ExportState().Map.Width);
                 Assert.Equal(preview.ManifestDigest, runtime.ExportState().Map.ManifestDigest);
+                Assert.Equal(ClimateMode.Uniform, runtime.ExportState().Geography?.ClimateMode);
+                Assert.Equal(ClimateZone.Dry, runtime.ExportState().Map.ClimateAt(
+                    runtime.ExportState().Map.GetObject("bedroll").Position));
                 var reconnect = new OwnerReconnectAction(0);
                 using var observed = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/reconnect", reconnect,

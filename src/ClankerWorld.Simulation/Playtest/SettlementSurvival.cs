@@ -25,14 +25,21 @@ public sealed partial class PrivateWorldRuntime
          worldContent.Recipes.Any(recipe => project.CandidateId == "build:recipe:" + recipe.CanonicalId &&
             recipe.Outputs.Any(output => output.ResourceId == "clothing")));
 
-    private WeatherKind WeatherAt(GridPoint position) => WeatherRules.At(worldSystems, position, map.Height);
+    private WeatherKind WeatherAt(GridPoint position) => WeatherRules.At(worldSystems, position, map.Height,
+        WeatherRules.RegionClimate(map, position));
 
     private int WeatherExposure(GridPoint position) => WeatherAt(position) switch
     {
         WeatherKind.Snow => 60,
         WeatherKind.Storm => 55,
         WeatherKind.Rain => 25,
-        _ => worldSystems.Climate.Season == SeasonKind.Winter ? 40 : 0,
+        _ => map.ClimateAt(position) switch
+        {
+            ClimateZone.Tropical => 0,
+            ClimateZone.Polar => 55,
+            ClimateZone.Cold => worldSystems.Climate.Season == SeasonKind.Winter ? 45 : 15,
+            _ => worldSystems.Climate.Season == SeasonKind.Winter ? 40 : 0,
+        },
     };
 
     private bool HasCarriedItem(string actor, string kind) => society.Checkpoint.Inventory.Lots.Any(lot =>

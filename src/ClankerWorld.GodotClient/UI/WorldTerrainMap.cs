@@ -62,6 +62,9 @@ public sealed class WorldTerrainMap
                 4 => 5, // lake
                 5 => 6, // ocean
                 6 => 10, // peak
+                7 => 7, // sand
+                8 => 8, // forest
+                9 => 9, // snow
                 _ => throw new InvalidDataException("The packed world terrain contains an unknown kind."),
             };
         return new WorldTerrainMap(packed.Width, packed.Height, terrain);

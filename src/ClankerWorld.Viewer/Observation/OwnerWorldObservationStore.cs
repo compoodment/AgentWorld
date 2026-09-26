@@ -405,9 +405,13 @@ public sealed class OwnerWorldObservationStore
         return Enumerable.Range(0, rows)
             .SelectMany(y => Enumerable.Range(0, columns).Select(x => new ViewerWeatherRegion(x, y,
                 WeatherRules.WeatherForRegion(systems.WorldSeed, day, systems.Climate.Season,
-                    systems.Config, x, y, rows).ToString().ToLowerInvariant(),
+                    systems.Config, x, y, rows,
+                    WeatherRules.RegionClimate(map, new GridPoint(x * WeatherRules.RegionSize,
+                        y * WeatherRules.RegionSize))).ToString().ToLowerInvariant(),
                 WeatherRules.SoilMoistureAt(systems,
-                    new GridPoint(x * WeatherRules.RegionSize, y * WeatherRules.RegionSize), map.Height))))
+                    new GridPoint(x * WeatherRules.RegionSize, y * WeatherRules.RegionSize), map.Height,
+                    WeatherRules.RegionClimate(map, new GridPoint(x * WeatherRules.RegionSize,
+                        y * WeatherRules.RegionSize))))))
             .ToArray();
     }
 
@@ -898,6 +902,9 @@ public sealed class OwnerWorldObservationStore
         TerrainKind.Lake => "lake",
         TerrainKind.Ocean => "ocean",
         TerrainKind.Peak => "peak",
+        TerrainKind.Sand => "sand",
+        TerrainKind.Forest => "forest",
+        TerrainKind.Snow => "snow",
         _ => throw new ArgumentOutOfRangeException(nameof(terrain)),
     };
 
