@@ -36,6 +36,9 @@ public sealed partial class ViewerHttpTests(ViewerWebApplicationFactory factory)
             using (var client = host.CreateClient())
             {
                 var device = await StartAndActivateAsync(host, client, key);
+                using var resume = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/control/resume", new OwnerControlAction("resume"), OwnerHttpBinding.EmptyPayload("resume"));
+                Assert.Equal(HttpStatusCode.OK, resume.StatusCode);
                 pairedDeviceId = device.DeviceId;
                 var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
                 var initialProviderEpoch = host.Services.GetRequiredService<ConfigurableDecisionProvider>().ProviderEpoch;
@@ -114,6 +117,9 @@ public sealed partial class ViewerHttpTests(ViewerWebApplicationFactory factory)
             using (var client = host.CreateClient())
             {
                 var device = await StartAndActivateAsync(host, client, key);
+                using var resume = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/control/resume", new OwnerControlAction("resume"), OwnerHttpBinding.EmptyPayload("resume"));
+                Assert.Equal(HttpStatusCode.OK, resume.StatusCode);
                 var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
                 var births = runtime.Society.Inhabitants.Select(person => person.BirthTick).ToArray();
                 var action = new OwnerLifePaceAction(1_460);
@@ -526,6 +532,9 @@ public sealed partial class ViewerHttpTests(ViewerWebApplicationFactory factory)
             Assert.Equal(0, stagedReceipt.StagedTick);
 
             var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+            using var resume = await SendSignedAsync(host, client, key, device.DeviceId,
+                "/api/v1/owner/control/resume", new OwnerControlAction("resume"), OwnerHttpBinding.EmptyPayload("resume"));
+            Assert.Equal(HttpStatusCode.OK, resume.StatusCode);
             _ = await runtime.AdvanceOneTickAsync();
             host.Services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
             Assert.Equal("active", runtime.Content.Packages.Single().Lifecycle.ToString().ToLowerInvariant());
