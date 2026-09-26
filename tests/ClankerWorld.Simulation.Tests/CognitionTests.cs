@@ -131,7 +131,7 @@ public sealed class CognitionTests
             [
                 new CognitionCandidate("safe_idle", "Continue safely.", 0),
                 new CognitionCandidate("seek_food", "Travel to food.", 10, "berry-patch"),
-            ]);
+            ], NeedsName: true);
         var request = new CognitionDecisionRequest("cognition-openai-test", 2, observation);
 
         var response = await provider.DecideAsync(request);
@@ -144,7 +144,10 @@ public sealed class CognitionTests
         Assert.Equal("seek_food", response.SelectedCandidateId);
         Assert.Equal(0.91, response.Confidence);
         Assert.Equal("I should find food before dark.", response.PrivateThought);
+        Assert.Equal("Aster", response.ChosenName);
         Assert.Contains("private_thought", body.RootElement.GetProperty("messages")[0].GetProperty("content").GetString());
+        using var question = JsonDocument.Parse(body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
+        Assert.True(question.RootElement.GetProperty("needs_name").GetBoolean());
         Assert.Equal("test-model", response.Usage?.ModelId);
         Assert.Equal(44, response.Usage?.InputTokens);
         Assert.Equal(9, response.Usage?.OutputTokens);
@@ -174,7 +177,7 @@ public sealed class CognitionTests
             {
               "message": {
                 "role": "assistant",
-                "content": "{\"selected_candidate_id\":\"seek_food\",\"confidence\":0.91,\"probabilities\":{\"safe_idle\":0.09,\"seek_food\":0.91},\"private_thought\":\"I should find food before dark.\"}"
+                "content": "{\"selected_candidate_id\":\"seek_food\",\"confidence\":0.91,\"probabilities\":{\"safe_idle\":0.09,\"seek_food\":0.91},\"private_thought\":\"I should find food before dark.\",\"chosen_name\":\"Aster\"}"
               }
             }
           ],

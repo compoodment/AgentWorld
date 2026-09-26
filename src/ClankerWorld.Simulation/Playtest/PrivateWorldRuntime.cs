@@ -613,6 +613,16 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                             };
                             checkpointSchemaVersion = StateSchemaVersion;
                         }
+                        if (decision.Admission.Accepted && !decision.Admission.FellBack &&
+                            outcome.Response is
+                            {
+                                Provider: DecisionProviderKind.LargeLanguageModel,
+                                ChosenName: { } chosenName
+                            } && society.Checkpoint.GetInhabitant(id).NeedsName)
+                        {
+                            society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, id, chosenName));
+                            AppendEvent("agent_named", id);
+                        }
                         deferredDecisions.Add(decision);
                         AppendEvent("hosted_decision_completed", $"{id}:{decision.Admission.Outcome}");
                     }
@@ -2131,7 +2141,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 ObservationDigest(inhabitant.Id, physical, candidates),
                 physical.HungerBasisPoints,
                 physical.EnergyBasisPoints,
-                candidates);
+                candidates,
+                NeedsName: inhabitant.NeedsName);
             var accepted = society.EnqueueCognition(new SocietyCognitionScheduleEntry(
                 $"tick:{WorldTick}:{inhabitant.Id}",
                 inhabitant.Id,

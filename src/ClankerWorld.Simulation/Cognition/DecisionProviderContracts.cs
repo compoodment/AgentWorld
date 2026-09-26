@@ -53,7 +53,8 @@ public sealed record InhabitantObservation(
     string ObservationDigest,
     int HungerBasisPoints,
     int EnergyBasisPoints,
-    IReadOnlyList<CognitionCandidate> Candidates)
+    IReadOnlyList<CognitionCandidate> Candidates,
+    bool NeedsName = false)
 {
     public void Validate()
     {
@@ -126,14 +127,23 @@ public sealed record CognitionDecisionResponse(
     double Confidence,
     IReadOnlyDictionary<string, double> Probabilities,
     CognitionUsage? Usage = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PrivateThought = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PrivateThought = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ChosenName = null)
 {
     public const int MaximumPrivateThoughtLength = 160;
+    public const int MaximumChosenNameLength = 48;
 
     public static string? NormalizePrivateThought(string? value)
     {
         var text = value?.Trim();
         return text is { Length: > 0 and <= MaximumPrivateThoughtLength } &&
+            !text.Any(char.IsControl) ? text : null;
+    }
+
+    public static string? NormalizeChosenName(string? value)
+    {
+        var text = value?.Trim();
+        return text is { Length: > 0 and <= MaximumChosenNameLength } &&
             !text.Any(char.IsControl) ? text : null;
     }
 
@@ -167,6 +177,9 @@ public sealed record CognitionDecisionResponse(
         {
             throw new ArgumentOutOfRangeException(nameof(PrivateThought));
         }
+
+        if (ChosenName is not null && NormalizeChosenName(ChosenName) != ChosenName)
+            throw new ArgumentOutOfRangeException(nameof(ChosenName));
 
         Usage?.Validate();
     }
@@ -521,6 +534,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         "selected_candidate_id (string), confidence (number 0..1), and " +
                         "probabilities (object mapping candidate IDs to numbers 0..1), and optional " +
                         "private_thought (one brief, in-character thought of at most 160 characters). " +
+                        "When needs_name is true, also include chosen_name (your own name, at most 48 characters). " +
                         "This is dialogue-like fiction, not an explanation of your reasoning. Do not include reasoning.",
                 },
                 new
@@ -534,6 +548,7 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                         decision_generation = request.Observation.DecisionGeneration,
                         hunger_basis_points = request.Observation.HungerBasisPoints,
                         energy_basis_points = request.Observation.EnergyBasisPoints,
+                        needs_name = request.Observation.NeedsName,
                         candidates = request.Observation.Candidates.Select(candidate => new
                         {
                             id = candidate.Id,
@@ -603,6 +618,10 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 thoughtProperty.ValueKind == JsonValueKind.String
                     ? CognitionDecisionResponse.NormalizePrivateThought(thoughtProperty.GetString())
                     : null;
+            var chosenName = answerRoot.TryGetProperty("chosen_name", out var nameProperty) &&
+                nameProperty.ValueKind == JsonValueKind.String
+                    ? CognitionDecisionResponse.NormalizeChosenName(nameProperty.GetString())
+                    : null;
 
             var usage = TryParseUsage(root, modelId);
             return new CognitionDecisionResponse(
@@ -617,7 +636,8 @@ public sealed class OpenAiCompatibleDecisionProvider : IDecisionProvider
                 confidence,
                 probabilities,
                 usage,
-                privateThought);
+                privateThought,
+                chosenName);
         }
         catch (JsonException exception)
         {

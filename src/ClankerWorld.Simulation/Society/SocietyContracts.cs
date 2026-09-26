@@ -189,7 +189,8 @@ public sealed record SocietyInhabitant(
     long LastLifecycleYearChecked,
     long? DeathTick = null,
     SocietyDeathCause? DeathCause = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? BirthLifeTick = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] long? BirthLifeTick = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] bool NeedsName = false);
 
 public sealed record SocietyHousehold(
     string Id,

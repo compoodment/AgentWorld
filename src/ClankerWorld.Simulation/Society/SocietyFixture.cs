@@ -151,7 +151,7 @@ public static partial class SocietyFixture
             new[] { householdId, founder.Id }.Order(StringComparer.Ordinal).ToArray());
         var next = checkpoint with
         {
-            Inhabitants = checkpoint.Inhabitants.Append(founder with { HouseholdId = householdId })
+            Inhabitants = checkpoint.Inhabitants.Append(founder with { HouseholdId = householdId, NeedsName = true })
                 .OrderBy(person => person.Id, StringComparer.Ordinal).ToArray(),
             Households = checkpoint.Households.Select(item => item.Id == householdId
                 ? item with { MemberIds = memberIds } : item).ToArray(),
@@ -179,6 +179,7 @@ public static partial class SocietyFixture
             BirthTick = checkpoint.LifeClock is null ? lifeBirth : checkpoint.WorldTick,
             BirthLifeTick = checkpoint.LifeClock is null ? null : lifeBirth,
             HouseholdId = home,
+            NeedsName = true,
         };
         var household = new SocietyHousehold(home, "New household", [id], []);
         var membership = new SocietyRelationship(
@@ -204,11 +205,11 @@ public static partial class SocietyFixture
         if (chosen.Length > 48 || chosen.Any(char.IsControl))
             throw new ArgumentException("Choose a name of at most 48 characters without control characters.", nameof(name));
         var existing = checkpoint.GetInhabitant(id);
-        if (existing.Name == chosen) return new SocietyOperationResult(checkpoint);
+        if (existing.Name == chosen && !existing.NeedsName) return new SocietyOperationResult(checkpoint);
         var next = checkpoint with
         {
             Inhabitants = checkpoint.Inhabitants.Select(person =>
-                person.Id == id ? person with { Name = chosen } : person).ToArray(),
+                person.Id == id ? person with { Name = chosen, NeedsName = false } : person).ToArray(),
         };
         return Commit(next, "inhabitant_renamed", id, id);
     }

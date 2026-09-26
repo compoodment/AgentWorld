@@ -1,4 +1,5 @@
 using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Viewer.Observation;
 
@@ -78,6 +79,41 @@ public sealed class PrivateWorldDeferredCognitionTests
     }
 
     [Fact]
+    public async Task AcceptedPersonalDecisionCanNameAnAgentButCannotUndoAPlayerRename()
+    {
+        var firstId = "founder:" + Guid.NewGuid().ToString("N");
+        var secondId = "founder:" + Guid.NewGuid().ToString("N");
+        var first = new HeldHostedProvider(kind: DecisionProviderKind.LargeLanguageModel, chosenName: "Aster");
+        var second = new HeldHostedProvider(kind: DecisionProviderKind.LargeLanguageModel, chosenName: "Ignored");
+        using var world = new PrivateWorldRuntime("chosen-names", id => id == firstId ? first :
+            id == secondId ? second : new DeterministicDecisionProvider(), startPace: WorldStartPace.FounderSetup);
+        world.PlaceFounder(firstId, new GridPoint(0, 0));
+        world.PlaceFounder(secondId, new GridPoint(1, 2));
+        world.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), new GridPoint(2, 2));
+        world.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), new GridPoint(3, 2));
+        world.StartWorld();
+        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        await first.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await second.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(first.NeedsNameObserved);
+        first.Release.TrySetResult(true);
+        await first.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        _ = await AdvanceUntilAcceptedAsync(world, firstId);
+        Assert.Equal("Aster", world.Society.GetInhabitant(firstId).Name);
+        Assert.False(world.Society.GetInhabitant(firstId).NeedsName);
+
+        Assert.True(world.RenameAgent(secondId, "Player-picked"));
+        second.Release.TrySetResult(true);
+        await second.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        _ = await AdvanceUntilAcceptedAsync(world, secondId);
+        Assert.Equal("Player-picked", world.Society.GetInhabitant(secondId).Name);
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(
+            PrivateWorldRuntimeCodec.Encode(world.ExportState())));
+        Assert.Equal("Aster", restored.Society.GetInhabitant(firstId).Name);
+        Assert.Equal("Player-picked", restored.Society.GetInhabitant(secondId).Name);
+    }
+
+    [Fact]
     public async Task PausedRequestCannotActAndSavedQueueCanBeRetriedAfterReload()
     {
         var hosted = new HeldHostedProvider(ignoreCancellation: true,
@@ -125,17 +161,20 @@ public sealed class PrivateWorldDeferredCognitionTests
     private sealed class HeldHostedProvider(
         bool ignoreCancellation = false,
         DecisionProviderKind kind = DecisionProviderKind.Jev,
-        string? privateThought = null) : IDecisionProvider
+        string? privateThought = null,
+        string? chosenName = null) : IDecisionProvider
     {
         public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Returned { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public DecisionProviderKind Kind => kind;
         public long ProviderEpoch => 1;
+        public bool NeedsNameObserved { get; private set; }
 
         public async ValueTask<CognitionDecisionResponse> DecideAsync(
             CognitionDecisionRequest request, CancellationToken cancellationToken = default)
         {
+            NeedsNameObserved = request.Observation.NeedsName;
             Started.TrySetResult(true);
             if (ignoreCancellation) await Release.Task;
             else await Release.Task.WaitAsync(cancellationToken);
@@ -147,7 +186,7 @@ public sealed class PrivateWorldDeferredCognitionTests
                 request.RequestId, request.Observation.InhabitantId, Kind, ProviderEpoch,
                 request.Observation.RunEpoch, request.Observation.DecisionGeneration,
                 request.Observation.ObservationDigest, selected.Id, 1d, probabilities,
-                PrivateThought: privateThought);
+                PrivateThought: privateThought, ChosenName: chosenName);
         }
     }
 }

@@ -8,6 +8,11 @@ release yet.
 
 ### Added
 
+- Freshly placed founders and later added adults can choose their own names in
+  an accepted ordinary personal-model decision, without a separate naming
+  request. If the player renames one first, a delayed model answer cannot
+  overwrite that choice. Names persist with the world.
+
 - The selected-agent card now lets the paired player rename an agent. The
   chosen name updates the visible world and family tree and survives reload;
   biological identity and relationships do not change.
