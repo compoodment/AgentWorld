@@ -1,3 +1,4 @@
+using ClankerWorld.GodotClient.ClientState;
 using ClankerWorld.GodotClient.UI;
 
 namespace ClankerWorld.Simulation.Tests;
@@ -23,6 +24,33 @@ public sealed class GameUiTextTests
     public void WorldClockUsesDaysAndTimeInsteadOfRawTicks(long worldTick, string expected)
     {
         Assert.Equal(expected, GameUiText.FormatWorldClock(worldTick));
+    }
+
+    [Theory]
+    [InlineData(0, "Day 1 · 12:00 AM")]
+    [InlineData(720, "Day 1 · 12:00 PM")]
+    [InlineData(780, "Day 1 · 1:00 PM")]
+    [InlineData(1_439, "Day 1 · 11:59 PM")]
+    public void WorldClockCanUseTwelveHourDisplayWithoutChangingWorldTime(long worldTick, string expected)
+    {
+        Assert.Equal(expected, GameUiText.FormatWorldClock(worldTick, useTwelveHourClock: true));
+    }
+
+    [Fact]
+    public void GameClockPreferencePersistsOutsideWorldSave()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "clankerworld-display-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new GameDisplayPreferencesStore(Path.Combine(directory, "game-settings.json"));
+            Assert.False(store.Load().UseTwelveHourClock);
+            store.Save(new GameDisplayPreferences(UseTwelveHourClock: true));
+            Assert.True(new GameDisplayPreferencesStore(Path.Combine(directory, "game-settings.json")).Load().UseTwelveHourClock);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Theory]

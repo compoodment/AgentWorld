@@ -29,6 +29,7 @@
     <Compile Include="..\..\src\ClankerWorld.GodotClient\UI\GameUiText.cs" Link="GodotClient\UI\GameUiText.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\UI\OwnerWorldApi.cs" Link="GodotClient\UI\OwnerWorldApi.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\WorldServerOrigin.cs" Link="GodotClient\ClientState\WorldServerOrigin.cs" />
+    <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\GameDisplayPreferencesStore.cs" Link="GodotClient\ClientState\GameDisplayPreferencesStore.cs" />
     <Compile Include="..\..\src\ClankerWorld.GodotClient\ClientState\OwnerPendingSubmissionStore.cs" Link="GodotClient\ClientState\OwnerPendingSubmissionStore.cs" />
   </ItemGroup>
 

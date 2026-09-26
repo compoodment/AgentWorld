@@ -23,6 +23,8 @@ public partial class Main : Control
     private readonly OwnerDeviceRegistrationStore registrationStore = new();
     private readonly OwnerPendingSubmissionStore pendingSubmissionStore = new(
         ProjectSettings.GlobalizePath("user://owner-pending-submission.json"));
+    private readonly GameDisplayPreferencesStore displayPreferencesStore = new(
+        ProjectSettings.GlobalizePath("user://game-display-preferences.json"));
     private readonly Dictionary<long, OwnerWorldEvent> knownEvents = [];
     private readonly Dictionary<string, OwnerWorldPosition> renderedInhabitantPositions =
         new(StringComparer.Ordinal);
@@ -101,6 +103,7 @@ public partial class Main : Control
     private readonly Button menuResumeButton = new();
     private readonly CheckBox fullscreenToggle = new();
     private readonly OptionButton resolutionChoice = new();
+    private readonly OptionButton clockFormatChoice = new();
     private readonly OptionButton lifePaceChoice = new();
     private readonly Button applyLifePaceButton = new();
     private int? lastObservedLifePace;
@@ -152,6 +155,7 @@ public partial class Main : Control
     private Vector2 cameraCenterTiles;
     private string? cameraWorldId;
     private bool draggingMap;
+    private GameDisplayPreferences displayPreferences = new();
 
     public Main()
     {
@@ -160,6 +164,7 @@ public partial class Main : Control
 
     public override void _Ready()
     {
+        displayPreferences = displayPreferencesStore.Load();
         BuildLayout();
         if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))
         {
@@ -1849,6 +1854,16 @@ public partial class Main : Control
         resolutionChoice.ItemSelected += SetWindowResolution;
         gameSettingsContent.AddChild(resolutionChoice);
 
+        var clockFormatRow = new HBoxContainer();
+        clockFormatRow.AddChild(new Label { Text = "Time display" });
+        clockFormatChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        clockFormatChoice.AddItem("24-hour", 0);
+        clockFormatChoice.AddItem("12-hour (AM/PM)", 1);
+        clockFormatChoice.Selected = displayPreferences.UseTwelveHourClock ? 1 : 0;
+        clockFormatChoice.ItemSelected += SetClockFormat;
+        clockFormatRow.AddChild(clockFormatChoice);
+        gameSettingsContent.AddChild(clockFormatRow);
+
         var lifePaceRow = new HBoxContainer();
         lifePaceRow.AddChild(new Label { Text = "Life pace" });
         lifePaceChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
@@ -2216,6 +2231,25 @@ public partial class Main : Control
         DisplayServer.WindowSetSize(size);
     }
 
+    private void SetClockFormat(long index)
+    {
+        displayPreferences = new GameDisplayPreferences(UseTwelveHourClock: index == 1);
+        try
+        {
+            displayPreferencesStore.Save(displayPreferences);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            SetStatus("could not save the time display preference", good: false);
+        }
+
+        if (observationSession.Current is { } current)
+            Render(current.Baseline.Snapshot, []);
+    }
+
+    private string DisplayWorldClock(long worldTick) =>
+        GameUiText.FormatWorldClock(worldTick, displayPreferences.UseTwelveHourClock);
+
     private void AddAuthoringKinds()
     {
         AddAuthoringKind("set_terrain", "Set terrain — value: meadow, water, or mountain; x/y required");
@@ -2479,7 +2513,7 @@ public partial class Main : Control
     private void RenderWorldHud(OwnerWorldSnapshot snapshot)
     {
         var paused = snapshot.Authoring?.IsPaused == true;
-        clockLabel.Text = GameUiText.FormatWorldClock(snapshot.WorldTick);
+        clockLabel.Text = DisplayWorldClock(snapshot.WorldTick);
         inhabitantsButton.Text = $"Agents {LivingPopulation(snapshot)}";
         inhabitantsButton.TooltipText = "Living agents · open the inhabitant list";
         climateLabel.Text = snapshot.Authoring is { } authoring
@@ -2501,7 +2535,7 @@ public partial class Main : Control
             ? $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}"
             : "Not reported";
         worldInfoText.Text =
-            $"Date and time: {GameUiText.FormatWorldClock(snapshot.WorldTick)}\n" +
+            $"Date and time: {DisplayWorldClock(snapshot.WorldTick)}\n" +
             $"Living agents: {LivingPopulation(snapshot)}\n" +
             $"Map: {width} × {height} tiles\n" +
             $"Buildings: {snapshot.PlacedBuildings.Count}\n" +
@@ -2597,7 +2631,7 @@ public partial class Main : Control
         selectedActorSummaryLabel.Text = Pretty(inhabitant.Lifecycle) + (ageBand is null ? "" : " · " + Pretty(ageBand)) +
             (ageYears is null ? "" : " · " + ageYears + " years") +
             (deathTick is not null && long.TryParse(deathTick, CultureInfo.InvariantCulture, out var finalTick)
-                ? $" · {GameUiText.FormatWorldClock(finalTick)}" : "");
+                ? $" · {DisplayWorldClock(finalTick)}" : "");
         var intention = isDeceased
             ? $"Life ended{(deathCause is null ? "" : " · " + Pretty(deathCause))}. No current thoughts or activity."
             : waitingForDecision
@@ -2681,7 +2715,7 @@ public partial class Main : Control
         var projects = snapshot.Inhabitants.Where(person => person.Project is not null).Select(person =>
             $"{person.DisplayName}: {person.Project!.Label} · {Pretty(person.Project.Stage)}" +
             (person.Project.Blocker is null ? "" : $"\n  {person.Project.Blocker}"));
-        worldDetails.Text = $"{(authoring.IsPaused ? "Paused" : "Playing")} · {GameUiText.FormatWorldClock(snapshot.WorldTick)}\n" +
+        worldDetails.Text = $"{(authoring.IsPaused ? "Paused" : "Playing")} · {DisplayWorldClock(snapshot.WorldTick)}\n" +
             $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}\n\nShared stores\n{stores}\n\nProjects\n{string.Join("\n", projects)}\n\nSocial activity\n" +
             string.Join("\n", snapshot.Inhabitants.SelectMany(person => person.SocialNotes.Take(2).Select(note => $"{person.DisplayName}: {note}")));
         if (snapshot.Council is { } council)
@@ -2720,7 +2754,7 @@ public partial class Main : Control
 
         foreach (var worldEvent in events)
         {
-            var line = $"{GameUiText.FormatWorldClock(worldEvent.WorldTick)}\n" +
+            var line = $"{DisplayWorldClock(worldEvent.WorldTick)}\n" +
                 $"{DescribeWorldEvent(worldEvent, snapshot)}";
             if (worldEvent.Position is not null)
             {

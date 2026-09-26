@@ -29,14 +29,17 @@ public static class GameUiText
         return title + (stock.Length == 0 ? "" : " · " + stock) + "\n" + HumanizeIdentifier(resource.State) + "\n" + renewal;
     }
 
-    public static string FormatWorldClock(long worldTick)
+    public static string FormatWorldClock(long worldTick, bool useTwelveHourClock = false)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(worldTick);
         var day = (worldTick / MinutesPerDay) + 1;
         var minuteOfDay = (int)(worldTick % MinutesPerDay);
         var hour = minuteOfDay / 60;
         var minute = minuteOfDay % 60;
-        return $"Day {day} · {hour:00}:{minute:00}";
+        if (!useTwelveHourClock) return $"Day {day} · {hour:00}:{minute:00}";
+        var twelveHour = hour % 12;
+        if (twelveHour == 0) twelveHour = 12;
+        return $"Day {day} · {twelveHour}:{minute:00} {(hour < 12 ? "AM" : "PM")}";
     }
 
     public static bool IsPlayerFacingEvent(string kind)

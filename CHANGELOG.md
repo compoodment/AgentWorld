@@ -8,6 +8,10 @@ release yet.
 
 ### Added
 
+- Game Settings now remembers a 24-hour or AM/PM clock preference on this
+  installation. The top bar, World Info, settlement view, and event log use
+  the same display choice without changing world time.
+
 - An interactive Family Tree opens from an agent's card. It draws accepted
   parent–child and partnership links, keeps unrelated household members
   separate, and opens living or deceased relatives' profiles when clicked.
