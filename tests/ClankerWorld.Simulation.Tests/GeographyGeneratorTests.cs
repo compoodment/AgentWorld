@@ -1,9 +1,61 @@
+using ClankerWorld.Simulation.Harness;
+using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class GeographyGeneratorTests
 {
+    [Theory]
+    [InlineData(WorldSizePreset.Small)]
+    [InlineData(WorldSizePreset.Medium)]
+    public void GeneratedGeographySupportsAnEmptyPlayableCampAndNoBuildHighGround(WorldSizePreset size)
+    {
+        var map = GeneratedCampMapGenerator.Generate(new GeographyOptions(
+            "river-world-a", size, WrapEastWest: true));
+
+        Assert.Equal(GeographyGenerator.Dimensions(size), (map.Width, map.Height));
+        Assert.True(MapAcceptance.Validate(map, allowEmptyCamp: true).IsValid);
+        Assert.DoesNotContain(map.CampObjects, item => item.Kind == "founder");
+        Assert.Contains(map.Tiles, item => item.Terrain == TerrainKind.River);
+        Assert.Contains(map.Tiles, item => item.Terrain == TerrainKind.Mountain);
+        Assert.All(map.Tiles.Where(item => item.Terrain is TerrainKind.Mountain or TerrainKind.Peak),
+            item => Assert.False(map.IsBuildable(item.Position)));
+        Assert.All(map.CampObjects, item => Assert.True(map.IsPassable(item.Position)));
+    }
+
+    [Fact]
+    public async Task GeneratedCampCanStartAdvanceAndRestoreWithItsOwnGeography()
+    {
+        var options = new GeographyOptions("generated-life", WorldSizePreset.Small, WrapEastWest: true);
+        using var world = new PrivateWorldRuntime(options.Seed,
+            startPace: WorldStartPace.FounderSetup, geographyOptions: options);
+        var initial = world.ExportState();
+        Assert.Equal(options, initial.Geography);
+        Assert.Empty(world.Inhabitants);
+        Assert.True(world.Society.IsPaused);
+        var bedroll = initial.Map.GetObject("bedroll").Position;
+        var positions = initial.Map.Tiles.Where(tile =>
+                tile.Position.X >= bedroll.X - 1 && tile.Position.X < bedroll.X + 5 &&
+                tile.Position.Y >= bedroll.Y && tile.Position.Y < bedroll.Y + 5 &&
+                initial.Map.IsPassable(tile.Position) &&
+                !initial.Map.CampObjects.Any(item => item.Position == tile.Position) &&
+                !initial.Map.Resources.Any(item => item.Position == tile.Position))
+            .Take(4).Select(tile => tile.Position).ToArray();
+        Assert.Equal(4, positions.Length);
+        for (var index = 0; index < positions.Length; index++)
+            world.PlaceFounder("founder:" + Guid.NewGuid().ToString("N"), positions[index]);
+        world.StartWorld();
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+
+        var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
+        using var restored = PrivateWorldRuntime.Restore(saved);
+        Assert.Equal(1, restored.WorldTick);
+        Assert.Equal(initial.Map.ManifestDigest, restored.ExportState().Map.ManifestDigest);
+        Assert.Equal(options, restored.ExportState().Geography);
+        Assert.Equal(4, restored.Inhabitants.Count);
+    }
+
     [Theory]
     [InlineData("river-world-a", true)]
     [InlineData("river-world-b", false)]

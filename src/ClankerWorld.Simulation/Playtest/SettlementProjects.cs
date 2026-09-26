@@ -88,6 +88,9 @@ public sealed partial class PrivateWorldRuntime
                 worldContent.Buildings.Single(definition => definition.CanonicalId == building.DefinitionId), building.Position)))
             .ToHashSet();
         var additions = new List<MapResource>();
+        var campChunk = worldSystems.Chunks.Single();
+        var campOrigin = campChunk.Coordinate.Origin(campChunk.ChunkSize);
+        var bedroll = map.GetObject("bedroll").Position;
         foreach (var kind in new[] { "stone", "fiber", "seed" })
         {
             var id = "settlement-" + kind;
@@ -95,7 +98,12 @@ public sealed partial class PrivateWorldRuntime
             {
                 continue;
             }
-            var tile = map.Tiles.FirstOrDefault(tile => map.IsPassable(tile.Position) && !occupied.Contains(tile.Position));
+            var tile = map.Tiles.FirstOrDefault(tile =>
+                tile.Position.X >= Math.Max(campOrigin.X, bedroll.X - 1) &&
+                tile.Position.X < Math.Min(campOrigin.X + campChunk.Width, bedroll.X + 6) &&
+                tile.Position.Y >= Math.Max(campOrigin.Y, bedroll.Y - 1) &&
+                tile.Position.Y < Math.Min(campOrigin.Y + campChunk.Height, bedroll.Y + 5) &&
+                map.IsPassable(tile.Position) && !occupied.Contains(tile.Position));
             if (tile is null)
             {
                 AppendEvent("settlement_resource_blocked", kind);
@@ -122,7 +130,11 @@ public sealed partial class PrivateWorldRuntime
             },
             Chunks = worldSystems.Chunks.Select(chunk => ChunkManifestCodec.WithDigest(chunk with
             {
-                Resources = map.Resources.Select(resource => new ChunkResourceMetadata(resource.Id, resource.Kind, resource.Position, resource.IsRenewable)).ToArray(),
+                Resources = map.Resources.Select(resource => new ChunkResourceMetadata(
+                    resource.Id, resource.Kind,
+                    new GridPoint(resource.Position.X - chunk.Coordinate.Origin(chunk.ChunkSize).X,
+                        resource.Position.Y - chunk.Coordinate.Origin(chunk.ChunkSize).Y),
+                    resource.IsRenewable)).ToArray(),
             })).ToArray(),
         };
         SyncEcologyResourceStates();

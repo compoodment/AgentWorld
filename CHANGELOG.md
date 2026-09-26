@@ -8,6 +8,16 @@ release yet.
 
 ### Added
 
+- The deterministic geography generator can now form a valid empty base camp
+  on Small and Medium maps and carry its seed, wrapping and water options
+  through the private-world save. A four-founder generated world can advance
+  and reload in the simulation. River/lake/ocean and mountain/peak ground are
+  represented in the current physical map; mountain and peak are not buildable.
+  This is a backend bridge, not a New World menu or finished layered ecology.
+  Larger presets remain in the compact geography generator only.
+  Terrain lookups are indexed, and proposed ticks reuse their committed map
+  instead of regenerating the whole geography each tick.
+
 - The world view now draws only camera-visible terrain instead of creating a
   Godot button for every tile. The top-left overview uses a compact atlas of
   the same terrain data; it remains the existing single zoomable view, not a

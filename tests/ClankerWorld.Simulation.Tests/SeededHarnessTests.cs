@@ -45,6 +45,25 @@ public sealed class SeededHarnessTests
     }
 
     [Fact]
+    public void TerrainIndexDoesNotKeepOldPassabilityAfterMapTilesChange()
+    {
+        var original = SeededMapGenerator.Generate("camp-alpha");
+        var site = new GridPoint(2, 2);
+        Assert.True(original.IsPassable(site));
+        Assert.True(original.IsBuildable(site));
+
+        var revised = original with
+        {
+            Tiles = original.Tiles.Select(tile => tile.Position == site
+                ? tile with { Terrain = TerrainKind.Mountain } : tile).ToArray(),
+        };
+
+        Assert.False(revised.IsPassable(site));
+        Assert.False(revised.IsBuildable(site));
+        Assert.True(original.IsPassable(site));
+    }
+
+    [Fact]
     public void ScriptedActorMovesHarvestsConsumesAndSleepsInOrderedTicks()
     {
         var genesis = ScriptedHarness.CreateGenesis("camp-alpha");

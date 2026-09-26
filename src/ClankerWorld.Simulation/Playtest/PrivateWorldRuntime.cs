@@ -69,7 +69,8 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlaytestDeceasedInhabitantState>? DeceasedInhabitants = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? JevEnabled = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long JevPolicyRevision = 0,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FounderSetupState? FounderSetup = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FounderSetupState? FounderSetup = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GeographyOptions? Geography = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,
@@ -87,7 +88,7 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 16;
+    public const int StateSchemaVersion = 17;
     private const int MaximumRecentThoughts = 8;
     private const string HouseholdId = "household:camp-alpha";
     private const string SecondHouseholdId = "household:camp-beta";
@@ -101,6 +102,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly SemaphoreSlim tickGate = new(1, 1);
     private readonly string worldSeed;
+    private GeographyOptions? geographyOptions;
     private readonly Func<string, IDecisionProvider>? providerFactory;
     private readonly double minimumCognitionConfidence;
     private readonly int maxCognitionDispatchPerCycle;
@@ -142,9 +144,29 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         int maxCognitionQueueLength = 64,
         int maxCognitionDispatchPerCycle = 4,
         double minimumCognitionConfidence = 0.5,
-        WorldStartPace startPace = WorldStartPace.Legacy)
+        WorldStartPace startPace = WorldStartPace.Legacy,
+        GeographyOptions? geographyOptions = null)
+        : this(worldSeed, providerFactory, maxCognitionQueueLength, maxCognitionDispatchPerCycle,
+            minimumCognitionConfidence, startPace, geographyOptions, preparedMap: null)
+    {
+    }
+
+    private PrivateWorldRuntime(
+        string worldSeed,
+        Func<string, IDecisionProvider>? providerFactory,
+        int maxCognitionQueueLength,
+        int maxCognitionDispatchPerCycle,
+        double minimumCognitionConfidence,
+        WorldStartPace startPace,
+        GeographyOptions? geographyOptions,
+        SeededMap? preparedMap)
     {
         this.worldSeed = NormalizeRequiredText(worldSeed, nameof(worldSeed));
+        if (geographyOptions is not null &&
+            (startPace != WorldStartPace.FounderSetup ||
+             !string.Equals(geographyOptions.Seed, this.worldSeed, StringComparison.Ordinal)))
+            throw new ArgumentException("Generated geography requires founder setup and the world seed.", nameof(geographyOptions));
+        this.geographyOptions = geographyOptions;
         this.providerFactory = providerFactory;
         if (maxCognitionQueueLength <= 0 || maxCognitionDispatchPerCycle <= 0)
         {
@@ -164,9 +186,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         worldContent = new DeclarativeWorldContentState([], []);
         worldSimulation = WorldContentSimulationState.Empty;
         assetReservations = new WorldAssetReservationLedger();
-        map = startPace == WorldStartPace.FounderSetup
-            ? BaseCampMapGenerator.Generate(this.worldSeed)
-            : SeededMapGenerator.Generate(this.worldSeed);
+        map = preparedMap ?? (startPace == WorldStartPace.FounderSetup
+            ? geographyOptions is null
+                ? BaseCampMapGenerator.Generate(this.worldSeed)
+                : GeneratedCampMapGenerator.Generate(geographyOptions)
+            : SeededMapGenerator.Generate(this.worldSeed));
         worldSystems = CreateWorldSystems(this.worldSeed, map, startPace);
         society = CreateSociety(
             this.worldSeed,
@@ -231,16 +255,27 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         Func<string, IDecisionProvider>? providerFactory = null,
         int maxCognitionDispatchPerCycle = 4,
         double minimumCognitionConfidence = 0.5)
+        => RestoreCore(state, providerFactory, maxCognitionDispatchPerCycle,
+            minimumCognitionConfidence, trustedPreparedState: false);
+
+    private static PrivateWorldRuntime RestoreCore(
+        PrivateWorldRuntimeState state,
+        Func<string, IDecisionProvider>? providerFactory,
+        int maxCognitionDispatchPerCycle,
+        double minimumCognitionConfidence,
+        bool trustedPreparedState)
     {
-        ValidateStateForCodec(state);
+        if (!trustedPreparedState) ValidateStateForCodec(state);
         var runtime = new PrivateWorldRuntime(
             state.WorldSeed,
             providerFactory,
             state.Society.Cognition.MaxQueueLength,
             maxCognitionDispatchPerCycle,
             minimumCognitionConfidence,
-            state.FounderSetup is null ? WorldStartPace.Legacy : WorldStartPace.FounderSetup);
-        if (!IsCompatibleSavedMap(runtime.map, state))
+            state.FounderSetup is null ? WorldStartPace.Legacy : WorldStartPace.FounderSetup,
+            state.Geography,
+            trustedPreparedState ? state.Map : null);
+        if (!trustedPreparedState && !IsCompatibleSavedMap(runtime.map, state))
         {
             runtime.Dispose();
             throw new InvalidDataException("The private-world map does not match deterministic regeneration.");
@@ -321,7 +356,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.events.Clear();
         runtime.events.AddRange(state.Events);
         runtime.nextEventId = runtime.events.Count == 0 ? checked(runtime.eventHistoryFloor + 1) : checked(runtime.events[^1].EventId + 1);
-        runtime.Validate();
+        if (!trustedPreparedState) runtime.Validate();
         return runtime;
     }
 
@@ -377,7 +412,12 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             // World mutations operate on an isolated proposed tick. In the
             // playable path, external cognition itself runs between ticks.
             // Readers and owner controls use the last committed world.
-            using var proposed = Restore(baseline, providerFactory, maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+            // The baseline was captured from this committed runtime under the
+            // gate. Clone its mutable systems without regenerating or
+            // revalidating millions of immutable terrain tiles each tick.
+            using var proposed = RestoreCore(baseline, providerFactory,
+                maxCognitionDispatchPerCycle, minimumCognitionConfidence,
+                trustedPreparedState: true);
             var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, cancellationToken).ConfigureAwait(false);
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
@@ -474,6 +514,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         // Transfer the committed society; disposing the proposal retires the old one.
         (society, proposed.society) = (proposed.society, society);
         map = proposed.map;
+        geographyOptions = proposed.geographyOptions;
         contentRegistry = proposed.contentRegistry;
         worldSystems = proposed.worldSystems;
         survivalState = proposed.survivalState;
@@ -1462,7 +1503,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         worldSimulation,
         assetReservations.ExportState(), eventHistoryFloor, historyArchiveHead, survivalState, council,
         deceasedInhabitants.Count == 0 ? null : deceasedInhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray(),
-        jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup);
+        jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision, founderSetup,
+        geographyOptions);
 
     public DeclarativeWorldContentState WorldContent => worldContent;
 
@@ -1970,17 +2012,23 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             [new CurrencyDefinition("copper", "Copper", "cp")],
             [new CurrencyAccount("camp-wallet", HouseholdId, "copper", 100)],
             []);
+        var chunkSize = map.Width > ChunkRules.DefaultChunkSize || map.Height > ChunkRules.DefaultChunkSize
+            ? GeographyGenerator.ChunkSize : ChunkRules.DefaultChunkSize;
+        var coordinate = ChunkRules.ToChunkCoordinate(map.GetObject("bedroll").Position, chunkSize);
+        var chunkOrigin = coordinate.Origin(chunkSize);
         var chunk = ChunkManifestCodec.WithDigest(new ChunkManifest(
-            new ChunkCoordinate(0, 0),
-            ChunkRules.DefaultChunkSize,
-            map.Width,
-            map.Height,
-            SeededMapGenerator.GeneratorId,
+            coordinate,
+            chunkSize,
+            Math.Min(chunkSize, map.Width - chunkOrigin.X),
+            Math.Min(chunkSize, map.Height - chunkOrigin.Y),
+            map.Width > ChunkRules.DefaultChunkSize || map.Height > ChunkRules.DefaultChunkSize
+                ? "noise-drainage-camp" : SeededMapGenerator.GeneratorId,
             SeededMapGenerator.GeneratorVersion,
             map.Resources.Select(resource => new ChunkResourceMetadata(
                 resource.Id,
                 resource.Kind,
-                resource.Position,
+                new GridPoint(resource.Position.X - chunkOrigin.X,
+                    resource.Position.Y - chunkOrigin.Y),
                 resource.IsRenewable)).ToArray()));
         return WorldSystemsRules.CreateGenesis(
             worldSeed,
@@ -2954,6 +3002,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             throw new InvalidDataException("The saved Jev routing policy is invalid.");
         if (state.SchemaVersion < 16 && state.FounderSetup is not null)
             throw new InvalidDataException("Founder setup requires private-world schema 16.");
+        if (state.Geography is not null &&
+            (state.SchemaVersion < 17 || state.FounderSetup is null ||
+             !string.Equals(state.Geography.Seed, state.WorldSeed, StringComparison.Ordinal)))
+            throw new InvalidDataException("Generated geography does not match the saved world setup.");
         ValidateFounderSetup(state.FounderSetup, state.Society.Society);
         var hasArchivedEvents = state.EventHistoryFloor > 0 || state.Society.Society.EventHistoryFloor > 0 ||
             state.Society.Society.Inventory.EventHistoryFloor > 0 || state.Society.Cognition.EventHistoryFloor > 0 ||

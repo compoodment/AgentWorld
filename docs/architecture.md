@@ -36,6 +36,18 @@ terrain index. Its top-left overview samples that index into a small atlas;
 neither path creates a Control per tile or a separate regional art set. The
 host still sends the full tile list in each owner baseline, so map observation
 and the fixed playable map remain large-world blockers.
+The simulation can project Small/Medium deterministic generated geography into
+its existing physical-map contract, place an empty camp on a clear 64×64
+region, then carry generation options through save/reload and founder setup.
+This bridge maps rivers, lakes, ocean, mountain and peak but does not yet
+preserve separate climate, surface and vegetation layers. It is not connected
+to the host's one-world startup or a New World client action. The larger
+geography presets remain compact generator outputs, not playable-map promises.
+The physical map now indexes terrain for constant-time passability/build-site
+checks. An internally captured proposed tick reuses its committed map rather
+than regenerating generated geography; external save loads still validate and
+regenerate it before acceptance. The current save and owner observation still
+serialize every terrain tile, so this alone does not make huge worlds viable.
 
 The current host schedules one world tick per real second. Newly created
 private worlds start paused and save the accepted playtest pace: 360 ticks per day and a 40-day

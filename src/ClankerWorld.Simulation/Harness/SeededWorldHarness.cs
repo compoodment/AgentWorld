@@ -1,8 +1,10 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Persistence;
+using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Simulation.Harness;
 
@@ -16,6 +18,10 @@ public enum TerrainKind
     Meadow,
     Water,
     Mountain,
+    River,
+    Lake,
+    Ocean,
+    Peak,
 }
 
 public enum ResourceState
@@ -46,16 +52,31 @@ public sealed record SeededMap(
     IReadOnlyList<MapResource> Resources,
     string ManifestDigest)
 {
+    // Keep the index outside the record: a cache field would silently change
+    // record equality and could be copied into a `with` map with new tiles.
+    private static readonly ConditionalWeakTable<SeededMap, byte[]> TerrainIndexes = new();
+
     public bool Contains(GridPoint point) =>
         point.X >= 0 && point.X < Width && point.Y >= 0 && point.Y < Height;
 
     public bool IsPassable(GridPoint point) =>
-        Contains(point) && Tiles.Single(tile => tile.Position == point).Terrain == TerrainKind.Meadow;
+        Contains(point) && TerrainAt(point) == (byte)TerrainKind.Meadow;
 
     // Construction eligibility is separate from travel: future mountain
     // paths must not silently become build sites when traversal is expanded.
     public bool IsBuildable(GridPoint point) =>
-        Contains(point) && Tiles.Single(tile => tile.Position == point).Terrain == TerrainKind.Meadow;
+        Contains(point) && TerrainAt(point) == (byte)TerrainKind.Meadow;
+
+    private byte TerrainAt(GridPoint point) =>
+        TerrainIndexes.GetValue(this, static map =>
+        {
+            var indexed = new byte[checked(map.Width * map.Height)];
+            Array.Fill(indexed, byte.MaxValue);
+            foreach (var tile in map.Tiles)
+                if (map.Contains(tile.Position))
+                    indexed[tile.Position.Y * map.Width + tile.Position.X] = checked((byte)tile.Terrain);
+            return indexed;
+        })[point.Y * Width + point.X];
 
     public CampObject GetObject(string id) =>
         CampObjects.Single(mapObject => string.Equals(mapObject.Id, id, StringComparison.Ordinal));
@@ -176,6 +197,97 @@ public static class BaseCampMapGenerator
 }
 
 /// <summary>
+/// Projects generated 2D geography into the current physical-map contract and
+/// places the ordinary empty starter camp on a connected clear patch. Climate,
+/// vegetation and surface layers remain in the geography source and are not
+/// yet projected by the playable map contract.
+/// </summary>
+public static class GeneratedCampMapGenerator
+{
+    private const int CampWidth = 6;
+    private const int CampHeight = 5;
+
+    public static SeededMap Generate(GeographyOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        // This bridge still allocates one object per tile for the old
+        // physical-map contract. The compact geography source supports all
+        // presets; larger playable maps need a compact save/projection first.
+        if (options.Size > WorldSizePreset.Medium)
+            throw new NotSupportedException("Large generated worlds require the compact playable-map contract.");
+        var geography = GeographyGenerator.Generate(options);
+        var width = geography.Width;
+        var height = geography.Height;
+        var tiles = new TerrainTile[checked(width * height)];
+        var kinds = new TerrainKind[tiles.Length];
+        for (var y = 0; y < height; y++)
+            for (var x = 0; x < width; x++)
+            {
+                var tile = geography.At(x, y);
+                var kind = tile.Water switch
+                {
+                    WaterKind.Ocean => TerrainKind.Ocean,
+                    WaterKind.Lake => TerrainKind.Lake,
+                    WaterKind.River => TerrainKind.River,
+                    _ when tile.Elevation >= 245 => TerrainKind.Peak,
+                    _ when tile.Elevation >= 215 => TerrainKind.Mountain,
+                    _ => TerrainKind.Meadow,
+                };
+                var index = y * width + x;
+                kinds[index] = kind;
+                tiles[index] = new TerrainTile(new GridPoint(x, y), kind);
+            }
+
+        var origin = FindCampOrigin(kinds, width, height);
+        var template = BaseCampMapGenerator.Generate(options.Seed);
+        var objects = template.CampObjects.Select(item => item with
+        {
+            Position = new GridPoint(item.Position.X + origin.X, item.Position.Y + origin.Y),
+        }).ToArray();
+        var resources = template.Resources.Select(item => item with
+        {
+            Position = new GridPoint(item.Position.X + origin.X, item.Position.Y + origin.Y),
+        }).ToArray();
+        var withoutDigest = new SeededMap(width, height, 0, tiles, objects, resources, string.Empty);
+        var map = withoutDigest with { ManifestDigest = MapManifestCodec.Digest(withoutDigest) };
+        var validation = MapAcceptance.Validate(map, allowEmptyCamp: true);
+        if (!validation.IsValid)
+            throw new InvalidOperationException($"Generated base camp is invalid: {validation.Failure}");
+        return map;
+    }
+
+    private static GridPoint FindCampOrigin(TerrainKind[] kinds, int width, int height)
+    {
+        var centerX = (width - CampWidth) / 2;
+        var centerY = (height - CampHeight) / 2;
+        var maxRadius = width + height;
+        for (var radius = 0; radius <= maxRadius; radius++)
+            for (var offsetX = -radius; offsetX <= radius; offsetX++)
+            {
+                var offsetY = radius - Math.Abs(offsetX);
+                if (TrySite(centerX + offsetX, centerY + offsetY, kinds, width, height))
+                    return new GridPoint(centerX + offsetX, centerY + offsetY);
+                if (offsetY > 0 && TrySite(centerX + offsetX, centerY - offsetY, kinds, width, height))
+                    return new GridPoint(centerX + offsetX, centerY - offsetY);
+            }
+        throw new InvalidOperationException("The generated geography has no suitable base-camp clearing.");
+    }
+
+    private static bool TrySite(int left, int top, TerrainKind[] kinds, int width, int height)
+    {
+        if (left < 0 || top < 0 || left + CampWidth > width || top + CampHeight > height)
+            return false;
+        if (left / GeographyGenerator.ChunkSize != (left + CampWidth - 1) / GeographyGenerator.ChunkSize ||
+            top / GeographyGenerator.ChunkSize != (top + CampHeight - 1) / GeographyGenerator.ChunkSize)
+            return false;
+        for (var y = top; y < top + CampHeight; y++)
+            for (var x = left; x < left + CampWidth; x++)
+                if (kinds[y * width + x] != TerrainKind.Meadow) return false;
+        return true;
+    }
+}
+
+/// <summary>
 /// Explicit canonical bytes for the genesis map manifest. The digest is not
 /// included in its own input, avoiding self-referential serialization.
 /// </summary>
@@ -223,6 +335,10 @@ public static class MapManifestCodec
         TerrainKind.Meadow => "meadow",
         TerrainKind.Water => "water",
         TerrainKind.Mountain => "mountain",
+        TerrainKind.River => "river",
+        TerrainKind.Lake => "lake",
+        TerrainKind.Ocean => "ocean",
+        TerrainKind.Peak => "peak",
         _ => throw new ArgumentOutOfRangeException(nameof(terrain)),
     };
 }

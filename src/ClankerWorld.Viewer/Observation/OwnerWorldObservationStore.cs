@@ -857,6 +857,10 @@ public sealed class OwnerWorldObservationStore
         TerrainKind.Meadow => "meadow",
         TerrainKind.Water => "water",
         TerrainKind.Mountain => "mountain",
+        TerrainKind.River => "river",
+        TerrainKind.Lake => "lake",
+        TerrainKind.Ocean => "ocean",
+        TerrainKind.Peak => "peak",
         _ => throw new ArgumentOutOfRangeException(nameof(terrain)),
     };
 
