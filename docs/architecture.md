@@ -43,6 +43,14 @@ This bridge maps rivers, lakes, ocean, mountain and peak but does not yet
 preserve separate climate, surface and vegetation layers. The signed New World
 action now selects it in the host and client. The larger
 geography presets remain compact generator outputs, not playable-map promises.
+Generated-world weather is derived deterministically by 32×32-tile region,
+day and latitude from the saved world seed and calendar. The saved climate's
+weather value remains the reference condition for the old tiny fixture; no
+per-tick weather grid is serialized. Owner observations include the current
+regional conditions so the Godot HUD can show camera-local weather. Survival,
+travel and crop completion query the relevant location, not the reference
+condition. Weather fronts, soil-moisture history and biome-specific profiles
+are not implemented yet.
 The physical map now indexes terrain for constant-time passability/build-site
 checks. An internally captured proposed tick reuses its committed map rather
 than regenerating generated geography; external save loads still validate and
@@ -202,7 +210,7 @@ The [Voronoi tutorial's source](https://www.redblobgames.com/x/2022-voronoi-maps
 also makes the local-minimum failure mode explicit. ClankerWorld uses tile
 neighbors rather than importing those projects' polygon meshes. This is an
 implementation inference, not a locked terrain design: continent layout,
-climate modes, biome/object placement, map preview, chunk streaming and river
+climate modes, biome/object placement, chunk streaming and river
 appearance still need integration and playtesting.
 
 ## Deliberate pre-release identifier reset

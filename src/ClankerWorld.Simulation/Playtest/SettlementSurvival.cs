@@ -25,7 +25,9 @@ public sealed partial class PrivateWorldRuntime
          worldContent.Recipes.Any(recipe => project.CandidateId == "build:recipe:" + recipe.CanonicalId &&
             recipe.Outputs.Any(output => output.ResourceId == "clothing")));
 
-    private int WeatherExposure => worldSystems.Climate.Weather switch
+    private WeatherKind WeatherAt(GridPoint position) => WeatherRules.At(worldSystems, position, map.Height);
+
+    private int WeatherExposure(GridPoint position) => WeatherAt(position) switch
     {
         WeatherKind.Snow => 60,
         WeatherKind.Storm => 55,
@@ -86,7 +88,7 @@ public sealed partial class PrivateWorldRuntime
             var protection = (HasCarriedItem(person.InhabitantId, "clothing") ? 35 : 0) + (NearShelter(person.Position) ? 45 : 0);
             var heat = HeatingBuildings().Any(building => IsFireLit(building) &&
                 IsWithinInteractionRange(person.Position, building.Position, 2)) ? 90 : 0;
-            var loss = Math.Max(0, WeatherExposure - protection);
+            var loss = Math.Max(0, WeatherExposure(person.Position) - protection);
             var warmth = Math.Clamp(old.WarmthBasisPoints - loss + heat + (loss == 0 ? 20 : 0), 0, 10_000);
             var illness = Math.Clamp(old.IllnessBasisPoints + (warmth < 2_500 || person.HungerBasisPoints < 500 ? 8 :
                 warmth > 6_000 && person.HungerBasisPoints > 3_500 ? -12 : 0), 0, 10_000);
@@ -104,11 +106,11 @@ public sealed partial class PrivateWorldRuntime
         {
             return;
         }
-        if (WeatherExposure > 0 && !HasCarriedItem(actor, "clothing") && SharedItem("clothing", actor) is not null)
+        if (WeatherExposure(person.Position) > 0 && !HasCarriedItem(actor, "clothing") && SharedItem("clothing", actor) is not null)
         {
             candidates.Add(new CognitionCandidate("wear_clothing", "Collect woven clothing from camp to reduce exposure.", 3));
         }
-        if (AdultResident(actor) && WeatherExposure > 0 && HeatingBuildings().Any(building => !IsFireLit(building)) &&
+        if (AdultResident(actor) && WeatherExposure(person.Position) > 0 && HeatingBuildings().Any(building => !IsFireLit(building)) &&
             (SharedItem("wood", actor) is not null || HasCarriedItem(actor, "wood") || MaterialSource("wood") is not null))
         {
             candidates.Add(new CognitionCandidate("tend_fire", "Carry household wood to a hearth and keep the camp warm.", condition.WarmthBasisPoints < 6_000 ? 2 : 4));
@@ -191,9 +193,9 @@ public sealed partial class PrivateWorldRuntime
         return available < target;
     });
 
-    private int CropOutputQuantity(RecipeDefinition recipe, ContentQuantity output) =>
+    private int CropOutputQuantity(RecipeDefinition recipe, ContentQuantity output, WeatherKind weather) =>
         !recipe.IsCrop || survivalState is null || output.ResourceId != "food" ? output.Amount :
-        worldSystems.Climate.Weather switch
+        weather switch
         {
             WeatherKind.Snow => Math.Max(1, output.Amount / 2),
             WeatherKind.Storm => Math.Max(1, checked((int)((long)output.Amount * 3 / 4))),

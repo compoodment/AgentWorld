@@ -192,6 +192,8 @@ public sealed record OwnerWorldProductionJob(
     long CompletionTick,
     string State);
 
+public sealed record OwnerWeatherRegion(int X, int Y, string Weather);
+
 public sealed record OwnerWorldAuthoringState(
     bool IsPaused,
     long RunEpoch,
@@ -228,6 +230,8 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldCalendarPace? CalendarPace { get; init; }
     public bool? JevEnabled { get; init; }
     public OwnerFounderSetup? FounderSetup { get; init; }
+    public int WeatherRegionSize { get; init; } = 32;
+    public IReadOnlyList<OwnerWeatherRegion> WeatherRegions { get; init; } = [];
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
 
     public OwnerWorldAuthoringState? Authoring { get; init; }

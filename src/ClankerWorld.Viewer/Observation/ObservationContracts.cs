@@ -213,6 +213,8 @@ public sealed record ViewerEvent(long EventId, long WorldTick, string Kind, stri
 
 public sealed record ViewerFounderSetup(int Required, int Placed, bool Started);
 
+public sealed record ViewerWeatherRegion(int X, int Y, string Weather);
+
 public sealed record ViewerWorldSnapshot(
     string WorldId,
     long WorldTick,
@@ -230,6 +232,8 @@ public sealed record ViewerWorldSnapshot(
     public ViewerCalendarPace? CalendarPace { get; init; }
     public bool? JevEnabled { get; init; }
     public ViewerFounderSetup? FounderSetup { get; init; }
+    public int WeatherRegionSize { get; init; } = 32;
+    public IReadOnlyList<ViewerWeatherRegion> WeatherRegions { get; init; } = [];
     /// <summary>
     /// The inspectable population projection. <see cref="Actor"/> remains for
     /// backwards-compatible Phase 2 diagnostic clients.

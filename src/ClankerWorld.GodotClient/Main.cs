@@ -426,6 +426,12 @@ public partial class Main : Control
                 Tiles = [],
                 PackedTerrain = new OwnerWorldPackedTerrain(256, 128, "terrain-kind-v1",
                     Convert.ToBase64String(largeTerrain)),
+                Authoring = new OwnerWorldAuthoringState(true, 0, 0, 0, "ui-large-map-v1",
+                    "ui-large-map-v1", "clear", "spring", []),
+                WeatherRegionSize = 32,
+                WeatherRegions = Enumerable.Range(0, 4)
+                    .SelectMany(x => Enumerable.Range(0, 2).Select(y => new OwnerWeatherRegion(x, y, "snow")))
+                    .Append(new OwnerWeatherRegion(4, 2, "rain")).ToArray(),
                 Resources = [],
                 PlacedBuildings = [],
             });
@@ -433,11 +439,16 @@ public partial class Main : Control
             if (terrainLayer.GetChildCount() != 0 || terrainLayer.VisibleTileCount >= largeTerrain.Length / 4 ||
                 worldOverview.VisibleTiles.Size.X >= 256)
                 throw new InvalidOperationException("A regional map must draw only the visible terrain without per-tile nodes.");
+            if (climateLabel.Text != "Spring · Rain")
+                throw new InvalidOperationException("The world HUD must show weather at the camera, not reference weather.");
             var beforeLargePan = worldOverview.VisibleTiles.Position;
             CenterCameraAt(new Vector2(20, 20));
             if (worldOverview.VisibleTiles.Position.DistanceTo(beforeLargePan) < 1 ||
                 terrainLayer.VisibleTileCount >= largeTerrain.Length / 4)
                 throw new InvalidOperationException("Panning a large map must update the camera-bounded terrain view.");
+            if (climateLabel.Text != "Spring · Snow" ||
+                !worldInfoText.Text.Contains("camera: Spring · Snow", StringComparison.Ordinal))
+                throw new InvalidOperationException($"Panning must update HUD and World Info to local weather: camera={cameraCenterTiles}, HUD={climateLabel.Text}, info={worldInfoText.Text}.");
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("archived-mira", "Mira", "dead", formerPosition,
                 5_000, 5_000, [], [new("age-band", "elder"), new("death-tick", "1")],
@@ -3038,7 +3049,7 @@ public partial class Main : Control
         inhabitantsButton.Text = $"Agents {LivingPopulation(snapshot)}";
         inhabitantsButton.TooltipText = "Living agents · open the inhabitant list";
         climateLabel.Text = snapshot.Authoring is { } authoring
-            ? $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}"
+            ? $"{Pretty(authoring.Season)} · {Pretty(WeatherAtCamera(snapshot))}"
             : string.Empty;
         pauseButton.Text = paused ? "Play" : "Pause";
         pauseButton.TooltipText = paused ? "Resume the world" : "Pause the world";
@@ -3048,11 +3059,20 @@ public partial class Main : Control
     private static int LivingPopulation(OwnerWorldSnapshot snapshot) => snapshot.Inhabitants.Count(inhabitant =>
         !inhabitant.IsDraft && string.Equals(inhabitant.Lifecycle, "active", StringComparison.OrdinalIgnoreCase));
 
+    private string WeatherAtCamera(OwnerWorldSnapshot snapshot)
+    {
+        var size = Math.Max(1, snapshot.WeatherRegionSize);
+        var x = Math.Max(0, (int)MathF.Floor(cameraCenterTiles.X / size));
+        var y = Math.Max(0, (int)MathF.Floor(cameraCenterTiles.Y / size));
+        return snapshot.WeatherRegions.FirstOrDefault(region => region.X == x && region.Y == y)?.Weather
+            ?? snapshot.Authoring?.Weather ?? "unknown";
+    }
+
     private void RenderWorldInfo(OwnerWorldSnapshot snapshot)
     {
         var (width, height) = MapDimensions(snapshot);
         var localWeather = snapshot.Authoring is { } authoring
-            ? $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}"
+            ? $"{Pretty(authoring.Season)} · {Pretty(WeatherAtCamera(snapshot))}"
             : "Not reported";
         worldInfoText.Text =
             $"Date and time: {DisplayWorldClock(snapshot.WorldTick)}\n" +
@@ -3061,7 +3081,7 @@ public partial class Main : Control
             $"Map: {width} × {height} tiles\n" +
             $"Buildings: {snapshot.PlacedBuildings.Count}\n" +
             $"Resource sites: {snapshot.Resources.Count}\n" +
-            $"Local season and weather: {localWeather}";
+            $"Season and weather at camera: {localWeather}";
     }
 
     private void RenderInhabitantList(OwnerWorldSnapshot snapshot)
@@ -3244,7 +3264,7 @@ public partial class Main : Control
                 $"{package.PackageId} {package.Version} [{Pretty(package.Lifecycle)}]"));
         var systems = snapshot.WorldSystems is not { } worldSystems
             ? "not reported"
-            : $"{Pretty(worldSystems.Season)} / {Pretty(worldSystems.Weather)} · " +
+            : $"{Pretty(worldSystems.Season)} / {Pretty(WeatherAtCamera(snapshot))} at camera · " +
               $"{worldSystems.EcologyResourceCount} ecology · {worldSystems.FactionCount} factions · " +
               $"{worldSystems.CurrencyAccountCount} wallets · {worldSystems.CultureCount} cultures · " +
               $"{worldSystems.ChunkCount} chunks · {worldSystems.BuildingDefinitionCount} buildings · " +
@@ -3261,7 +3281,7 @@ public partial class Main : Control
             $"{person.DisplayName}: {person.Project!.Label} · {Pretty(person.Project.Stage)}" +
             (person.Project.Blocker is null ? "" : $"\n  {person.Project.Blocker}"));
         worldDetails.Text = $"{(authoring.IsPaused ? "Paused" : "Playing")} · {DisplayWorldClock(snapshot.WorldTick)}\n" +
-            $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}\n\nShared stores\n{stores}\n\nProjects\n{string.Join("\n", projects)}\n\nSocial activity\n" +
+            $"{Pretty(authoring.Season)} · {Pretty(WeatherAtCamera(snapshot))} at camera\n\nShared stores\n{stores}\n\nProjects\n{string.Join("\n", projects)}\n\nSocial activity\n" +
             string.Join("\n", snapshot.Inhabitants.SelectMany(person => person.SocialNotes.Take(2).Select(note => $"{person.DisplayName}: {note}")));
         if (snapshot.Council is { } council)
         {
@@ -3579,6 +3599,8 @@ public partial class Main : Control
             (mapCanvas.Size.X / 2 - mapStage.Position.X) / stride,
             (mapCanvas.Size.Y / 2 - mapStage.Position.Y) / stride);
         RefreshOverviewViewport(mapWidth, mapHeight, stride);
+        RenderWorldHud(snapshot);
+        RenderWorldInfo(snapshot);
     }
 
     private static float CameraAxis(float centerTile, float stagePixels, float viewportPixels, float stride) =>

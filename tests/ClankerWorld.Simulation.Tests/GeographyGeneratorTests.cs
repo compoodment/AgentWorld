@@ -39,6 +39,13 @@ public sealed class GeographyGeneratorTests
         Assert.Empty(projection.Tiles);
         Assert.Equal((256, 128), (projection.PackedTerrain?.Width, projection.PackedTerrain?.Height));
         Assert.Equal("terrain-kind-v1", projection.PackedTerrain!.Encoding);
+        Assert.Equal(WeatherRules.RegionSize, projection.WeatherRegionSize);
+        Assert.Equal((256 / WeatherRules.RegionSize) * (128 / WeatherRules.RegionSize),
+            projection.WeatherRegions.Count);
+        Assert.True(projection.WeatherRegions.Select(region => region.Weather).Distinct().Count() > 1,
+            "A generated world must not have one planet-wide weather condition.");
+        Assert.DoesNotContain(projection.WeatherRegions,
+            region => region.Y is 1 or 2 && region.Weather == "snow");
         var terrainBytes = Convert.FromBase64String(projection.PackedTerrain.Data);
         Assert.Equal(initial.Map.Tiles.Count, terrainBytes.Length);
         Assert.Equal((byte)initial.Map.Tiles[0].Terrain, terrainBytes[0]);

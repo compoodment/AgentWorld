@@ -233,6 +233,58 @@ public sealed record WorldClimate(long WorldTick, SeasonKind Season, WeatherKind
 /// </summary>
 public static class WeatherRules
 {
+    // Weather is a local world condition, not one planet-wide roll. Regions
+    // are deliberately smaller than terrain chunks so even Small worlds have
+    // northern/southern climate bands.
+    public const int RegionSize = 32;
+
+    public static WeatherKind At(WorldSystemsState state, GridPoint position, int mapHeight)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentOutOfRangeException.ThrowIfNegative(position.X);
+        ArgumentOutOfRangeException.ThrowIfNegative(position.Y);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(mapHeight);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(position.Y, mapHeight, nameof(position));
+        if (mapHeight <= RegionSize) return state.Climate.Weather;
+        var day = WorldCalendarRules.FromTick(state.WorldTick, state.Config).DayIndex;
+        return WeatherForRegion(state.WorldSeed, day, state.Climate.Season, state.Config,
+            position.X / RegionSize, position.Y / RegionSize, (mapHeight + RegionSize - 1) / RegionSize);
+    }
+
+    public static WeatherKind WeatherForRegion(string worldSeed, long dayIndex, SeasonKind season,
+        WorldSystemsConfig config, int regionX, int regionY, int regionRows)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(worldSeed);
+        ArgumentNullException.ThrowIfNull(config);
+        config.Validate();
+        ArgumentOutOfRangeException.ThrowIfNegative(dayIndex);
+        ArgumentOutOfRangeException.ThrowIfNegative(regionX);
+        ArgumentOutOfRangeException.ThrowIfNegative(regionY);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(regionRows);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(regionY, regionRows);
+
+        var profile = config.GetWeatherProfile(season);
+        // Snow is confined to cold latitudes. This is a coarse first climate
+        // rule; long-run rainfall and individual weather events remain distinct.
+        var latitude = Math.Abs(((regionY + 0.5) / regionRows) - 0.5) * 2;
+        var snowWeight = latitude >= 0.65 ? profile.SnowWeight : 0;
+        var rainWeight = profile.RainWeight + profile.SnowWeight - snowWeight;
+        var random = Pcg32XshRrV1.Create(worldSeed,
+            $"weather/day:{dayIndex.ToString(CultureInfo.InvariantCulture)}/region:{regionX.ToString(CultureInfo.InvariantCulture)},{regionY.ToString(CultureInfo.InvariantCulture)}");
+        var roll = (int)(random.NextUInt() % (uint)profile.TotalWeight);
+        foreach (var weather in Enum.GetValues<WeatherKind>())
+        {
+            roll -= weather switch
+            {
+                WeatherKind.Rain => rainWeight,
+                WeatherKind.Snow => snowWeight,
+                _ => profile.WeightFor(weather),
+            };
+            if (roll < 0) return weather;
+        }
+        throw new InvalidOperationException("The regional weather profile did not select a weather value.");
+    }
+
     public static WorldClimate CreateGenesis(string worldSeed, WorldSystemsConfig config)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(worldSeed);

@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- Generated worlds now have 32×32-tile weather regions instead of one weather
+  condition across the whole map. Agents' warmth, clothing/fire choices and
+  travel fatigue use weather where they stand or travel; crops use weather at
+  their field. The top bar and World Info show weather at the camera location.
+  The small development fixture keeps its original single local condition.
+
 - New World now shows a signed, read-only terrain preview before creation.
   Changing the seed, size, water share or wrapping marks it stale; rerolling
   the seed can regenerate it, and Create World only enables for the previewed
@@ -20,7 +26,7 @@ release yet.
   world and restores its per-agent model/key-slot assignments and autosave
   choices without copying API keys or re-pairing. The current world is saved
   before switching; named checkpoints remain in the pause menu for the selected
-  world. Climate controls, inspectable map preview and larger playable presets
+  world. Climate controls and larger playable presets
   are still pending.
 
 - Generated Small/Medium worlds now have a compact row-major terrain payload

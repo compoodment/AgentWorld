@@ -632,12 +632,20 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             var previousClimate = worldSystems.Climate;
             worldSystems = WorldSystemsRules.AdvanceOneTick(worldSystems);
             SyncEcologyResourceStates();
-            if (previousClimate.Season != worldSystems.Climate.Season ||
-                previousClimate.Weather != worldSystems.Climate.Weather)
+            var campPosition = map.CampObjects.First(item => item.Kind == "cooking").Position;
+            var previousCampWeather = map.Height <= WeatherRules.RegionSize
+                ? previousClimate.Weather
+                : WeatherRules.WeatherForRegion(worldSystems.WorldSeed,
+                    WorldCalendarRules.FromTick(previousClimate.WorldTick, worldSystems.Config).DayIndex,
+                    previousClimate.Season, worldSystems.Config,
+                    campPosition.X / WeatherRules.RegionSize, campPosition.Y / WeatherRules.RegionSize,
+                    (map.Height + WeatherRules.RegionSize - 1) / WeatherRules.RegionSize);
+            var campWeather = WeatherAt(campPosition);
+            if (previousClimate.Season != worldSystems.Climate.Season || previousCampWeather != campWeather)
             {
                 AppendEvent(
                     "weather_changed",
-                    $"{worldSystems.Climate.Season.ToString().ToLowerInvariant()}:{worldSystems.Climate.Weather.ToString().ToLowerInvariant()}");
+                    $"{worldSystems.Climate.Season.ToString().ToLowerInvariant()}:{campWeather.ToString().ToLowerInvariant()}");
             }
 
             var activatedWorldContent = worldContent;
@@ -1932,6 +1940,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         }
     }
 
+    private GridPoint CropSite(WorldProductionJob job) =>
+        WorldBuildSiteRules.TryGetFertileLandPosition(job.BuildingInstanceId, out var position)
+            ? position
+            : worldSimulation.Buildings.Single(building => building.InstanceId == job.BuildingInstanceId).Position;
+
     private bool CompleteProductionJob(
         WorldProductionJob job,
         RecipeDefinition recipe,
@@ -1953,6 +1966,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             AppendEvent("production_input_unusable", job.JobId);
             return false;
         }
+        var cropWeather = recipe.IsCrop && survivalState is not null
+            ? WeatherAt(CropSite(job))
+            : WeatherKind.Clear;
         ApplyInventoryTransition(inventory =>
         {
             var current = inventory;
@@ -1969,15 +1985,15 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                     $"{job.JobId}:output:{outputIndex.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)}",
                     output.ResourceId,
                     HouseholdId,
-                    CropOutputQuantity(recipe, output),
+                    CropOutputQuantity(recipe, output, cropWeather),
                     targetTick);
             }
 
             return current;
         });
-        if (recipe.IsCrop && survivalState is not null && worldSystems.Climate.Weather is WeatherKind.Snow or WeatherKind.Storm)
+        if (recipe.IsCrop && survivalState is not null && cropWeather is WeatherKind.Snow or WeatherKind.Storm)
         {
-            AppendEvent("crop_weather_loss", $"{job.JobId}:{worldSystems.Climate.Weather.ToString().ToLowerInvariant()}");
+            AppendEvent("crop_weather_loss", $"{job.JobId}:{cropWeather.ToString().ToLowerInvariant()}");
         }
         CreditCompletedWork(job.WorkerId, recipe.IsCrop ? "farming" : "crafting");
         return true;
@@ -2582,7 +2598,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         }
 
         var next = route[1];
-        var weatherCost = survivalState is null ? 0 : worldSystems.Climate.Weather switch
+        var weatherCost = survivalState is null ? 0 : WeatherAt(next) switch
         {
             WeatherKind.Storm => 3,
             WeatherKind.Snow or WeatherKind.Rain => 1,
@@ -2910,7 +2926,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             candidates.Add(new CognitionCandidate(
                 $"build:recipe:{recipe.CanonicalId}",
                 $"Build {recipe.DisplayName} at a valid site.",
-                recipe.IsCrop ? 20 : WeatherExposure > 0 && recipe.Outputs.Any(output => output.ResourceId == "clothing") ? 25 : 30,
+                recipe.IsCrop ? 20 : WeatherExposure(state.Position) > 0 && recipe.Outputs.Any(output => output.ResourceId == "clothing") ? 25 : 30,
                 $"build-site:{position.X},{position.Y}"));
         }
     }

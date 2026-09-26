@@ -2,6 +2,7 @@ using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
 using ClankerWorld.Simulation.Kernel;
+using ClankerWorld.Simulation.World;
 
 namespace ClankerWorld.Viewer.Observation;
 
@@ -213,6 +214,10 @@ public sealed class OwnerWorldObservationStore
         var jobs = state.WorldSimulation?.ProductionJobs.Concat(state.WorldSimulation.CropBuilds ?? []).ToArray() ?? [];
         var latestEventId = state.Events.Count == 0 ? 0 : state.Events[^1].EventId;
         var packedTerrain = state.Geography is null ? null : PackTerrain(map);
+        var campWeather = state.WorldSystems is { } currentSystems
+            ? WeatherRules.At(currentSystems,
+                map.CampObjects.First(item => item.Kind == "cooking").Position, map.Height)
+            : WeatherKind.Clear;
         return new ViewerWorldSnapshot(
             state.Society.Society.WorldId,
             state.Society.Society.WorldTick,
@@ -264,6 +269,10 @@ public sealed class OwnerWorldObservationStore
             FounderSetup = state.FounderSetup is { } setup
                 ? new ViewerFounderSetup(PrivateWorldRuntime.RequiredFounders, setup.FounderIds.Count, setup.Started)
                 : null,
+            WeatherRegions = state.WorldSystems is { } weatherSystems
+                ? CreateWeatherRegions(weatherSystems, map)
+                : [],
+            WeatherRegionSize = WeatherRules.RegionSize,
             CalendarPace = state.WorldSystems is { } worldSystems
                 ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear)
                 : null,
@@ -274,7 +283,7 @@ public sealed class OwnerWorldObservationStore
                 0,
                 map.ManifestDigest,
                 map.ManifestDigest,
-                state.WorldSystems?.Climate.Weather.ToString().ToLowerInvariant() ?? "clear",
+                campWeather.ToString().ToLowerInvariant(),
                 state.WorldSystems?.Climate.Season.ToString().ToLowerInvariant() ?? "spring",
                 []),
             Instructions = (state.Instructions ?? [])
@@ -319,7 +328,7 @@ public sealed class OwnerWorldObservationStore
             WorldSystems = state.WorldSystems is { } systems
                 ? new ViewerWorldSystemsSummary(
                     systems.Climate.Season.ToString().ToLowerInvariant(),
-                    systems.Climate.Weather.ToString().ToLowerInvariant(),
+                    campWeather.ToString().ToLowerInvariant(),
                     systems.Ecology.Resources.Count,
                     systems.Factions.Factions.Count,
                     systems.Currency.Accounts.Count,
@@ -383,6 +392,20 @@ public sealed class OwnerWorldObservationStore
             bytes[tile.Position.Y * map.Width + tile.Position.X] = checked((byte)tile.Terrain);
         return new ViewerPackedTerrain(map.Width, map.Height, "terrain-kind-v1",
             Convert.ToBase64String(bytes));
+    }
+
+    private static ViewerWeatherRegion[] CreateWeatherRegions(WorldSystemsState systems, SeededMap map)
+    {
+        if (map.Height <= WeatherRules.RegionSize)
+            return [new ViewerWeatherRegion(0, 0, systems.Climate.Weather.ToString().ToLowerInvariant())];
+        var columns = (map.Width + WeatherRules.RegionSize - 1) / WeatherRules.RegionSize;
+        var rows = (map.Height + WeatherRules.RegionSize - 1) / WeatherRules.RegionSize;
+        var day = WorldCalendarRules.FromTick(systems.WorldTick, systems.Config).DayIndex;
+        return Enumerable.Range(0, rows)
+            .SelectMany(y => Enumerable.Range(0, columns).Select(x => new ViewerWeatherRegion(x, y,
+                WeatherRules.WeatherForRegion(systems.WorldSeed, day, systems.Climate.Season,
+                    systems.Config, x, y, rows).ToString().ToLowerInvariant())))
+            .ToArray();
     }
 
     private static List<ViewerInhabitant> CreateInhabitants(OwnerWorldSnapshot state)
