@@ -1,11 +1,64 @@
 using System.Net;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Viewer.Control;
+using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class ProviderConfigurationStoreTests
 {
+    [Fact]
+    public void WorldJevChangeLogReportsOnlyTickAndAvailability()
+    {
+        var logger = new RecordingLogger<PrivateWorldRuntimeService>();
+        OwnerJevAssistanceTelemetry.Changed(logger, 123, false);
+        Assert.Equal("world_jev_assistance tick=123 enabled=False", Assert.Single(logger.Messages));
+    }
+
+    [Fact]
+    public async Task DisablingWorldJevRoutesRoutineWorkToTheAgentsPersonalModelAndInvalidatesOldRequests()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-jev-routing-");
+        try
+        {
+            var store = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"), EmptySeed());
+            _ = store.Configure(new("routine", "jev", "jev-test", "routine-test-secret", false));
+            _ = store.Configure(new("planning", "ollama-cloud", "world-model", "world-test-secret", false));
+            _ = store.Configure(new("planning", "openai", "personal-model", "personal-test-secret", false, "inhabitant-test"));
+            Assert.Throws<ArgumentException>(() => store.Configure(
+                new("routine", "jev", null, null, false, "inhabitant-test")));
+            var policy = new WorldJevPolicy();
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler), jevPolicy: policy);
+            var oldRequest = Request(router.ProviderEpoch);
+            Assert.Equal(DecisionProviderKind.Jev, router.KindFor(oldRequest.Observation));
+
+            policy.Set(false, 1);
+            Assert.NotEqual(oldRequest.ProviderEpoch, router.ProviderEpoch);
+            await Assert.ThrowsAsync<InvalidOperationException>(async () => await router.DecideAsync(oldRequest));
+            var response = await router.DecideAsync(Request(router.ProviderEpoch));
+            Assert.Equal(DecisionProviderKind.LargeLanguageModel, response.Provider);
+            Assert.Equal("api.openai.com", handler.LastUri!.Host);
+            Assert.Equal("personal-model", handler.LastModel);
+
+            _ = store.Configure(new("planning", "inherit", null, null, false, "inhabitant-test"));
+            _ = await router.DecideAsync(Request(router.ProviderEpoch));
+            Assert.Equal("ollama.com", handler.LastUri!.Host);
+
+            _ = store.Configure(new("planning", "deterministic", null, null, false));
+            var local = await router.DecideAsync(Request(router.ProviderEpoch));
+            Assert.Equal(DecisionProviderKind.Deterministic, local.Provider);
+
+            policy.Set(true, 2);
+            _ = await router.DecideAsync(Request(router.ProviderEpoch));
+            Assert.Equal("api.typesafe.ai", handler.LastUri!.Host);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
     [Fact]
     public void InhabitantInventionUsesPlanningProvider()
     {

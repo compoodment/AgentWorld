@@ -8,6 +8,13 @@ release yet.
 
 ### Added
 
+- World Settings now has a saved Jev assistance switch. Disabling it while
+  paused keeps memories and credentials, invalidates older decisions, and
+  routes work Jev would have handled to the agent's personal planning model,
+  the world planner, or a local safe fallback. Jev can be re-enabled later;
+  changing the setting writes a newer save format so older hosts cannot
+  silently discard the choice.
+
 - The top bar, World Info, agent histories and event log now format dates and
   time from the saved world's calendar pace. Game Settings offers DD-MM-YYYY,
   MM-DD-YYYY and YYYY-MM-DD display without changing world time. The old aging

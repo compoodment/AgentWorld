@@ -64,7 +64,9 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? HistoryArchiveHead = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementSurvivalState? Survival = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementCouncil? Council = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlaytestDeceasedInhabitantState>? DeceasedInhabitants = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlaytestDeceasedInhabitantState>? DeceasedInhabitants = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? JevEnabled = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long JevPolicyRevision = 0);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,
@@ -82,7 +84,7 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 14;
+    public const int StateSchemaVersion = 15;
     private const int MaximumRecentThoughts = 8;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
@@ -117,6 +119,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private long eventHistoryFloor;
     private string? historyArchiveHead;
     private int checkpointSchemaVersion = StateSchemaVersion;
+    private bool jevEnabled = true;
+    private long jevPolicyRevision;
     private long nextInstructionSequence = 1;
     private readonly Dictionary<string, PendingHostedDecision> pendingHosted = new(StringComparer.Ordinal);
 
@@ -178,6 +182,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
     public WorldSystemsState WorldSystems => worldSystems;
 
+    public bool JevEnabled => jevEnabled;
+
+    public long JevPolicyRevision => jevPolicyRevision;
+
     public WorldContentSimulationState WorldSimulation => worldSimulation;
 
     public WorldAssetReservationLedgerState AssetReservations => assetReservations.ExportState();
@@ -222,6 +230,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         runtime.eventHistoryFloor = state.EventHistoryFloor;
         runtime.historyArchiveHead = state.HistoryArchiveHead;
         runtime.checkpointSchemaVersion = Math.Max(3, state.SchemaVersion);
+        runtime.jevEnabled = state.JevEnabled ?? true;
+        runtime.jevPolicyRevision = state.JevPolicyRevision;
         runtime.society.Dispose();
         runtime.society = SocietyWorldRuntime.Restore(
             state.Society,
@@ -461,6 +471,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         eventHistoryFloor = proposed.eventHistoryFloor;
         historyArchiveHead = proposed.historyArchiveHead;
         checkpointSchemaVersion = proposed.checkpointSchemaVersion;
+        jevEnabled = proposed.jevEnabled;
+        jevPolicyRevision = proposed.jevPolicyRevision;
         nextInstructionSequence = proposed.nextInstructionSequence;
     }
 
@@ -1058,6 +1070,27 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         }
     }
 
+    public bool SetJevEnabled(bool enabled)
+    {
+        gate.Wait();
+        try
+        {
+            if (!society.Checkpoint.IsPaused)
+                throw new InvalidOperationException("Pause the world before changing Jev assistance.");
+            if (jevEnabled == enabled) return false;
+            foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
+            jevEnabled = enabled;
+            jevPolicyRevision = checked(jevPolicyRevision + 1);
+            checkpointSchemaVersion = StateSchemaVersion;
+            AppendEvent("jev_assistance_changed", enabled ? "enabled" : "disabled");
+            return true;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     public void Pause()
     {
         gate.Wait();
@@ -1228,7 +1261,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         worldContent,
         worldSimulation,
         assetReservations.ExportState(), eventHistoryFloor, historyArchiveHead, survivalState, council,
-        deceasedInhabitants.Count == 0 ? null : deceasedInhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray());
+        deceasedInhabitants.Count == 0 ? null : deceasedInhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray(),
+        jevPolicyRevision == 0 && jevEnabled ? null : jevEnabled, jevPolicyRevision);
 
     public DeclarativeWorldContentState WorldContent => worldContent;
 
@@ -2694,6 +2728,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             throw new InvalidDataException("The private-world runtime state schema or seed is invalid.");
         }
+        if (state.JevPolicyRevision < 0 || state.JevEnabled is null && state.JevPolicyRevision != 0 ||
+            state.SchemaVersion < 15 && (state.JevEnabled is not null || state.JevPolicyRevision != 0))
+            throw new InvalidDataException("The saved Jev routing policy is invalid.");
         var hasArchivedEvents = state.EventHistoryFloor > 0 || state.Society.Society.EventHistoryFloor > 0 ||
             state.Society.Society.Inventory.EventHistoryFloor > 0 || state.Society.Cognition.EventHistoryFloor > 0 ||
             state.Society.Cognition.Runtimes.Any(runtime => runtime.EventHistoryFloor > 0);

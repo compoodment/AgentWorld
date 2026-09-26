@@ -18,6 +18,15 @@ public sealed class GodotOwnerWorldApiTests
             OwnerWorldActionPayload.LifePace(new OwnerLifePaceAction(rate)));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void JevAssistancePayloadMatchesTheHostExactly(bool enabled)
+    {
+        Assert.Equal(OwnerHttpBinding.JevAssistancePayload(new ClankerWorld.Viewer.Control.OwnerJevAssistanceAction(enabled)),
+            OwnerWorldActionPayload.JevAssistance(new OwnerJevAssistanceAction(enabled)));
+    }
+
     [Fact]
     public void AcceptsExplicitHistoryResetButRejectsSilentOrFalseReset()
     {

@@ -47,9 +47,7 @@ public sealed class PrivateWorldDeferredCognitionTests
 
         hosted.Release.TrySetResult(true);
         await hosted.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        var admitted = await world.AdvanceOneTickNonBlockingAsync();
-        Assert.True(admitted.Advanced);
-        Assert.Contains(admitted.Decisions, item => item.InhabitantId == "founder-scout" && item.Admission.Accepted);
+        var admitted = await AdvanceUntilAcceptedAsync(world, "founder-scout");
         Assert.Contains(admitted.Events, item => item.Kind == "hosted_decision_completed");
         Assert.DoesNotContain(world.ExportState().Society.Cognition.Queue, item => item.InhabitantId == "founder-scout");
     }
@@ -65,10 +63,10 @@ public sealed class PrivateWorldDeferredCognitionTests
         await hosted.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
         hosted.Release.TrySetResult(true);
         await hosted.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        Assert.True((await world.AdvanceOneTickNonBlockingAsync()).Advanced);
+        _ = await AdvanceUntilAcceptedAsync(world, "founder-scout");
 
         var saved = PrivateWorldRuntimeCodec.Decode(PrivateWorldRuntimeCodec.Encode(world.ExportState()));
-        Assert.Equal(14, saved.SchemaVersion);
+        Assert.Equal(PrivateWorldRuntime.StateSchemaVersion, saved.SchemaVersion);
         using var restored = PrivateWorldRuntime.Restore(saved);
         var people = new OwnerWorldObservationStore(restored).GetSnapshot().Inhabitants;
         Assert.Equal("I should gather food before the others wake.",
@@ -104,10 +102,24 @@ public sealed class PrivateWorldDeferredCognitionTests
         await replacement.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
         replacement.Release.TrySetResult(true);
         await replacement.Returned.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        var result = await restored.AdvanceOneTickNonBlockingAsync();
-        Assert.Contains(result.Decisions, item => item.InhabitantId == "founder-scout" && item.Admission.Accepted);
+        _ = await AdvanceUntilAcceptedAsync(restored, "founder-scout");
         Assert.Equal("This new decision is mine.",
             Assert.Single(restored.Inhabitants.Single(person => person.InhabitantId == "founder-scout").RecentThoughts!).Text);
+    }
+
+    private static async Task<PrivateWorldStepResult> AdvanceUntilAcceptedAsync(PrivateWorldRuntime world, string inhabitantId)
+    {
+        // The provider signals just before its outer task completes. Admission
+        // belongs to a later committed tick, not necessarily the first one.
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            var step = await world.AdvanceOneTickNonBlockingAsync();
+            Assert.True(step.Advanced);
+            if (step.Decisions.Any(item => item.InhabitantId == inhabitantId && item.Admission.Accepted))
+                return step;
+            await Task.Delay(10);
+        }
+        throw new TimeoutException($"The completed hosted decision for {inhabitantId} was not admitted within 20 ticks.");
     }
 
     private sealed class HeldHostedProvider(

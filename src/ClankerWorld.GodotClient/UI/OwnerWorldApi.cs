@@ -223,6 +223,7 @@ public sealed record OwnerWorldSnapshot(
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
     public OwnerWorldCalendarPace? CalendarPace { get; init; }
+    public bool? JevEnabled { get; init; }
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
 
     public OwnerWorldAuthoringState? Authoring { get; init; }
@@ -261,6 +262,7 @@ public sealed record OwnerReconnectAction(long AfterEventId);
 
 public sealed record OwnerControlAction(string Operation);
 public sealed record OwnerLifePaceAction(int Rate);
+public sealed record OwnerJevAssistanceAction(bool Enabled);
 
 public sealed record OwnerPairingApprovalAction(string PairingId, string PairingCode);
 
@@ -520,6 +522,9 @@ public static class OwnerWorldActionPayload
 
     public static string LifePace(OwnerLifePaceAction action) =>
         "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
+
+    public static string JevAssistance(OwnerJevAssistanceAction action) =>
+        "clankerworld.owner-jev-assistance.v1\nenabled=" + action.Enabled.ToString().ToLowerInvariant();
 
     public static string PairingApproval(OwnerPairingApprovalAction action) => string.Join(
         '\n',
@@ -799,6 +804,15 @@ public sealed class OwnerWorldApi
         return pairing.SendSignedActionAsync<OwnerLifePaceAction, OwnerControlReceipt>(serverUri, authority, deviceId,
             OwnerPairingEndpoints.OwnerLifePace, OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.LifePace(action),
             action, deviceKey, cancellationToken);
+    }
+
+    public Task<OwnerControlReceipt> SetJevAssistanceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        bool enabled, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerJevAssistanceAction(enabled);
+        return pairing.SendSignedActionAsync<OwnerJevAssistanceAction, OwnerControlReceipt>(serverUri, authority, deviceId,
+            OwnerPairingEndpoints.OwnerJevAssistance, OwnerPairingProtocol.CreateRequestId(),
+            OwnerWorldActionPayload.JevAssistance(action), action, deviceKey, cancellationToken);
     }
 
     public Task<OwnerInstructionReceipt> SubmitInstructionAsync(

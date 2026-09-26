@@ -55,7 +55,7 @@ public static class PlayerDecisionProviders
         var normalizedProvider = Normalize(provider);
         var valid = normalizedRole switch
         {
-            RoutineRole => normalizedProvider is Deterministic or Jev,
+            RoutineRole => normalizedProvider is Deterministic or Jev or OpenAi or OllamaCloud,
             PlanningRole => normalizedProvider is Deterministic or OpenAi or OllamaCloud,
             _ => false,
         };
@@ -63,7 +63,7 @@ public static class PlayerDecisionProviders
         {
             throw new ArgumentException(
                 normalizedRole == RoutineRole
-                    ? "Routine cognition must use deterministic or Jev."
+                    ? "Routine cognition must use deterministic, Jev, OpenAI, or Ollama Cloud."
                     : "Planning cognition must use deterministic, OpenAI, or Ollama Cloud.",
                 nameof(provider));
         }
@@ -206,6 +206,8 @@ public sealed class ProviderConfigurationStore
         else
         {
             var provider = PlayerDecisionProviders.Normalize(action.Provider);
+            if (provider == PlayerDecisionProviders.Jev)
+                throw new ArgumentException("Jev is world-level assistance, not an individual agent's model.", nameof(action));
             PlayerDecisionProviders.ValidateRoleProvider(role, provider);
             next = SelectProvider(state, role, provider, action);
             var model = provider == PlayerDecisionProviders.Deterministic ? null : CredentialFor(next, provider)!.Model;
@@ -516,6 +518,45 @@ public sealed class ProviderConfigurationStore
 }
 
 /// <summary>
+/// World-save-owned Jev availability and routing revision mirrored into the
+/// host's decision adapter without putting provider credentials in the save.
+/// </summary>
+public sealed class WorldJevPolicy
+{
+    private readonly object gate = new();
+    private bool enabled = true;
+    private long revision;
+
+    public (bool Enabled, long Revision) Capture()
+    {
+        lock (gate) return (enabled, revision);
+    }
+
+    // Called once when the saved world is loaded, before the host starts ticking.
+    public void Initialize(bool savedEnabled, long savedRevision)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(savedRevision);
+        lock (gate)
+        {
+            enabled = savedEnabled;
+            revision = savedRevision;
+        }
+    }
+
+    public void Set(bool nextEnabled, long nextRevision)
+    {
+        lock (gate)
+        {
+            if (nextRevision < revision || nextRevision > revision + 1 ||
+                (enabled == nextEnabled) != (nextRevision == revision))
+                throw new InvalidOperationException("The Jev routing revision is inconsistent with the saved world.");
+            enabled = nextEnabled;
+            revision = nextRevision;
+        }
+    }
+}
+
+/// <summary>
 /// A stable provider object shared by every inhabitant. Player changes update
 /// its kind and epoch dynamically; requests already issued against an older
 /// configuration are rejected and fall back locally at the cognition boundary.
@@ -523,8 +564,10 @@ public sealed class ProviderConfigurationStore
 public sealed partial class ConfigurableDecisionProvider(
     ProviderConfigurationStore configuration,
     IHttpClientFactory httpClientFactory,
-    ILogger<ConfigurableDecisionProvider>? logger = null) : IDecisionProvider
+    ILogger<ConfigurableDecisionProvider>? logger = null,
+    WorldJevPolicy? jevPolicy = null) : IDecisionProvider
 {
+    private readonly WorldJevPolicy jevPolicy = jevPolicy ?? new WorldJevPolicy();
     private static readonly HashSet<string> RoutineCandidateIds = new(StringComparer.Ordinal)
     {
         "consume_food",
@@ -546,17 +589,19 @@ public sealed partial class ConfigurableDecisionProvider(
             var primary = selected.PlanningProvider != PlayerDecisionProviders.Deterministic
                 ? selected.PlanningProvider
                 : selected.RoutineProvider;
+            if (primary == PlayerDecisionProviders.Jev && !jevPolicy.Capture().Enabled)
+                primary = PlayerDecisionProviders.Deterministic;
             return MapKind(primary);
         }
     }
 
-    public long ProviderEpoch => configuration.CaptureRuntimeConfiguration().Revision;
+    public long ProviderEpoch => checked(configuration.CaptureRuntimeConfiguration().Revision + jevPolicy.Capture().Revision);
 
     public DecisionProviderKind KindFor(InhabitantObservation observation)
     {
         ArgumentNullException.ThrowIfNull(observation);
         var selected = configuration.CaptureRuntimeConfiguration();
-        return MapKind(ProviderFor(selected, observation));
+        return MapKind(ProviderFor(selected, observation, jevPolicy.Capture().Enabled).Provider);
     }
 
     public async ValueTask<CognitionDecisionResponse> DecideAsync(
@@ -565,17 +610,19 @@ public sealed partial class ConfigurableDecisionProvider(
     {
         ArgumentNullException.ThrowIfNull(request);
         var selected = configuration.CaptureRuntimeConfiguration();
-        if (request.ProviderEpoch != selected.Revision)
+        var worldJev = jevPolicy.Capture();
+        var providerEpoch = checked(selected.Revision + worldJev.Revision);
+        if (request.ProviderEpoch != providerEpoch)
         {
             throw new InvalidOperationException("The cognition provider changed after this request was issued.");
         }
 
         var isRoutine = IsRoutine(request.Observation);
         var role = isRoutine ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole;
-        var providerId = ProviderFor(selected, request.Observation);
+        var routing = ProviderFor(selected, request.Observation, worldJev.Enabled);
+        var providerId = routing.Provider;
         var credential = CredentialFor(selected, providerId);
-        var assignment = AssignmentFor(selected, request.Observation);
-        if (assignment?.Model is { } model)
+        if (routing.Assignment?.Model is { } model)
         {
             credential = credential with { Model = model };
         }
@@ -587,19 +634,19 @@ public sealed partial class ConfigurableDecisionProvider(
                 () => credential.ApiKey,
                 PlayerDecisionProviders.JevEndpoint,
                 credential.Model,
-                providerEpoch: selected.Revision),
+                providerEpoch: providerEpoch),
             PlayerDecisionProviders.OpenAi => new OpenAiCompatibleDecisionProvider(
                 httpClientFactory.CreateClient("model"),
                 () => credential.ApiKey,
                 PlayerDecisionProviders.OpenAiEndpoint,
                 credential.Model,
-                providerEpoch: selected.Revision),
+                providerEpoch: providerEpoch),
             PlayerDecisionProviders.OllamaCloud => new OpenAiCompatibleDecisionProvider(
                 httpClientFactory.CreateClient("model"),
                 () => credential.ApiKey,
                 PlayerDecisionProviders.OllamaCloudEndpoint,
                 credential.Model,
-                providerEpoch: selected.Revision),
+                providerEpoch: providerEpoch),
             _ => throw new InvalidOperationException("Unsupported cognition provider configuration."),
         };
 
@@ -626,7 +673,7 @@ public sealed partial class ConfigurableDecisionProvider(
             return response with
             {
                 Provider = MapKind(providerId),
-                ProviderEpoch = selected.Revision,
+                ProviderEpoch = providerEpoch,
                 Usage = new CognitionUsage(
                     response.Usage?.ModelId ?? (string.IsNullOrWhiteSpace(credential.Model) ? null : credential.Model),
                     response.Usage?.InputTokens ?? 0, response.Usage?.OutputTokens ?? 0,
@@ -668,17 +715,28 @@ public sealed partial class ConfigurableDecisionProvider(
         }
     }
 
-    private static string ProviderFor(
+    private static (string Provider, InhabitantProviderAssignment? Assignment) ProviderFor(
         RuntimeProviderConfiguration configuration,
-        InhabitantObservation observation)
+        InhabitantObservation observation,
+        bool jevEnabled)
     {
-        return AssignmentFor(configuration, observation)?.Provider ??
-            (IsRoutine(observation) ? configuration.RoutineProvider : configuration.PlanningProvider);
+        var routine = IsRoutine(observation);
+        var role = routine ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole;
+        var assigned = AssignmentFor(configuration, observation.InhabitantId, role);
+        var provider = assigned?.Provider ?? (routine ? configuration.RoutineProvider : configuration.PlanningProvider);
+        if (routine && provider == PlayerDecisionProviders.Jev && !jevEnabled)
+        {
+            // Jev is a world-level helper, never a requirement for an agent to
+            // continue. Prefer this agent's personal planner, then the world
+            // planner, and finally local safe decisions when no model is set.
+            assigned = AssignmentFor(configuration, observation.InhabitantId, PlayerDecisionProviders.PlanningRole);
+            provider = assigned?.Provider ?? configuration.PlanningProvider;
+        }
+        return (provider, assigned);
     }
 
-    private static InhabitantProviderAssignment? AssignmentFor(RuntimeProviderConfiguration configuration, InhabitantObservation observation) =>
-        configuration.Assignments?.FirstOrDefault(item => item.InhabitantId == observation.InhabitantId &&
-            item.Role == (IsRoutine(observation) ? PlayerDecisionProviders.RoutineRole : PlayerDecisionProviders.PlanningRole));
+    private static InhabitantProviderAssignment? AssignmentFor(RuntimeProviderConfiguration configuration, string inhabitantId, string role) =>
+        configuration.Assignments?.FirstOrDefault(item => item.InhabitantId == inhabitantId && item.Role == role);
 
     private static bool IsRoutine(InhabitantObservation observation) =>
         observation.Candidates.All(candidate => RoutineCandidateIds.Contains(candidate.Id) || candidate.Id.StartsWith("care:", StringComparison.Ordinal));

@@ -115,6 +115,7 @@ public partial class Main : Control
     private readonly OptionButton clockFormatChoice = new();
     private readonly OptionButton dateFormatChoice = new();
     private readonly OptionButton lifePaceChoice = new();
+    private readonly CheckBox jevAssistanceToggle = new();
     private readonly Button applyLifePaceButton = new();
     private int? lastObservedLifePace;
     private string? lastLifePaceWorldId;
@@ -272,6 +273,12 @@ public partial class Main : Control
             if (clockLabel.Text != "01-02-0001 · 00:00" ||
                 !worldInfoText.Text.Contains("40 days/year", StringComparison.Ordinal))
                 throw new InvalidOperationException("The HUD must use the world's saved calendar pace, not a hard-coded day length.");
+            Render(sample with { JevEnabled = true }, []);
+            if (!jevAssistanceToggle.ButtonPressed)
+                throw new InvalidOperationException("World Settings must reflect this world's saved Jev assistance choice.");
+            Render(sample with { JevEnabled = false }, []);
+            if (jevAssistanceToggle.ButtonPressed)
+                throw new InvalidOperationException("World Settings must show when Jev assistance is off.");
             Render(sample, []);
             RenderDesignPackages(sample);
             if (designPackages.ItemCount != 1 || !designPackages.GetItemText(0).Contains("proposed by builder-test", StringComparison.Ordinal))
@@ -975,6 +982,16 @@ public partial class Main : Control
         });
     }
 
+    private async Task SaveJevAssistanceAsync(bool enabled)
+    {
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        await RunOwnerActionAsync(async () =>
+        {
+            _ = await ownerApi.SetJevAssistanceAsync(ResolveWorldUri(), authority, deviceId, enabled, signer, CancellationToken.None);
+            return enabled ? "Jev assistance enabled for this world" : "Jev assistance disabled for this world";
+        });
+    }
+
     private async Task RefreshProviderConfigurationAsync()
     {
         cognitionApiKeyInput.Text = string.Empty;
@@ -1102,15 +1119,17 @@ public partial class Main : Control
             AddProviderChoice("Use world default", "inherit");
         }
         AddProviderChoice("Deterministic", "deterministic");
-        if (SelectedRoleId() == "routine")
+        if (SelectedRoleId() == "routine" && SelectedCognitionTarget() is null)
         {
             AddProviderChoice("Jev", "jev");
         }
-        else
+        if (SelectedRoleId() == "planning" || SelectedCognitionTarget() is not null)
         {
             AddProviderChoice("OpenAI", "openai");
             AddProviderChoice("Ollama Cloud", "ollama-cloud");
         }
+        if (SelectedCognitionTarget() is not null && selectedProvider == "jev")
+            AddProviderChoice("Jev (legacy assignment)", "jev");
 
         SelectProviderChoice(selectedProvider);
     }
@@ -1554,7 +1573,7 @@ public partial class Main : Control
 
         cognitionRoleChoice.AddItem("Routine survival");
         cognitionRoleChoice.AddItem("Planning and work");
-        cognitionRoleChoice.TooltipText = "Routine handles daily needs. Planning chooses projects. Both roles can use different providers.";
+        cognitionRoleChoice.TooltipText = "Routine handles daily needs; planning chooses projects. Agent models may handle either role. Jev assistance is switched on or off for the whole world.";
         cognitionRoleChoice.ItemSelected += _ =>
         {
             cognitionApiKeyInput.Text = string.Empty;
@@ -1992,6 +2011,11 @@ public partial class Main : Control
         });
         prototypePaceBody.AddChild(lifePaceRow);
         developerBody.AddChild(NewPanel("Prototype aging override", prototypePaceBody));
+
+        jevAssistanceToggle.Text = "Allow Jev assistance in this world";
+        jevAssistanceToggle.TooltipText = "Jev is used only if configured. When off, work Jev would have handled goes to that agent's personal planning model, the world planner, or the local safe fallback. Memories and provider keys remain intact.";
+        jevAssistanceToggle.Toggled += enabled => _ = SaveJevAssistanceAsync(enabled);
+        worldSettingsContent.AddChild(jevAssistanceToggle);
 
         BuildCognitionSettingsPanel();
         worldSettingsContent.AddChild(cognitionSettingsPanel);
@@ -2470,6 +2494,7 @@ public partial class Main : Control
     private void Render(OwnerWorldSnapshot snapshot, IReadOnlyList<OwnerWorldEvent> appendedEvents)
     {
         observedCalendarPace = snapshot.CalendarPace;
+        jevAssistanceToggle.SetPressedNoSignal(snapshot.JevEnabled == true);
         if (cameraWorldId is not null && cameraWorldId != snapshot.WorldId)
         {
             knownEvents.Clear();
@@ -3082,6 +3107,9 @@ public partial class Main : Control
             string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal));
         var actionDisabled = !paired || isOwnerAction || pendingSubmission is not null;
         var supportsLifePace = snapshot?.LifePaceRate is not null;
+        var supportsJevAssistance = snapshot?.JevEnabled is not null &&
+            observationSession.Current?.Handshake.ServerCapabilities.Contains("owner-jev-assistance.v1", StringComparer.Ordinal) == true;
+        jevAssistanceToggle.Disabled = actionDisabled || !paused || !supportsJevAssistance;
         applyLifePaceButton.Disabled = actionDisabled || !paused || !supportsLifePace;
         lifePaceChoice.Disabled = actionDisabled || !paused || !supportsLifePace;
         applyLifePaceButton.TooltipText = !supportsLifePace ? "This host does not support life pacing." :
@@ -3124,7 +3152,8 @@ public partial class Main : Control
         cognitionProviderChoice.Disabled = actionDisabled;
         cognitionModelInput.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
         cognitionApiKeyInput.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
-        saveCognitionProviderButton.Disabled = actionDisabled;
+        saveCognitionProviderButton.Disabled = actionDisabled ||
+            SelectedCognitionTarget() is not null && SelectedProviderId() == "jev";
         refreshCognitionProviderButton.Disabled = actionDisabled;
         var selectedProvider = SelectedProviderId();
         var selectedProviderStatus = providerConfiguration?.Providers.FirstOrDefault(item =>

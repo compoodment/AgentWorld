@@ -48,6 +48,15 @@ candidate legality. Other agents and world systems continue while it waits.
 Pause, lost client presence and quit cancel the host task without inventing a
 strategic answer; a restored world can retry its saved queue entry. Historical
 fixture methods still support synchronous provider dispatch for isolated tests.
+The private save also owns Jev availability. Changing it requires a paused
+world, cancels pending hosted work and changes the provider epoch. If Jev is
+off, decisions previously routed to Jev use the inhabitant's personal planning
+provider, then the world planning provider, then deterministic safe action.
+The provider credentials remain installation-local and are not erased by this
+world switch. An older saved world retains its prior format and default-on
+behavior until the setting changes; the first change writes private-world
+schema 15 so older hosts cannot silently discard the world choice.
+Jev-assisted memory compaction is not implemented yet.
 
 ## Authority and failure boundaries
 

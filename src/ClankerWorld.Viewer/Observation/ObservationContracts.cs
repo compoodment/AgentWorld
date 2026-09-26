@@ -220,6 +220,7 @@ public sealed record ViewerWorldSnapshot(
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
     public ViewerCalendarPace? CalendarPace { get; init; }
+    public bool? JevEnabled { get; init; }
     /// <summary>
     /// The inspectable population projection. <see cref="Actor"/> remains for
     /// backwards-compatible Phase 2 diagnostic clients.

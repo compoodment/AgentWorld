@@ -37,6 +37,7 @@ public sealed record OwnerReconnectAction(long AfterEventId);
 
 public sealed record OwnerControlAction(string Operation);
 public sealed record OwnerLifePaceAction(int Rate);
+public sealed record OwnerJevAssistanceAction(bool Enabled);
 
 public sealed record OwnerPairingApprovalAction(string PairingId, string PairingCode);
 
@@ -142,6 +143,9 @@ public static class OwnerHttpBinding
 
     public static string LifePacePayload(OwnerLifePaceAction action) =>
         "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
+
+    public static string JevAssistancePayload(OwnerJevAssistanceAction action) =>
+        "clankerworld.owner-jev-assistance.v1\nenabled=" + action.Enabled.ToString().ToLowerInvariant();
 
     public static string PairingApprovalPayload(OwnerPairingApprovalAction action) => string.Join(
         '\n',

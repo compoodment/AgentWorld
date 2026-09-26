@@ -80,6 +80,7 @@ builder.Services.AddSingleton<IOwnerApprovedAssetReferencePolicy>(approvedAssetC
 builder.Services.AddSingleton(approvedAssetCatalog);
 builder.Services.AddHttpClient("typesafe");
 builder.Services.AddHttpClient("model");
+builder.Services.AddSingleton<WorldJevPolicy>();
 builder.Services.AddSingleton(new ProviderConfigurationStore(
     providerConfigurationPath,
     new ProviderConfigurationSeed(
@@ -103,9 +104,12 @@ builder.Services.AddSingleton<OwnerWorldRuntime>(services => services
 builder.Services.AddSingleton<PrivateWorldStateFile>(services => new PrivateWorldStateFile(
     privateRuntimeStatePath,
     _ => services.GetRequiredService<IDecisionProvider>()));
-builder.Services.AddSingleton<PrivateWorldRuntime>(services => services
-    .GetRequiredService<PrivateWorldStateFile>()
-    .LoadOrCreate(runtimeSeed));
+builder.Services.AddSingleton<PrivateWorldRuntime>(services =>
+{
+    var runtime = services.GetRequiredService<PrivateWorldStateFile>().LoadOrCreate(runtimeSeed);
+    services.GetRequiredService<WorldJevPolicy>().Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+    return runtime;
+});
 builder.Services.AddSingleton<OwnerWorldObservationStore>(services => isPrivateWorld
     ? new OwnerWorldObservationStore(services.GetRequiredService<PrivateWorldRuntime>())
     : new OwnerWorldObservationStore(services.GetRequiredService<OwnerWorldRuntime>()));
@@ -332,6 +336,36 @@ app.MapPost("/api/v1/owner/control/life-pace", (
     services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
     if (changed) OwnerLifePaceTelemetry.Changed(logger, runtime.WorldTick, request.Action.Rate);
     return Results.Ok(OwnerControlReceipt.From("life_pace", changed, observations.GetSnapshot()));
+});
+
+app.MapPost("/api/v1/owner/control/jev-assistance", (
+    OwnerSignedHttpRequest<OwnerJevAssistanceAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services,
+    OwnerWorldObservationStore observations,
+    WorldJevPolicy jevPolicy,
+    ILogger<PrivateWorldRuntimeService> logger) =>
+{
+    if (request?.Action is null)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = ["A Jev setting is required."] });
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/control/jev-assistance",
+        OwnerHttpBinding.JevAssistancePayload(request.Action));
+    if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (!isPrivateWorld) return Results.Conflict(new { error = "Jev assistance requires a private world." });
+    var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+    bool changed;
+    try
+    {
+        changed = runtime.SetJevEnabled(request.Action.Enabled);
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.Conflict(new { error = "Pause the world before changing Jev assistance." });
+    }
+    jevPolicy.Set(runtime.JevEnabled, runtime.JevPolicyRevision);
+    services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+    if (changed) OwnerJevAssistanceTelemetry.Changed(logger, runtime.WorldTick, runtime.JevEnabled);
+    return Results.Ok(OwnerControlReceipt.From("jev_assistance", changed, observations.GetSnapshot()));
 });
 
 app.MapPost("/api/v1/owner/control/pause", (

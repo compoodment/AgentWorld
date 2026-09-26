@@ -17,6 +17,7 @@ public static class OwnerPairingEndpoints
     public const string OwnerReconnect = "/api/v1/owner/reconnect";
     public const string OwnerPause = "/api/v1/owner/control/pause";
     public const string OwnerLifePace = "/api/v1/owner/control/life-pace";
+    public const string OwnerJevAssistance = "/api/v1/owner/control/jev-assistance";
     public const string OwnerResume = "/api/v1/owner/control/resume";
     public const string OwnerInstructions = "/api/v1/owner/instructions";
     public const string OwnerAuthoring = "/api/v1/owner/authoring";
