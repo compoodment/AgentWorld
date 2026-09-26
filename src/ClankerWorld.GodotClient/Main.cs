@@ -162,6 +162,7 @@ public partial class Main : Control
     private OwnerPendingSubmission? pendingSubmission;
     private string? selectedInhabitantId;
     private bool isRefreshing;
+    private int successfulRefreshCount;
     private bool isPairingOperation;
     private bool isOwnerAction;
     private bool registeredEndpointInvalid;
@@ -187,6 +188,7 @@ public partial class Main : Control
     {
         displayPreferences = displayPreferencesStore.Load();
         BuildLayout();
+        ShowMainMenu();
         if (OS.GetCmdlineUserArgs().Contains("--ui-smoke-test", StringComparer.Ordinal))
         {
             _ = VerifyMenuLayoutAsync();
@@ -209,6 +211,22 @@ public partial class Main : Control
     {
         try
         {
+            foreach (var size in new[] { new Vector2I(1280, 720), new Vector2I(1024, 768) })
+            {
+                GetWindow().Size = size;
+                for (var frame = 0; frame < 3; frame++)
+                    await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (!mainMenuOverlay.GetGlobalRect().Encloses(mainMenuCard.GetGlobalRect()) ||
+                    mainMenuOverlay.GetGlobalRect().GetCenter().DistanceTo(mainMenuCard.GetGlobalRect().GetCenter()) > 2)
+                    throw new InvalidOperationException($"Main Menu escaped its centered bounds at {size}.");
+            }
+            OpenMainMenuSettings();
+            if (mainMenuOverlay.Visible || !gameMenuPanel.Visible || !gameSettingsContent.Visible)
+                throw new InvalidOperationException("Main Menu Settings must open Game Settings.");
+            await CloseGameMenuAsync();
+            if (!mainMenuOverlay.Visible || gameMenuPanel.Visible)
+                throw new InvalidOperationException("Closing Game Settings must return to the Main Menu.");
+            mainMenuOverlay.Hide();
             pairingPanel.Hide();
             developerScroll.Hide();
             gameMenuPanel.Show();
@@ -481,7 +499,7 @@ public partial class Main : Control
             if (!quitGameConfirmation.Visible)
                 throw new InvalidOperationException("Quit Game must ask for confirmation before exiting.");
             quitGameConfirmation.Hide();
-            GD.Print("UI checks passed: menus/workbench, confirmed quit, settlement panel, resource hover, building footprints, zoom, middle-drag, WASD, overview navigation, event jumps, event pop-ups, private thoughts, memories, deceased inspection and family tree.");
+            GD.Print("UI checks passed: startup Main Menu and settings, in-world menus/workbench, confirmed quit, settlement panel, resource hover, building footprints, zoom, middle-drag, WASD, overview navigation, event jumps, event pop-ups, private thoughts, memories, deceased inspection and family tree.");
             GetTree().Quit();
         }
         catch (Exception exception)
@@ -506,9 +524,7 @@ public partial class Main : Control
             registration = registrationStore.TryLoad(deviceKey.PublicKeyFingerprint);
             if (registration is null)
             {
-                pairingPanel.Show();
-                OpenMenuForSetup();
-                await StartPairingAsync();
+                RefreshMainMenuAvailability();
                 return;
             }
 
@@ -532,8 +548,8 @@ public partial class Main : Control
             pairingPanel.Hide();
             settingsPanel.Hide();
             CloseGameMenu();
-            SetStatus("paired device loaded · requesting signed owner observation", good: true);
-            await RefreshAsync();
+            RefreshMainMenuAvailability();
+            SetStatus("paired device loaded · continue from Main Menu", good: true);
         }
         catch (Exception exception)
         {
@@ -553,7 +569,7 @@ public partial class Main : Control
             return;
         }
 
-        if (registration is not null && !registeredEndpointInvalid)
+        if (isInWorld && registration is not null && !registeredEndpointInvalid)
         {
             await RefreshAsync();
         }
@@ -708,8 +724,8 @@ public partial class Main : Control
             pairingPanel.Hide();
             settingsPanel.Hide();
             CloseGameMenu();
-            SetStatus("device paired · requesting signed owner observation", good: true);
-            await RefreshAsync();
+            ShowMainMenu();
+            SetStatus("device paired · continue from Main Menu", good: true);
         }
         catch (Exception exception)
         {
@@ -771,6 +787,7 @@ public partial class Main : Control
                 knownEvents.Clear();
             }
             Render(reconnect.Baseline.Snapshot, reconnect.Baseline.Events.Events);
+            successfulRefreshCount++;
             if (!isOwnerAction)
             {
                 SetStatus(string.Empty, good: true);
@@ -1525,6 +1542,7 @@ public partial class Main : Control
         BuildOwnerColumn(mapCanvas);
         BuildStatusToast(mapCanvas);
         BuildCreationWorkbench();
+        BuildMainMenu();
 
         Resized += ApplyResponsiveLayout;
         ApplyResponsiveLayout();
@@ -2009,9 +2027,9 @@ public partial class Main : Control
         worldSettingsButton.Pressed += () => ToggleSettingsSection(worldSpecific: true);
         menuActions.AddChild(worldSettingsButton);
 
-        var creationButton = new Button { Text = "Create" };
-        StyleButton(creationButton);
-        creationButton.Pressed += () =>
+        menuCreationButton.Text = "Create";
+        StyleButton(menuCreationButton);
+        menuCreationButton.Pressed += () =>
         {
             creationOverlay.Show();
             designStatus.Text = observationSession.Current?.Handshake.ServerCapabilities.Contains("owner-building-design.v1", StringComparer.Ordinal) == true
@@ -2019,7 +2037,7 @@ public partial class Main : Control
                 : "Connect to a paired host that supports the building workbench.";
             RefreshCreationAvailability();
         };
-        menuActions.AddChild(creationButton);
+        menuActions.AddChild(menuCreationButton);
 
         developerToggleButton.Text = "Developer tools";
         StyleButton(developerToggleButton);
@@ -2030,6 +2048,11 @@ public partial class Main : Control
             ApplyResponsiveLayout();
         };
         menuActions.AddChild(developerToggleButton);
+
+        menuQuitToMainButton.Text = "Quit to Menu";
+        StyleButton(menuQuitToMainButton);
+        menuQuitToMainButton.Pressed += () => quitToMenuConfirmation.PopupCentered(new Vector2I(470, 180));
+        menuActions.AddChild(menuQuitToMainButton);
 
         quitGameButton.Text = "Quit Game";
         StyleButton(quitGameButton);
@@ -2486,6 +2509,9 @@ public partial class Main : Control
         eventsPanel.Hide();
         familyTreePanel.Hide();
         memoriesPanel.Hide();
+        returnToMainMenu = false;
+        menuResumeButton.Text = "Resume";
+        SetWorldMenuActionsVisible(true);
         menuHeadingLabel.Text = "Paused";
         settlementPanel.Hide();
         gameMenuPanel.Show();
@@ -2502,6 +2528,12 @@ public partial class Main : Control
 
     private async Task CloseGameMenuAsync()
     {
+        if (returnToMainMenu)
+        {
+            CloseGameMenu();
+            ShowMainMenu();
+            return;
+        }
         var resumeWorld = menuPausedWorld;
         CloseGameMenu();
         if (resumeWorld)
@@ -2522,7 +2554,11 @@ public partial class Main : Control
 
     private void OpenMenuForSetup()
     {
+        returnToMainMenu = true;
+        mainMenuOverlay.Hide();
         menuPausedWorld = false;
+        menuResumeButton.Text = "Back to Main Menu";
+        SetWorldMenuActionsVisible(false);
         menuHeadingLabel.Text = "Set up your world";
         gameMenuPanel.Show();
         menuShade.Show();
@@ -3516,7 +3552,7 @@ public partial class Main : Control
 
     public override void _UnhandledKeyInput(InputEvent @event)
     {
-        if (@event is not InputEventKey { Pressed: true } key || gameMenuPanel.Visible ||
+        if (@event is not InputEventKey { Pressed: true } key || mainMenuOverlay.Visible || gameMenuPanel.Visible ||
             creationOverlay.Visible || GetViewport().GuiGetFocusOwner() is LineEdit or TextEdit)
         {
             return;

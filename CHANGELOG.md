@@ -8,6 +8,15 @@ release yet.
 
 ### Added
 
+- The Windows client now starts at a Main Menu with Continue, Settings,
+  connection/pairing and Quit Game. Quit to Menu pauses the host world; Continue
+  returns to it. New World and Load World are shown as unavailable until those
+  flows actually work.
+
+- Building placement now has an explicit buildable-ground rule. The existing
+  mountain tiles reject construction, including owner-authored placement;
+  future peak terrain is also reserved as no-build ground.
+
 - A fresh private world now opens with an empty two-household base camp. The
   paired player picks a provider, model and saved or new API key for each of
   four unrelated founders, then places them on empty map tiles. Progress is

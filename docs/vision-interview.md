@@ -18,7 +18,7 @@ This file is the **living ledger of computment's intended finished-game
 experience** during the interview. A decision here is not a claim that the
 current ClankerWorld prototype implements it, nor an instruction to build every
 accepted feature immediately. The repository's current-state and architecture
-documents must describe what actually runs; its roadmap chooses implementation
+documents must describe what actually runs; this ledger guides implementation
 order. This ledger is versioned in the game repository as the single authority
 for owner intent, with the former workspace path retained as a pointer for
 continuity.
@@ -348,7 +348,9 @@ accounting details need design and playtesting.
   that does not imply 3D graphics or 3D gameplay.
 - Agents can reshape some terrain through activity. They can cross water with
   crafted boats and shore-connected ports and can later invent improvements.
-  Roads exist and influence travel and building placement.
+  Roads exist and influence travel and building placement. **Mountain and peak
+  tiles cannot hold construction**—including buildings, farms and roads. Travel
+  rules for those elevations are a separate decision.
 
 ### Open
 
@@ -371,6 +373,8 @@ when wrapping is enabled. River abundance, width, crossings, seasonal behavior,
 and exact effects on farms and settlements remain open. Noise is a candidate
 for the terrain fields, not a substitute for drainage routing. Relevant
 references: [Red Blob's noise-map guide](https://www.redblobgames.com/maps/terrain-from-noise/),
+[the polygon-map guide](https://xenon.stanford.edu/~amitp/game-programming/polygon-map-generation/),
+[the Voronoi river tutorial](https://www.redblobgames.com/x/2022-voronoi-maps-tutorial/),
 [Mapgen4's rivers and rainfall](https://www.redblobgames.com/maps/mapgen4/),
 and the [FastNoiseLite library](https://github.com/Auburn/FastNoiseLite).
 

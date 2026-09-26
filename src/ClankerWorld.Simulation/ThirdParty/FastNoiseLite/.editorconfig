@@ -1,0 +1,5 @@
+[FastNoiseLite.cs]
+generated_code = true
+dotnet_diagnostic.CA1050.severity = none
+dotnet_diagnostic.CA1805.severity = none
+dotnet_diagnostic.CA1822.severity = none

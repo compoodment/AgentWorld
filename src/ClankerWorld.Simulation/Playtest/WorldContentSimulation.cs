@@ -220,7 +220,7 @@ public static class WorldContentSimulationRules
         ArgumentNullException.ThrowIfNull(existingBuildings);
         ArgumentNullException.ThrowIfNull(definition);
         var footprint = Footprint(definition, position).ToArray();
-        if (footprint.Any(point => !map.IsPassable(point)))
+        if (footprint.Any(point => !map.IsBuildable(point)))
         {
             return false;
         }
@@ -267,7 +267,7 @@ public static class WorldContentSimulationRules
     }
 
     public static bool IsFertileLandPosition(SeededMap map, GridPoint position) =>
-        map.Resources.Any(resource =>
+        map.IsBuildable(position) && map.Resources.Any(resource =>
             resource.Id == SeededMapGenerator.FertileLandResourceId &&
             resource.Kind == "fertile_land" &&
             resource.Position == position);

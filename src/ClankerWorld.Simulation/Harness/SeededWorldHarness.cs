@@ -52,6 +52,11 @@ public sealed record SeededMap(
     public bool IsPassable(GridPoint point) =>
         Contains(point) && Tiles.Single(tile => tile.Position == point).Terrain == TerrainKind.Meadow;
 
+    // Construction eligibility is separate from travel: future mountain
+    // paths must not silently become build sites when traversal is expanded.
+    public bool IsBuildable(GridPoint point) =>
+        Contains(point) && Tiles.Single(tile => tile.Position == point).Terrain == TerrainKind.Meadow;
+
     public CampObject GetObject(string id) =>
         CampObjects.Single(mapObject => string.Equals(mapObject.Id, id, StringComparison.Ordinal));
 

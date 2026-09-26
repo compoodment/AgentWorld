@@ -1551,9 +1551,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         out string failure)
     {
         var footprint = WorldContentSimulationRules.Footprint(definition, position).ToArray();
-        if (footprint.Any(point => !map.IsPassable(point)))
+        if (footprint.Any(point => !map.IsBuildable(point)))
         {
-            failure = "Every building footprint tile must be inside the map on passable ground.";
+            failure = "Every building footprint tile must be on buildable ground; mountains and peaks cannot hold buildings.";
             return false;
         }
 

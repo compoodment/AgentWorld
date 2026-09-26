@@ -1681,6 +1681,10 @@ public sealed class OwnerWorldRuntime
                 return;
 
             case PlaceBuildingOperation placeBuilding:
+                if (!candidate.Map.IsBuildable(placeBuilding.Position))
+                {
+                    throw new InvalidOperationException("Buildings require buildable ground; mountains and peaks are not build sites.");
+                }
                 candidate.Map = PlaceObject(candidate.Map, placeBuilding.Id, placeBuilding.BuildingKind, placeBuilding.Position);
                 candidate.MapTouched = true;
                 return;

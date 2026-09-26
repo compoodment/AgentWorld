@@ -127,6 +127,32 @@ in-world founder setup, private-memory inspection, optional AI-usage stop,
 Jev toggle, safe agent inventions and external mods. [Current state](current-state.md)
 reports what is connected to normal play.
 
+## 2D geography prototype (not the live world)
+
+`GeographyGenerator` is a separate, deterministic tile-map primitive; it does
+not replace the current 6×5 playable map or its save format. It samples a
+vendored [FastNoiseLite](../src/ClankerWorld.Simulation/ThirdParty/FastNoiseLite/README.md)
+field for broad elevation and long-run rainfall. Wrapped worlds sample a circle
+in noise-input space and use east/west-wrapped tile neighbors; the game map
+itself remains two-dimensional. A water-coverage threshold, connected-water
+classification and ocean-outward priority drainage then identify oceans,
+lakes and upstream-accumulated river channels. The candidate size dimensions
+and river threshold are tuning targets, not finished-game promises.
+
+The design follows the separation between local noise and global hydrology in
+[Red Blob's noise guide](https://www.redblobgames.com/maps/terrain-from-noise/),
+the ocean/lake and river-flow methods in the original
+[polygon guide](https://xenon.stanford.edu/~amitp/game-programming/polygon-map-generation/)
+and its [Mapgen2 source](https://github.com/redblobgames/mapgen2), and the
+ocean-outward drainage / rainfall accumulation in
+[Mapgen4 source](https://github.com/redblobgames/mapgen4/blob/master/map.ts).
+The [Voronoi tutorial's source](https://www.redblobgames.com/x/2022-voronoi-maps-tutorial/voronoi-maps-tutorial.js)
+also makes the local-minimum failure mode explicit. ClankerWorld uses tile
+neighbors rather than importing those projects' polygon meshes. This is an
+implementation inference, not a locked terrain design: continent layout,
+climate modes, biome/object placement, map preview, chunk streaming and river
+appearance still need integration and playtesting.
+
 ## Deliberate pre-release identifier reset
 
 The application, .NET projects, Godot title, Windows executable, save/content

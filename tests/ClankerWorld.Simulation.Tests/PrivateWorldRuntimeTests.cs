@@ -239,6 +239,12 @@ public sealed partial class PrivateWorldRuntimeTests
         Assert.False(rejected.Applied);
         Assert.Equal(48, runtime.Society.Inventory.Lots.Single(item => item.Id == "wood:camp-alpha").Quantity);
 
+        var mountain = runtime.ExportState().Map.Tiles.Single(tile => tile.Terrain == TerrainKind.Mountain).Position;
+        var mountainPlacement = runtime.PlaceBuilding("mountain-kitchen", building.CanonicalId, mountain);
+        Assert.False(mountainPlacement.Applied);
+        Assert.Contains("buildable ground", mountainPlacement.Failure, StringComparison.Ordinal);
+        Assert.Equal(48, runtime.Society.Inventory.Lots.Single(item => item.Id == "wood:camp-alpha").Quantity);
+
         var placement = runtime.PlaceBuilding("camp-kitchen-one", building.CanonicalId, worker.Position);
         Assert.True(placement.Applied, placement.Failure);
         Assert.Single(runtime.WorldSimulation.Buildings);

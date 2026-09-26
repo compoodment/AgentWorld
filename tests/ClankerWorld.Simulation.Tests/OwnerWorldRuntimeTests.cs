@@ -45,6 +45,23 @@ public sealed class OwnerWorldRuntimeTests
     }
 
     [Fact]
+    public void OwnerCannotAuthorABuildingOnMountainGround()
+    {
+        var runtime = new OwnerWorldRuntime("camp-alpha");
+        Assert.True(runtime.Pause());
+        var before = runtime.Capture();
+        var mountain = before.Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Mountain).Position;
+
+        var result = runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
+            "mountain-building",
+            [new PlaceBuildingOperation("mountain-home", "shelter", mountain)]));
+
+        Assert.False(result.Applied);
+        Assert.Contains("mountains and peaks", result.Failure, StringComparison.Ordinal);
+        Assert.Equal(before.Snapshot.CurrentMapManifestDigest, runtime.Capture().Snapshot.CurrentMapManifestDigest);
+    }
+
+    [Fact]
     public void InvalidMixedPausedBatchLeavesEveryLiveProjectionUntouched()
     {
         var runtime = new OwnerWorldRuntime("camp-alpha");
