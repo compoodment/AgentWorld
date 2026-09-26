@@ -316,7 +316,27 @@ public partial class Main : Control
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.S, Pressed = true });
             if (mapStage.Position.DistanceTo(beforeKeyboardPan) < 1)
                 throw new InvalidOperationException("Keyboard panning did not move the world camera.");
-            GD.Print("UI checks passed: menus/workbench, settlement panel, resource hover, building footprints, zoom, middle-drag, WASD and overview navigation.");
+            var formerPosition = new OwnerWorldPosition(2, 2);
+            var deceased = new OwnerWorldInhabitant("archived-mira", "Mira", "dead", formerPosition,
+                5_000, 5_000, [], [new("age-band", "elder"), new("death-tick", "1")],
+                new OwnerWorldRoute("deceased", null, null, [], string.Empty),
+                new OwnerWorldSpatialKnowledge(formerPosition, [formerPosition], [formerPosition]), false);
+            var historicalSnapshot = sample with
+            {
+                WorldId = "ui-deceased",
+                Inhabitants = [deceased],
+                Resources = [],
+                PlacedBuildings = [],
+            };
+            RenderMap(historicalSnapshot);
+            RenderInhabitantList(historicalSnapshot);
+            selectedInhabitantId = deceased.Id;
+            RenderSelectedInhabitantCard(historicalSnapshot);
+            if (entityLayer.GetChildren().Any(child => !child.IsQueuedForDeletion()) ||
+                inhabitantList.ItemCount != 1 || !rosterSummaryLabel.Text.Contains("1 deceased", StringComparison.Ordinal) ||
+                !selectedInhabitantCard.Visible || !selectedActorSummaryLabel.Text.Contains("Dead", StringComparison.Ordinal))
+                throw new InvalidOperationException("A deceased inhabitant must remain inspectable without appearing as a living map actor.");
+            GD.Print("UI checks passed: menus/workbench, settlement panel, resource hover, building footprints, zoom, middle-drag, WASD, overview navigation and deceased inspection.");
             GetTree().Quit();
         }
         catch (Exception exception)
@@ -2215,7 +2235,7 @@ public partial class Main : Control
         }
 
         foreach (var group in snapshot.Inhabitants
-            .Where(inhabitant => !inhabitant.IsDraft)
+            .Where(inhabitant => !inhabitant.IsDraft && string.Equals(inhabitant.Lifecycle, "active", StringComparison.OrdinalIgnoreCase))
             .GroupBy(inhabitant => PositionKey(inhabitant.Position)))
         {
             var occupants = group.ToArray();
@@ -2265,7 +2285,7 @@ public partial class Main : Control
         }
 
         var visibleInhabitantIds = snapshot.Inhabitants
-            .Where(inhabitant => !inhabitant.IsDraft)
+            .Where(inhabitant => !inhabitant.IsDraft && string.Equals(inhabitant.Lifecycle, "active", StringComparison.OrdinalIgnoreCase))
             .Select(inhabitant => inhabitant.Id)
             .ToHashSet(StringComparer.Ordinal);
         foreach (var removedId in renderedInhabitantPositions.Keys
@@ -2355,9 +2375,11 @@ public partial class Main : Control
             .Where(inhabitant => !inhabitant.IsDraft)
             .OrderBy(inhabitant => inhabitant.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+        var living = inhabitants.Count(inhabitant => string.Equals(inhabitant.Lifecycle, "active", StringComparison.OrdinalIgnoreCase));
+        var deceased = inhabitants.Length - living;
         rosterSummaryLabel.Text = inhabitants.Length == 0
             ? "No one lives here yet."
-            : inhabitants.Length == 1 ? "1 inhabitant" : $"{inhabitants.Length} inhabitants";
+            : deceased == 0 ? $"{living} living" : $"{living} living · {deceased} deceased";
 
         for (var index = 0; index < inhabitants.Length; index++)
         {
@@ -2385,6 +2407,12 @@ public partial class Main : Control
         inhabitantDetails.Clear();
         if (inhabitant is null)
         {
+            return;
+        }
+
+        if (string.Equals(inhabitant.Lifecycle, "dead", StringComparison.OrdinalIgnoreCase))
+        {
+            inhabitantDetails.AppendText("Deceased · historical record; no current activity or carried inventory.");
             return;
         }
 
@@ -2419,9 +2447,16 @@ public partial class Main : Control
         selectedActorNameLabel.Text = inhabitant.DisplayName;
         var ageBand = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail;
         var ageYears = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-years")?.Detail;
+        var deathTick = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "death-tick")?.Detail;
+        var deathCause = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "death-cause")?.Detail;
+        var isDeceased = string.Equals(inhabitant.Lifecycle, "dead", StringComparison.OrdinalIgnoreCase);
         selectedActorSummaryLabel.Text = Pretty(inhabitant.Lifecycle) + (ageBand is null ? "" : " · " + Pretty(ageBand)) +
-            (ageYears is null ? "" : " · " + ageYears + " years");
-        var intention = inhabitant.PublicIntention is { } publicIntention
+            (ageYears is null ? "" : " · " + ageYears + " years") +
+            (deathTick is not null && long.TryParse(deathTick, CultureInfo.InvariantCulture, out var finalTick)
+                ? $" · {GameUiText.FormatWorldClock(finalTick)}" : "");
+        var intention = isDeceased
+            ? $"Life ended{(deathCause is null ? "" : " · " + Pretty(deathCause))}. No current thoughts or activity."
+            : inhabitant.PublicIntention is { } publicIntention
             ? $"Wants to {GameUiText.HumanizeIdentifier(publicIntention.Summary).ToLowerInvariant()}."
             : "Taking in their surroundings.";
         var relationships = inhabitant.Relationships.Count == 0
@@ -2447,7 +2482,7 @@ public partial class Main : Control
         var standing = inhabitant.SocialStanding.Count == 0 ? "" : "\n" + string.Join(" · ",
             inhabitant.SocialStanding.Select(item => $"Trust in {item.SubjectName} {item.Trust}/10"));
         var condition = inhabitant.Survival is { } survival
-            ? $"Warmth {survival.WarmthBasisPoints / 100}% · Illness {survival.IllnessBasisPoints / 100}%" +
+            ? $"{(isDeceased ? "At death · " : "")}Warmth {survival.WarmthBasisPoints / 100}% · Illness {survival.IllnessBasisPoints / 100}%" +
                 $" · Diet {survival.NutritionBasisPoints / 100}%\n" +
                 $"{(survival.HasClothing ? "Clothed" : "No warm clothing")} · {(survival.HasTool ? "Tool equipped" : "Working by hand")}\n" : "";
         var role = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "role")?.Detail;
@@ -2871,6 +2906,11 @@ public partial class Main : Control
         var cardWidth = Math.Min(370, Math.Max(300, mapCanvas.Size.X - 24));
         selectedInhabitantCard.CustomMinimumSize = new Vector2(cardWidth, 0);
         var cardSize = selectedInhabitantCard.GetCombinedMinimumSize();
+        if (string.Equals(inhabitant.Lifecycle, "dead", StringComparison.OrdinalIgnoreCase))
+        {
+            selectedInhabitantCard.Position = new Vector2(Math.Max(12, mapCanvas.Size.X - cardWidth - 12), 12);
+            return;
+        }
         var stride = currentTileSize + TileGap;
         var actorCenter = mapStage.Position + new Vector2(
             (inhabitant.Position.X * stride) + (currentTileSize / 2f),

@@ -8,6 +8,10 @@ release yet.
 
 ### Added
 
+- Deceased inhabitants now leave a saved, read-only record with their last
+  location, age, role, relationships and death details. They remain inspectable
+  from the inhabitant list after reload without appearing as living map actors.
+
 - The Windows world view now supports mouse-wheel zoom, WASD/arrow and
   middle-drag panning, plus a top-left Map button. Its data-drawn overview
   marks the visible area and lets players click or drag to move the camera;

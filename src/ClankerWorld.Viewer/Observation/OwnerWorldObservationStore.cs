@@ -198,6 +198,7 @@ public sealed class OwnerWorldObservationStore
             .OrderBy(item => item.Id, StringComparer.Ordinal)
             .ToArray();
         var physicalById = state.Inhabitants.ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
+        var deceasedById = (state.DeceasedInhabitants ?? []).ToDictionary(item => item.InhabitantId, StringComparer.Ordinal);
         var resourceStates = state.Resources.ToDictionary(item => item.ResourceId, item => item.State, StringComparer.Ordinal);
         var first = activeInhabitants.FirstOrDefault();
         ViewerActor? actor = null;
@@ -245,6 +246,10 @@ public sealed class OwnerWorldObservationStore
         {
             Inhabitants = activeInhabitants
                 .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]))
+                .Concat(state.Society.Society.Inhabitants
+                    .Where(inhabitant => inhabitant.Status == SocietyInhabitantStatus.Dead && deceasedById.ContainsKey(inhabitant.Id))
+                    .Select(inhabitant => ToDeceasedInhabitant(state, inhabitant, deceasedById[inhabitant.Id])))
+                .OrderBy(inhabitant => inhabitant.Id, StringComparer.Ordinal)
                 .ToArray(),
             Stockpiles = state.Society.Society.Households.Select(household =>
                 new ViewerStockpile(household.Id, household.Name, InventoryFor(state, household.Id))).ToArray(),
@@ -517,6 +522,41 @@ public sealed class OwnerWorldObservationStore
         };
     }
 
+    private static ViewerInhabitant ToDeceasedInhabitant(
+        PrivateWorldRuntimeState state,
+        SocietyInhabitant inhabitant,
+        PlaytestDeceasedInhabitantState archived)
+    {
+        var lastPhysical = archived.LastPhysical;
+        var position = ToPosition(lastPhysical.Position);
+        return new ViewerInhabitant(
+            inhabitant.Id,
+            inhabitant.Name,
+            "dead",
+            position,
+            lastPhysical.HungerBasisPoints,
+            lastPhysical.EnergyBasisPoints,
+            [],
+            [
+                new("personality", lastPhysical.Personality),
+                new("aspiration", lastPhysical.Aspiration),
+                new("age-band", inhabitant.AgeBand.ToString().ToLowerInvariant()),
+                new("age-years", archived.AgeAtDeath.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                new("role", inhabitant.CurrentRole.ToString().ToLowerInvariant()),
+                new("death-tick", archived.DeathTick.ToString(System.Globalization.CultureInfo.InvariantCulture)),
+                new("death-cause", inhabitant.DeathCause?.ToString().ToLowerInvariant() ?? "unknown"),
+            ],
+            new ViewerRoute("deceased", null, null, [], string.Empty),
+            new ViewerSpatialKnowledge(position, [position], [position]),
+            IsDraft: false)
+        {
+            Relationships = RelationshipsFor(state, inhabitant.Id),
+            Proficiency = lastPhysical.Proficiency is { } practice
+                ? new ViewerProficiency(practice.Building, practice.Farming, practice.Crafting) : null,
+            SocialStanding = SocialStandingFor(state, inhabitant.Id, lastPhysical),
+        };
+    }
+
     private static ViewerSocialStanding[] SocialStandingFor(
         PrivateWorldRuntimeState state,
         string ownerId,
@@ -542,7 +582,7 @@ public sealed class OwnerWorldObservationStore
         string inhabitantId) => state.Society.Society.Relationships
         .Where(relationship =>
             (relationship.ProposerId == inhabitantId || relationship.TargetId == inhabitantId) &&
-            relationship.State is SocietyRelationshipState.Proposed or SocietyRelationshipState.Accepted)
+            relationship.State is SocietyRelationshipState.Proposed or SocietyRelationshipState.Accepted or SocietyRelationshipState.EndedByDeath)
         .OrderBy(relationship => relationship.Type)
         .ThenBy(relationship => relationship.Id, StringComparer.Ordinal)
         .Select(relationship => new ViewerInhabitantRelationship(

@@ -29,6 +29,12 @@ public sealed record PlaytestInhabitantState(
 
 public sealed record PlaytestResourceState(string ResourceId, ResourceState State);
 
+public sealed record PlaytestDeceasedInhabitantState(
+    string InhabitantId,
+    long DeathTick,
+    int AgeAtDeath,
+    PlaytestInhabitantState LastPhysical);
+
 public sealed record PlaytestWorldEvent(
     long EventId,
     long WorldTick,
@@ -53,7 +59,8 @@ public sealed record PrivateWorldRuntimeState(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] long EventHistoryFloor = 0,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? HistoryArchiveHead = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementSurvivalState? Survival = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementCouncil? Council = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SettlementCouncil? Council = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PlaytestDeceasedInhabitantState>? DeceasedInhabitants = null);
 
 public sealed record PrivateWorldStepResult(
     bool Advanced,
@@ -71,7 +78,7 @@ public sealed record PrivateWorldStepResult(
 /// </summary>
 public sealed partial class PrivateWorldRuntime : IDisposable
 {
-    public const int StateSchemaVersion = 12;
+    public const int StateSchemaVersion = 13;
     private const string HouseholdId = "household:camp-alpha";
     private const string FoodLotId = "food:camp-alpha";
     private const string BerryResourceId = "berry-patch";
@@ -93,6 +100,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private WorldContentSimulationState worldSimulation;
     private WorldAssetReservationLedger assetReservations;
     private Dictionary<string, PlaytestInhabitantState> inhabitants = new(StringComparer.Ordinal);
+    private Dictionary<string, PlaytestDeceasedInhabitantState> deceasedInhabitants = new(StringComparer.Ordinal);
     private Dictionary<string, ResourceState> resources = new(StringComparer.Ordinal);
     private Dictionary<string, OwnerQueuedInstruction> instructionsByIdempotency =
         new(StringComparer.Ordinal);
@@ -225,6 +233,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             runtime.inhabitants.Add(inhabitant.InhabitantId, inhabitant);
         }
+        runtime.deceasedInhabitants.Clear();
+        foreach (var inhabitant in state.DeceasedInhabitants ?? [])
+        {
+            runtime.deceasedInhabitants.Add(inhabitant.InhabitantId, inhabitant);
+        }
 
         runtime.resources.Clear();
         foreach (var resource in state.Resources)
@@ -342,6 +355,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         worldSimulation = proposed.worldSimulation;
         assetReservations = proposed.assetReservations;
         inhabitants = proposed.inhabitants;
+        deceasedInhabitants = proposed.deceasedInhabitants;
         resources = proposed.resources;
         instructionsByIdempotency = proposed.instructionsByIdempotency;
         instructionReceipts = proposed.instructionReceipts;
@@ -988,6 +1002,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             throw new InvalidDataException("The private-world physical and society populations disagree.");
         }
+        ValidateDeceasedArchive(deceasedInhabitants.Values, society.Checkpoint, map, checkpointSchemaVersion);
 
         foreach (var inhabitant in inhabitants.Values)
         {
@@ -1069,7 +1084,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         worldSystems,
         worldContent,
         worldSimulation,
-        assetReservations.ExportState(), eventHistoryFloor, historyArchiveHead, survivalState, council);
+        assetReservations.ExportState(), eventHistoryFloor, historyArchiveHead, survivalState, council,
+        deceasedInhabitants.Count == 0 ? null : deceasedInhabitants.Values.OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray());
 
     public DeclarativeWorldContentState WorldContent => worldContent;
 
@@ -1713,7 +1729,12 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             .ToHashSet(StringComparer.Ordinal);
         foreach (var id in inhabitants.Keys.Where(id => !activeIds.Contains(id)).ToArray())
         {
+            var deceased = society.Checkpoint.GetInhabitant(id);
+            var deathTick = deceased.DeathTick ?? throw new InvalidDataException("A removed inhabitant has no committed death.");
+            deceasedInhabitants.Add(id, new PlaytestDeceasedInhabitantState(
+                id, deathTick, society.Checkpoint.AgeAt(deceased, deathTick), inhabitants[id]));
             inhabitants.Remove(id);
+            checkpointSchemaVersion = StateSchemaVersion;
             AppendEvent("inhabitant_removed", id);
         }
     }
@@ -2572,6 +2593,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             throw new InvalidDataException("The saved private-world populations disagree.");
         }
+        ValidateDeceasedArchive(state.DeceasedInhabitants ?? [], state.Society.Society, state.Map, state.SchemaVersion);
         foreach (var inhabitant in state.Inhabitants)
         {
             if (inhabitant.Project is { } project)
@@ -2582,6 +2604,32 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 }
                 ValidateProject(project, state.Society.Society.WorldTick);
             }
+        }
+    }
+
+    private static void ValidateDeceasedArchive(
+        IEnumerable<PlaytestDeceasedInhabitantState> archive,
+        SocietyCheckpoint society,
+        SeededMap map,
+        int schemaVersion)
+    {
+        var archived = archive.ToArray();
+        if (archived.Length > 0 && schemaVersion < 13)
+            throw new InvalidDataException("Deceased inhabitant archives require private-world schema 13.");
+        if (archived.Select(item => item.InhabitantId).Distinct(StringComparer.Ordinal).Count() != archived.Length)
+            throw new InvalidDataException("The deceased inhabitant archive contains duplicate identities.");
+        var deceasedById = society.Inhabitants
+            .Where(item => item.Status == SocietyInhabitantStatus.Dead)
+            .ToDictionary(item => item.Id, StringComparer.Ordinal);
+        foreach (var person in archived)
+        {
+            if (!deceasedById.TryGetValue(person.InhabitantId, out var deceased) ||
+                deceased.DeathTick != person.DeathTick || person.DeathTick < 0 || person.DeathTick > society.WorldTick ||
+                person.AgeAtDeath < 0 || person.LastPhysical.InhabitantId != person.InhabitantId ||
+                !map.IsPassable(person.LastPhysical.Position) ||
+                person.LastPhysical.HungerBasisPoints is < 0 or > 10_000 ||
+                person.LastPhysical.EnergyBasisPoints is < 0 or > 10_000)
+                throw new InvalidDataException("The deceased inhabitant archive contains an invalid final state.");
         }
     }
 

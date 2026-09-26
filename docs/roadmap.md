@@ -54,7 +54,9 @@ Personal cognition, bounded private memory, conversations, childhood,
 caregiving, aging, deaths/wills, family-tree history, learning, ownership,
 trade, settlements and breakable laws must form actual in-world loops. Expand
 ecology, health, clothing, buildings, land, livestock and consequential but
-not constant combat alongside them. Jev remains optional.
+not constant combat alongside them. Jev remains optional. The saved deceased
+record is an initial inspection foundation; interactive family-tree links,
+private memory history and wills are still to be built.
 
 **Gate:** a representative world survives across generations with explainable
 social and material consequences. Private knowledge does not teleport between

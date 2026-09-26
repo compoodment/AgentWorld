@@ -56,6 +56,12 @@ the chosen finished-game calendar or pace.
   the player is not automatically known to every agent. Current client access
   to private memories is limited; the vision-ledger's inspectable Thoughts and
   Memories UI is **not yet implemented**.
+- Live physical actors remain separate from saved deceased records. On death,
+  the runtime archives the last physical state and frozen age alongside the
+  society death record, then removes the actor from active movement and work.
+  Owner observations expose the archive for inspection without treating it as
+  a living map entity. Earlier deaths with no physical archive cannot be
+  reconstructed from an old save.
 - Saves are versioned and atomically replaced after committed state changes.
   Restores must fail visibly on unsupported or mismatched state rather than
   silently substitute content or credentials. The current host keeps bounded

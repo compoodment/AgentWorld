@@ -1,0 +1,66 @@
+using ClankerWorld.Simulation.Cognition;
+using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.Society;
+using ClankerWorld.Viewer.Observation;
+
+namespace ClankerWorld.Simulation.Tests;
+
+public sealed class DeceasedInhabitantArchiveTests
+{
+    [Fact]
+    public async Task DeathRemovesTheActiveActorButKeepsAnInspectableSavedRecord()
+    {
+        using var seed = new PrivateWorldRuntime("deceased-archive");
+        var state = seed.ExportState();
+        var society = state.Society.Society;
+        var config = society.Config with
+        {
+            TicksPerWorldDay = 1,
+            DaysPerWorldYear = 1,
+            AdultYears = 17,
+            ElderYears = 18,
+            BaseNaturalMortalityBasisPoints = 9_999,
+            NaturalMortalitySlopeBasisPoints = 0,
+        };
+        society = society with
+        {
+            Config = config,
+            Inhabitants = society.Inhabitants.Select(person => person with
+            {
+                BirthTick = -18,
+                BirthLifeTick = null,
+                AgeBand = SocietyAgeBand.Elder,
+                LastLifecycleYearChecked = 18,
+            }).ToArray(),
+        };
+        state = state with { Society = state.Society with { Society = society } };
+        using var world = PrivateWorldRuntime.Restore(state, _ => new DeterministicDecisionProvider());
+
+        Assert.True((await world.AdvanceOneTickAsync()).Advanced);
+        var archived = world.ExportState();
+        Assert.NotEmpty(archived.DeceasedInhabitants ?? []);
+        var deceased = archived.DeceasedInhabitants![0];
+        Assert.Equal(deceased.LastPhysical.InhabitantId, deceased.InhabitantId);
+        Assert.DoesNotContain(archived.Inhabitants, person => person.InhabitantId == deceased.InhabitantId);
+
+        var bytes = PrivateWorldRuntimeCodec.Encode(archived);
+        using var restored = PrivateWorldRuntime.Restore(PrivateWorldRuntimeCodec.Decode(bytes));
+        var projected = new OwnerWorldObservationStore(restored).GetSnapshot();
+        var historical = Assert.Single(projected.Inhabitants, person => person.Id == deceased.InhabitantId);
+        Assert.Equal("dead", historical.Lifecycle);
+        Assert.Equal("deceased", historical.Route.Status);
+        Assert.Equal(deceased.DeathTick.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            historical.DecisionFactors.Single(factor => factor.Key == "death-tick").Detail);
+        Assert.Null(historical.PublicIntention);
+        Assert.DoesNotContain(restored.Inhabitants, person => person.InhabitantId == deceased.InhabitantId);
+
+        var invalid = archived with
+        {
+            DeceasedInhabitants = archived.DeceasedInhabitants!
+                .Select(person => person.InhabitantId == deceased.InhabitantId
+                    ? person with { DeathTick = person.DeathTick + 1 }
+                    : person).ToArray(),
+        };
+        Assert.Throws<InvalidDataException>(() => PrivateWorldRuntimeCodec.Encode(invalid));
+    }
+}
