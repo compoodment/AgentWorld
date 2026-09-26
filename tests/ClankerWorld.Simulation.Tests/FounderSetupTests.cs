@@ -57,9 +57,13 @@ public sealed class FounderSetupTests
             Assert.Equal(agentId, resumedSetup.Society.Households.Single(item => item.Id == householdId).MemberIds.Single());
             Assert.Equal(4, resumedSetup.Society.Inhabitants.Count(item => item.Id.StartsWith("founder:", StringComparison.Ordinal)));
             Assert.Throws<ArgumentException>(() => resumedSetup.AddAgent(agentId, new GridPoint(5, 2)));
+            Assert.True(resumedSetup.RenameAgent(agentId, "Nova"));
+            Assert.False(resumedSetup.RenameAgent(agentId, "Nova"));
+            Assert.Throws<ArgumentException>(() => resumedSetup.RenameAgent(agentId, "  "));
             file.Save(resumedSetup);
             using var reloaded = file.LoadOrCreate("new-camp");
             Assert.Equal(householdId, reloaded.Society.GetInhabitant(agentId).HouseholdId);
+            Assert.Equal("Nova", reloaded.Society.GetInhabitant(agentId).Name);
             Assert.Equal(position, reloaded.Inhabitants.Single(item => item.InhabitantId == agentId).Position);
         }
         finally

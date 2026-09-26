@@ -8,6 +8,10 @@ release yet.
 
 ### Added
 
+- The selected-agent card now lets the paired player rename an agent. The
+  chosen name updates the visible world and family tree and survives reload;
+  biological identity and relationships do not change.
+
 - After the four-founder start, the top bar now offers **Add Agent**. Choose a
   provider, model, and saved or new API key, then click an empty passable tile.
   The adult joins the running world in a separate one-person household and

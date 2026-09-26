@@ -195,6 +195,24 @@ public static partial class SocietyFixture
         return Commit(next, "agent_added", $"{id}:{home}", id);
     }
 
+    public static SocietyOperationResult RenameInhabitant(
+        SocietyCheckpoint checkpoint, string inhabitantId, string name)
+    {
+        Validate(checkpoint);
+        var id = NormalizeRequiredText(inhabitantId, nameof(inhabitantId));
+        var chosen = NormalizeRequiredText(name, nameof(name));
+        if (chosen.Length > 48 || chosen.Any(char.IsControl))
+            throw new ArgumentException("Choose a name of at most 48 characters without control characters.", nameof(name));
+        var existing = checkpoint.GetInhabitant(id);
+        if (existing.Name == chosen) return new SocietyOperationResult(checkpoint);
+        var next = checkpoint with
+        {
+            Inhabitants = checkpoint.Inhabitants.Select(person =>
+                person.Id == id ? person with { Name = chosen } : person).ToArray(),
+        };
+        return Commit(next, "inhabitant_renamed", id, id);
+    }
+
     public static SocietyOperationResult ProposeRelationship(
         SocietyCheckpoint checkpoint,
         SocietyRelationshipProposal proposal)

@@ -89,6 +89,8 @@ public partial class Main : Control
     private readonly VBoxContainer selectedAgentModelContent = new();
     private readonly Button modelSettingsButton = new();
     private readonly Label selectedActorNameLabel = new();
+    private readonly LineEdit renameAgentInput = new();
+    private readonly Button renameAgentButton = new();
     private readonly Label selectedActorSummaryLabel = new();
     private readonly Button clearSelectionButton = new();
     private readonly Button familyTreeButton = new();
@@ -161,6 +163,7 @@ public partial class Main : Control
     private OwnerProviderConfigurationStatus? providerConfiguration;
     private OwnerPendingSubmission? pendingSubmission;
     private string? selectedInhabitantId;
+    private string? renamingAgentId;
     private bool isRefreshing;
     private int successfulRefreshCount;
     private bool isPairingOperation;
@@ -417,7 +420,8 @@ public partial class Main : Control
             RenderSelectedInhabitantCard(historicalSnapshot);
             if (entityLayer.GetChildren().Any(child => !child.IsQueuedForDeletion()) ||
                 inhabitantList.ItemCount != 1 || !rosterSummaryLabel.Text.Contains("1 deceased", StringComparison.Ordinal) ||
-                !selectedInhabitantCard.Visible || !selectedActorSummaryLabel.Text.Contains("Dead", StringComparison.Ordinal))
+                !selectedInhabitantCard.Visible || !selectedActorSummaryLabel.Text.Contains("Dead", StringComparison.Ordinal) ||
+                renameAgentInput.Text != "Mira")
                 throw new InvalidOperationException("A deceased inhabitant must remain inspectable without appearing as a living map actor.");
             if (!privateThoughtHistory.Text.Contains("I hope Rowan remembers our garden.", StringComparison.Ordinal) ||
                 !privateThoughtHistory.Text.Contains("historical", StringComparison.Ordinal))
@@ -1501,6 +1505,27 @@ public partial class Main : Control
         }
     }
 
+    private async Task RenameSelectedAgentAsync()
+    {
+        if (selectedInhabitantId is not { } agentId ||
+            observationSession.Current?.Baseline.Snapshot.Inhabitants.All(person => person.Id != agentId) != false)
+            return;
+        var name = renameAgentInput.Text.Trim();
+        if (name.Length is < 1 or > 48 || name.Any(char.IsControl))
+        {
+            SetStatus("Choose a name of at most 48 characters", good: false);
+            return;
+        }
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        await RunOwnerActionAsync(async () =>
+        {
+            var result = await ownerApi.RenameAgentAsync(ResolveWorldUri(), authority, deviceId,
+                new OwnerAgentRenameAction(agentId, name), signer, CancellationToken.None);
+            renamingAgentId = null;
+            return result.Changed ? $"Renamed to {result.Name}" : "Name unchanged";
+        });
+    }
+
     private bool TryGetOwner(
         out OwnerAuthorityIdentity authority,
         out string deviceId,
@@ -2305,6 +2330,17 @@ public partial class Main : Control
         selectedActorSummaryLabel.Modulate = new Color("A7B9B7");
         selectedAgentOverview.AddChild(selectedActorSummaryLabel);
 
+        var renameRow = new HBoxContainer();
+        renameAgentInput.PlaceholderText = "Agent name";
+        renameAgentInput.MaxLength = 48;
+        renameAgentInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        renameRow.AddChild(renameAgentInput);
+        renameAgentButton.Text = "Rename";
+        StyleButton(renameAgentButton);
+        renameAgentButton.Pressed += () => _ = RenameSelectedAgentAsync();
+        renameRow.AddChild(renameAgentButton);
+        selectedAgentOverview.AddChild(renameRow);
+
         ConfigureTextPanel(inhabitantDetails, 96);
         selectedAgentOverview.AddChild(inhabitantDetails);
 
@@ -3050,6 +3086,7 @@ public partial class Main : Control
         {
             CloseAgentModelEditor();
             selectedActorNameLabel.Text = string.Empty;
+            renamingAgentId = null;
             selectedActorSummaryLabel.Text = string.Empty;
             inhabitantSocialDetails.Clear();
             privateThoughtHistory.Clear();
@@ -3060,6 +3097,11 @@ public partial class Main : Control
         }
 
         selectedActorNameLabel.Text = inhabitant.DisplayName;
+        if (renamingAgentId != inhabitant.Id || !renameAgentInput.HasFocus())
+        {
+            renameAgentInput.Text = inhabitant.DisplayName;
+            renamingAgentId = inhabitant.Id;
+        }
         var ageBand = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail;
         var ageYears = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-years")?.Detail;
         var ageDays = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-days")?.Detail;
@@ -3250,6 +3292,7 @@ public partial class Main : Control
             RenderInhabitantDetails(current.Baseline.Snapshot);
             RenderSelectedInhabitantCard(current.Baseline.Snapshot);
             RenderMap(current.Baseline.Snapshot);
+            RefreshControlAvailability();
         }
     }
 
@@ -3276,6 +3319,7 @@ public partial class Main : Control
             RenderInhabitantDetails(current.Baseline.Snapshot);
             RenderSelectedInhabitantCard(current.Baseline.Snapshot);
             RenderMap(current.Baseline.Snapshot);
+            RefreshControlAvailability();
         }
     }
 
@@ -3291,6 +3335,7 @@ public partial class Main : Control
             RenderInhabitantDetails(current.Baseline.Snapshot);
             RenderSelectedInhabitantCard(current.Baseline.Snapshot);
             RenderMap(current.Baseline.Snapshot);
+            RefreshControlAvailability();
         }
     }
 
@@ -3326,6 +3371,8 @@ public partial class Main : Control
         pauseButton.Visible = snapshot?.FounderSetup is not { Started: false };
         founderSetupButton.Disabled = actionDisabled || snapshot?.FounderSetup is not { Started: false };
         addAgentButton.Disabled = actionDisabled || snapshot?.FounderSetup is not { Started: true };
+        renameAgentButton.Disabled = actionDisabled || selected is null || selected.IsDraft;
+        renameAgentInput.Editable = !actionDisabled && selected is { IsDraft: false };
         startWorldButton.Disabled = actionDisabled || snapshot?.FounderSetup is not { Started: false, Placed: 4 };
         founderProviderChoice.Disabled = actionDisabled;
         founderCredentialChoice.Disabled = actionDisabled;

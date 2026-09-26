@@ -22,6 +22,7 @@ public static class OwnerPairingEndpoints
     public const string OwnerStartWorld = "/api/v1/owner/control/start-world";
     public const string OwnerFounderPlace = "/api/v1/owner/founders/place";
     public const string OwnerAgentPlace = "/api/v1/owner/agents/place";
+    public const string OwnerAgentRename = "/api/v1/owner/agents/rename";
     public const string OwnerInstructions = "/api/v1/owner/instructions";
     public const string OwnerAuthoring = "/api/v1/owner/authoring";
     public const string OwnerContentPropose = "/api/v1/owner/content/propose";

@@ -80,6 +80,10 @@ public sealed record OwnerAgentPlacementAction(
 
 public sealed record OwnerAgentPlacementReceipt(string AgentId, string HouseholdId);
 
+public sealed record OwnerAgentRenameAction(string AgentId, string Name);
+
+public sealed record OwnerAgentRenameReceipt(string AgentId, string Name, bool Changed);
+
 public sealed record OwnerProviderOptionStatus(
     string Provider,
     string Model,
@@ -224,6 +228,16 @@ public static class OwnerHttpBinding
             $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
             $"y={action.Y.ToString(CultureInfo.InvariantCulture)}",
             $"cognition-sha256={digest}");
+    }
+
+    public static string AgentRenamePayload(OwnerAgentRenameAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var name = EncodeRequired(action.Name, nameof(action.Name));
+        return string.Join('\n',
+            "clankerworld.owner-agent-rename.v1",
+            $"agent={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
+            $"name-sha256={ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(name)))}");
     }
 
     public static string InstructionPayload(OwnerInstructionAction action) => string.Join(

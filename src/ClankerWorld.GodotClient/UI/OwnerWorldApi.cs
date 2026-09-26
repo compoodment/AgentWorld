@@ -303,6 +303,10 @@ public sealed record OwnerAgentPlacementAction(
 
 public sealed record OwnerAgentPlacementReceipt(string AgentId, string HouseholdId);
 
+public sealed record OwnerAgentRenameAction(string AgentId, string Name);
+
+public sealed record OwnerAgentRenameReceipt(string AgentId, string Name, bool Changed);
+
 public sealed record OwnerProviderOptionStatus(
     string Provider,
     string Model,
@@ -607,6 +611,16 @@ public static class OwnerWorldActionPayload
             $"cognition-sha256={digest}");
     }
 
+    public static string AgentRename(OwnerAgentRenameAction action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var name = EncodeRequired(action.Name, nameof(action.Name));
+        return string.Join('\n',
+            "clankerworld.owner-agent-rename.v1",
+            $"agent={EncodeRequired(action.AgentId, nameof(action.AgentId))}",
+            $"name-sha256={ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(name)))}");
+    }
+
     public static string Instruction(OwnerInstructionAction action) => string.Join(
         '\n',
         "clankerworld.owner-instruction.v1",
@@ -873,6 +887,15 @@ public sealed class OwnerWorldApi
         pairing.SendSignedActionAsync<OwnerAgentPlacementAction, OwnerAgentPlacementReceipt>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAgentPlace,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AgentPlacement(action),
+            action, deviceKey, cancellationToken);
+
+    public Task<OwnerAgentRenameReceipt> RenameAgentAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerAgentRenameAction action, IOwnerDeviceSigner deviceKey,
+        CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerAgentRenameAction, OwnerAgentRenameReceipt>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerAgentRename,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.AgentRename(action),
             action, deviceKey, cancellationToken);
 
     public Task<OwnerControlReceipt> SetLifePaceAsync(Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,

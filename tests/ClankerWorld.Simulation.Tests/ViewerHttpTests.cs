@@ -103,6 +103,22 @@ public sealed partial class ViewerHttpTests(ViewerWebApplicationFactory factory)
                 adult, OwnerHttpBinding.AgentPlacementPayload(adult));
             Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
             Assert.Contains(placementLog.Messages, message => message.Contains("AgentPlaced AgentId=" + agentId, StringComparison.Ordinal));
+            var rename = new OwnerAgentRenameAction(agentId, "Nova");
+            const string renamePath = "/api/v1/owner/agents/rename";
+            var signedRename = await CreateSignedRequestAsync(host, client, key, device.DeviceId, renamePath,
+                rename, OwnerHttpBinding.AgentRenamePayload(rename));
+            using var tamperedRename = await client.PostAsJsonAsync(renamePath, signedRename with
+            {
+                Action = rename with { Name = "Someone else" },
+            });
+            Assert.False(tamperedRename.IsSuccessStatusCode);
+            Assert.Equal("New agent", runtime.Society.GetInhabitant(agentId).Name);
+            using var renamed = await SendSignedAsync(host, client, key, device.DeviceId, renamePath,
+                rename, OwnerHttpBinding.AgentRenamePayload(rename));
+            Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
+            Assert.Equal("Nova", host.Services.GetRequiredService<OwnerWorldObservationStore>()
+                .GetSnapshot().Inhabitants.Single(person => person.Id == agentId).DisplayName);
+            Assert.Contains(placementLog.Messages, message => message.Contains("AgentRenamed AgentId=" + agentId, StringComparison.Ordinal));
             Assert.DoesNotContain(placementLog.Messages, message => message.Contains("test-secret-key", StringComparison.Ordinal));
             Assert.DoesNotContain("test-secret-key", File.ReadAllText(host.Services.GetRequiredService<PrivateWorldStateFile>().Path));
         }

@@ -561,6 +561,42 @@ app.MapPost("/api/v1/owner/agents/place", (
     }
 });
 
+app.MapPost("/api/v1/owner/agents/rename", (
+    OwnerSignedHttpRequest<OwnerAgentRenameAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services,
+    ILoggerFactory loggerFactory) =>
+{
+    if (!isPrivateWorld || request?.Action is not { } action)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = ["Choose an agent and name."] });
+    string payload;
+    try { payload = OwnerHttpBinding.AgentRenamePayload(action); }
+    catch (ArgumentException exception)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+    }
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/agents/rename", payload);
+    if (!authorization.IsSuccess)
+        return OwnerFailures.ToHttpResult(authorization.Failure);
+    try
+    {
+        var runtime = services.GetRequiredService<PrivateWorldRuntime>();
+        var changed = runtime.RenameAgent(action.AgentId, action.Name);
+        if (changed)
+        {
+            services.GetRequiredService<PrivateWorldStateFile>().Save(runtime);
+            var logger = loggerFactory.CreateLogger("ClankerWorld.AgentIdentity");
+            AgentPlacementLog.Renamed(logger, action.AgentId, runtime.WorldTick);
+        }
+        return Results.Ok(new OwnerAgentRenameReceipt(action.AgentId,
+            runtime.Society.GetInhabitant(action.AgentId).Name, changed));
+    }
+    catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["action"] = [exception.Message] });
+    }
+});
+
 app.MapPost("/api/v1/owner/control/start-world", (
     OwnerSignedHttpRequest<OwnerControlAction> request,
     OwnerRequestAuthorizer authorizer,

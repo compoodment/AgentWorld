@@ -1237,6 +1237,21 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             throw new ArgumentException("Choose an empty passable tile for this agent.", nameof(position));
     }
 
+    public bool RenameAgent(string agentId, string name)
+    {
+        gate.Wait();
+        try
+        {
+            if (founderSetup is null || !society.Checkpoint.Inhabitants.Any(person => person.Id == agentId))
+                throw new ArgumentException("Choose an agent in this world.", nameof(agentId));
+            var result = society.Apply(checkpoint => SocietyFixture.RenameInhabitant(checkpoint, agentId, name));
+            var changed = result.NewEvents is { Count: > 0 };
+            if (changed) AppendEvent("agent_renamed", agentId);
+            return changed;
+        }
+        finally { gate.Release(); }
+    }
+
     public void StartWorld()
     {
         gate.Wait();
