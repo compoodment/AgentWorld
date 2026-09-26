@@ -86,14 +86,15 @@ Jev toggle, safe agent inventions and external mods. The
 [roadmap](roadmap.md) sequences implementation; [current state](current-state.md)
 reports what is connected to normal play.
 
-## Rename compatibility
+## Deliberate pre-release identifier reset
 
-The application, .NET projects, Godot title and Windows executable are named
-**ClankerWorld**. Old `agentworld` strings in versioned save/content headers,
-canonical hash seeds, built-in package IDs and owner-request proof domains are
-intentional compatibility identifiers, not current branding. Existing worlds
-and paired devices must keep recognizing them. The Windows Godot client also
-keeps its pre-rename `user://` storage location and CNG key name so its paired
-registration is not orphaned. The private VPS service and state paths remain
-legacy installation paths while the current world is in use; changing the
-display name does not relocate a live save or credentials.
+The application, .NET projects, Godot title, Windows executable, save/content
+headers, hash domains, built-in package IDs, owner-request proof domains,
+Windows `user://` directory and CNG key name now use **ClankerWorld**. This is
+an intentional pre-release compatibility break approved for a fresh development
+world and new owner pairing, not an in-place migration of old saves or keys.
+The [deployment template](../deploy/clankerworld-viewer.service) uses new
+installation and state paths. Keep the previous private world and pairing
+authority only in a root-only rollback backup; copy provider credentials to the
+new protected state path without printing them. Ignored old export/build
+artifacts are historical binaries, not current source names.

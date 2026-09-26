@@ -16,7 +16,7 @@ public static class BuildingDesign
             throw new ArgumentException("Choose shelter, storage or hearth.", nameof(purpose));
         if (woodCost is < 1 or > 48)
             throw new ArgumentOutOfRangeException(nameof(woodCost), "Building designs must cost between 1 and 48 wood.");
-        var designBytes = JsonSerializer.SerializeToUtf8Bytes(new { schema = "agentworld.building-design/v1", name, purpose, woodCost });
+        var designBytes = JsonSerializer.SerializeToUtf8Bytes(new { schema = "clankerworld.building-design/v1", name, purpose, woodCost });
         var hash = Convert.ToHexStringLower(SHA256.HashData(designBytes));
         var digest = "sha256:" + hash;
         var version = ContentVersion.Parse("1.0.0");

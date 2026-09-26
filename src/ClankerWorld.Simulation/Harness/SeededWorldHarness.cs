@@ -154,7 +154,7 @@ public static class SeededMapGenerator
 /// </summary>
 public static class MapManifestCodec
 {
-    private const string Header = "agentworld.seeded-map/v1";
+    private const string Header = "clankerworld.seeded-map/v1";
 
     public static byte[] Encode(SeededMap map)
     {
@@ -868,7 +868,7 @@ public static class HarnessPersistence
 
 public static class HarnessStateCodec
 {
-    private const string Header = "agentworld.seeded-harness-state/v1";
+    private const string Header = "clankerworld.seeded-harness-state/v1";
 
     public static string Encode(HarnessWorld world)
     {

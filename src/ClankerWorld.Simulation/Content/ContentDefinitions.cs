@@ -868,7 +868,7 @@ public static class ContentDefinitionRules
         IReadOnlyList<BuildingDefinition> buildings,
         IReadOnlyList<RecipeDefinition> recipes)
     {
-        var builder = new StringBuilder("agentworld-world-content.v1");
+        var builder = new StringBuilder("clankerworld-world-content.v1");
         foreach (var building in buildings.OrderBy(item => item.CanonicalId, StringComparer.Ordinal))
         {
             AppendValue(builder, "building");
@@ -897,7 +897,7 @@ public static class ContentDefinitionRules
         IReadOnlyList<ContentQuantity> buildCosts,
         IReadOnlyList<string> tags)
     {
-        var builder = new StringBuilder("agentworld-content-definition.v1");
+        var builder = new StringBuilder("clankerworld-content-definition.v1");
         AppendValue(builder, BuildingDefinition.SchemaKind);
         AppendValue(builder, packageDigest);
         AppendValue(builder, localId);
@@ -922,7 +922,7 @@ public static class ContentDefinitionRules
         string? workstationBuildingId,
         IReadOnlyList<string> tags)
     {
-        var builder = new StringBuilder("agentworld-content-definition.v1");
+        var builder = new StringBuilder("clankerworld-content-definition.v1");
         AppendValue(builder, RecipeDefinition.SchemaKind);
         AppendValue(builder, packageDigest);
         AppendValue(builder, localId);

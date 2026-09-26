@@ -52,7 +52,7 @@ public sealed class OwnerDeviceKey : IOwnerDeviceSigner
     /// </summary>
     // Existing Windows CNG keys use this name; changing it would orphan
     // already-paired clients after the product rename.
-    public const string DefaultKeyName = "AgentWorld.OwnerDevice.v1";
+    public const string DefaultKeyName = "ClankerWorld.OwnerDevice.v1";
 
     private readonly ECDsa signingKey;
 

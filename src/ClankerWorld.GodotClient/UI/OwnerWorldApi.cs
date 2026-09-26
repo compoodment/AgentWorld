@@ -500,26 +500,26 @@ public static class OwnerWorldActionPayload
 {
     public static string Reconnect(OwnerReconnectAction action) => string.Join(
         '\n',
-        "agentworld.owner-reconnect.v1",
+        "clankerworld.owner-reconnect.v1",
         $"after-event-id={action.AfterEventId.ToString(CultureInfo.InvariantCulture)}");
 
     public static string Control(string operation) => string.Join(
         '\n',
-        "agentworld.owner-control.v1",
+        "clankerworld.owner-control.v1",
         $"operation={EncodeRequired(operation, nameof(operation))}");
 
     public static string LifePace(OwnerLifePaceAction action) =>
-        "agentworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
+        "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
 
     public static string PairingApproval(OwnerPairingApprovalAction action) => string.Join(
         '\n',
-        "agentworld.owner-pairing-approval.v1",
+        "clankerworld.owner-pairing-approval.v1",
         $"pairing-id={EncodeRequired(action.PairingId, nameof(action.PairingId))}",
         $"pairing-code={EncodeRequired(action.PairingCode, nameof(action.PairingCode))}");
 
     public static string DeviceManagement(OwnerDeviceManagementAction action) => string.Join(
         '\n',
-        "agentworld.owner-device-management.v1",
+        "clankerworld.owner-device-management.v1",
         $"device-id={EncodeRequired(action.DeviceId, nameof(action.DeviceId))}");
 
     public static string DeviceList() => Control("list_devices");
@@ -534,7 +534,7 @@ public static class OwnerWorldActionPayload
             : ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(action.ApiKey)));
         var payload = string.Join(
             '\n',
-            "agentworld.owner-provider-configuration.v1",
+            "clankerworld.owner-provider-configuration.v1",
             $"role={EncodeRequired(action.Role, nameof(action.Role))}",
             $"provider={EncodeRequired(action.Provider, nameof(action.Provider))}",
             $"model={EncodeOptional(action.Model)}",
@@ -545,7 +545,7 @@ public static class OwnerWorldActionPayload
 
     public static string Instruction(OwnerInstructionAction action) => string.Join(
         '\n',
-        "agentworld.owner-instruction.v1",
+        "clankerworld.owner-instruction.v1",
         $"idempotency-key={EncodeRequired(action.IdempotencyKey, nameof(action.IdempotencyKey))}",
         $"target-inhabitant-id={EncodeRequired(action.TargetInhabitantId, nameof(action.TargetInhabitantId))}",
         $"kind={EncodeRequired(action.Kind, nameof(action.Kind))}",
@@ -557,7 +557,7 @@ public static class OwnerWorldActionPayload
         ArgumentNullException.ThrowIfNull(action.Operations);
         var lines = new List<string>
         {
-            "agentworld.owner-authoring.v1",
+            "clankerworld.owner-authoring.v1",
             $"batch-id={EncodeRequired(action.BatchId, nameof(action.BatchId))}",
             $"operation-count={action.Operations.Count.ToString(CultureInfo.InvariantCulture)}",
         };
@@ -579,7 +579,7 @@ public static class OwnerWorldActionPayload
     }
 
     public static string BuildingDesign(OwnerBuildingDesignAction action) => string.Join('\n',
-        "agentworld.owner-building-design.v1",
+        "clankerworld.owner-building-design.v1",
         "name=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(action.Name)),
         "purpose=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(action.Purpose)),
         "wood-cost=" + action.WoodCost.ToString(CultureInfo.InvariantCulture));
@@ -593,7 +593,7 @@ public static class OwnerWorldActionPayload
         var assets = action.Assets ?? [];
         var lines = new List<string>
         {
-            "agentworld.owner-content-propose.v1",
+            "clankerworld.owner-content-propose.v1",
             $"package-id={EncodeRequired(action.PackageId, nameof(action.PackageId))}",
             $"version={EncodeRequired(action.Version, nameof(action.Version))}",
             $"package-digest={EncodeRequired(action.PackageDigest, nameof(action.PackageDigest))}",
@@ -656,19 +656,19 @@ public static class OwnerWorldActionPayload
 
     public static string ContentPackageId(string operation, OwnerContentPackageIdAction action) => string.Join(
         '\n',
-        "agentworld.owner-content-lifecycle.v1",
+        "clankerworld.owner-content-lifecycle.v1",
         $"operation={EncodeRequired(operation, nameof(operation))}",
         $"package-id={EncodeRequired(action.PackageId, nameof(action.PackageId))}");
 
     public static string ContentRollback(OwnerContentRollbackAction action) => string.Join(
         '\n',
-        "agentworld.owner-content-rollback.v1",
+        "clankerworld.owner-content-rollback.v1",
         $"package-id={EncodeRequired(action.PackageId, nameof(action.PackageId))}",
         $"reason={EncodeRequired(action.Reason, nameof(action.Reason))}");
 
     public static string BuildingPlacement(OwnerBuildingPlacementAction action) => string.Join(
         '\n',
-        "agentworld.owner-building-placement.v1",
+        "clankerworld.owner-building-placement.v1",
         $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
         $"definition-id={EncodeRequired(action.DefinitionId, nameof(action.DefinitionId))}",
         $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
@@ -676,7 +676,7 @@ public static class OwnerWorldActionPayload
 
     public static string ProductionStart(OwnerProductionStartAction action) => string.Join(
         '\n',
-        "agentworld.owner-production-start.v1",
+        "clankerworld.owner-production-start.v1",
         $"recipe-id={EncodeRequired(action.RecipeId, nameof(action.RecipeId))}",
         $"building-instance-id={EncodeRequired(action.BuildingInstanceId, nameof(action.BuildingInstanceId))}",
         $"worker-id={EncodeRequired(action.WorkerId, nameof(action.WorkerId))}");

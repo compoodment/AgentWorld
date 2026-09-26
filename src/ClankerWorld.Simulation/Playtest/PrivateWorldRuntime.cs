@@ -2468,7 +2468,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         IReadOnlyList<CognitionCandidate> candidates)
     {
         var text = new StringBuilder()
-            .Append("agentworld.private-world-observation/v1|")
+            .Append("clankerworld.private-world-observation/v1|")
             .Append(inhabitantId).Append('|')
             .Append(state.Position.X).Append(',').Append(state.Position.Y).Append('|')
             .Append(state.HungerBasisPoints).Append('|').Append(state.EnergyBasisPoints).Append('|')
@@ -2594,7 +2594,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
 public static class PrivateWorldRuntimeCodec
 {
-    private const string Header = "agentworld.private-world-runtime/v1";
+    private const string Header = "clankerworld.private-world-runtime/v1";
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

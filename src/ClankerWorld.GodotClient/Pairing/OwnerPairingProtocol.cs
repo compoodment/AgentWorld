@@ -152,10 +152,10 @@ public sealed record OwnerSignedActionRequest<TAction>(
 public static class OwnerPairingProtocol
 {
     public const string SignatureAlgorithm = "ecdsa-p256-sha256-p1363.v1";
-    public const string PairingActivationProofDomain = "agentworld.owner-pairing.activate.v1";
-    public const string ChallengeIssueProofDomain = "agentworld.owner-challenge.issue.v1";
-    public const string ChallengeConsumeProofDomain = "agentworld.owner-challenge.consume.v1";
-    public const string HttpActionBindingDomain = "agentworld.owner-http-binding.v1";
+    public const string PairingActivationProofDomain = "clankerworld.owner-pairing.activate.v1";
+    public const string ChallengeIssueProofDomain = "clankerworld.owner-challenge.issue.v1";
+    public const string ChallengeConsumeProofDomain = "clankerworld.owner-challenge.consume.v1";
+    public const string HttpActionBindingDomain = "clankerworld.owner-http-binding.v1";
 
     /// <summary>
     /// Builds the exact proof an approved device signs to activate its pairing.

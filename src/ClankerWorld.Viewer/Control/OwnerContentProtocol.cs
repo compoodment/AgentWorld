@@ -99,7 +99,7 @@ public static class OwnerContentBinding
 
         var lines = new List<string>
         {
-            "agentworld.owner-content-propose.v1",
+            "clankerworld.owner-content-propose.v1",
             $"package-id={EncodeRequired(action.PackageId, nameof(action.PackageId))}",
             $"version={EncodeRequired(action.Version, nameof(action.Version))}",
             $"package-digest={EncodeRequired(action.PackageDigest, nameof(action.PackageDigest))}",
@@ -162,19 +162,19 @@ public static class OwnerContentBinding
 
     public static string PackageIdPayload(string operation, OwnerContentPackageIdAction action) => string.Join(
         '\n',
-        "agentworld.owner-content-lifecycle.v1",
+        "clankerworld.owner-content-lifecycle.v1",
         $"operation={EncodeRequired(operation, nameof(operation))}",
         $"package-id={EncodeRequired(action.PackageId, nameof(action.PackageId))}");
 
     public static string RollbackPayload(OwnerContentRollbackAction action) => string.Join(
         '\n',
-        "agentworld.owner-content-rollback.v1",
+        "clankerworld.owner-content-rollback.v1",
         $"package-id={EncodeRequired(action.PackageId, nameof(action.PackageId))}",
         $"reason={EncodeRequired(action.Reason, nameof(action.Reason))}");
 
     public static string BuildingPlacementPayload(OwnerBuildingPlacementAction action) => string.Join(
         '\n',
-        "agentworld.owner-building-placement.v1",
+        "clankerworld.owner-building-placement.v1",
         $"instance-id={EncodeRequired(action.InstanceId, nameof(action.InstanceId))}",
         $"definition-id={EncodeRequired(action.DefinitionId, nameof(action.DefinitionId))}",
         $"x={action.X.ToString(CultureInfo.InvariantCulture)}",
@@ -182,7 +182,7 @@ public static class OwnerContentBinding
 
     public static string ProductionStartPayload(OwnerProductionStartAction action) => string.Join(
         '\n',
-        "agentworld.owner-production-start.v1",
+        "clankerworld.owner-production-start.v1",
         $"recipe-id={EncodeRequired(action.RecipeId, nameof(action.RecipeId))}",
         $"building-instance-id={EncodeRequired(action.BuildingInstanceId, nameof(action.BuildingInstanceId))}",
         $"worker-id={EncodeRequired(action.WorkerId, nameof(action.WorkerId))}");

@@ -1204,7 +1204,7 @@ public static class AssetNormalizer
     {
         var builder = new StringBuilder();
         builder.Append('{');
-        AppendString(builder, "schema", "agentworld.inert-raster.v1");
+        AppendString(builder, "schema", "clankerworld.inert-raster.v1");
         AppendString(builder, "assetId", assetId);
         AppendString(builder, "displayName", candidate.DisplayName.Trim());
         AppendString(builder, "originalDigest", originalDigest);

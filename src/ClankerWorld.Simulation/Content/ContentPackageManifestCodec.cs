@@ -13,7 +13,7 @@ namespace ClankerWorld.Simulation.Content;
 /// </summary>
 public static class ContentPackageManifestCodec
 {
-    public const string Schema = "agentworld.content-package-manifest/v1";
+    public const string Schema = "clankerworld.content-package-manifest/v1";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

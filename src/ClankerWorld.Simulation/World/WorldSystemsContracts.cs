@@ -1195,7 +1195,7 @@ public static class ChunkRules
 
 public static class ChunkManifestCodec
 {
-    private const string Header = "agentworld.world-chunk-manifest/v1";
+    private const string Header = "clankerworld.world-chunk-manifest/v1";
 
     public static byte[] Encode(ChunkManifest manifest)
     {
@@ -1375,7 +1375,7 @@ public static class WorldSystemsRules
 /// </summary>
 public static class WorldSystemsCodec
 {
-    private const string Header = "agentworld.world-systems/v1";
+    private const string Header = "clankerworld.world-systems/v1";
     private static readonly JsonSerializerOptions Options = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

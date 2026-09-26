@@ -257,7 +257,7 @@ public static class KernelDigest
         ArgumentNullException.ThrowIfNull(state);
         var canonical = string.Join(
             '\n',
-            "agentworld.kernel-state/v1",
+            "clankerworld.kernel-state/v1",
             $"world_tick={state.Clock.WorldTick}",
             $"day_index={state.Clock.DayIndex}",
             $"day_of_year={state.Clock.DayOfYear}",
@@ -275,7 +275,7 @@ public static class KernelDigest
         var ordered = events.ToArray();
         var expectedId = 1L;
         var previousTick = 0L;
-        var builder = new StringBuilder("agentworld.kernel-events/v1\n");
+        var builder = new StringBuilder("clankerworld.kernel-events/v1\n");
         foreach (var worldEvent in ordered)
         {
             if (worldEvent.EventId != expectedId || worldEvent.WorldTick < previousTick)

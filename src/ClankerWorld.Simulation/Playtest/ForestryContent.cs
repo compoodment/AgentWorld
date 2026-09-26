@@ -8,12 +8,12 @@ namespace ClankerWorld.Simulation.Playtest;
 /// <summary>Additive cultivation content; exhausted wild timber remains exhausted.</summary>
 public static class ForestryContent
 {
-    public const string PackageId = "agentworld-forestry-v1";
+    public const string PackageId = "clankerworld-forestry-v1";
 
     public static ContentPackageManifest Create()
     {
         var digest = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes("agentworld-forestry-v1:1.0.0:managed-coppice:seed2-wood24-seed2:1440ticks")));
+            Encoding.UTF8.GetBytes("clankerworld-forestry-v1:1.0.0:managed-coppice:seed2-wood24-seed2:1440ticks")));
         var version = ContentVersion.Parse("1.0.0");
         RecipeDefinition[] recipes =
         [

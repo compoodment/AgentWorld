@@ -655,8 +655,8 @@ public static class InventoryFixture
 
 public static class InventoryCheckpointCodec
 {
-    private const string LegacyHeader = "agentworld.inventory-fixture/v1";
-    private const string Header = "agentworld.inventory-fixture/v2";
+    private const string LegacyHeader = "clankerworld.inventory-fixture/v1";
+    private const string Header = "clankerworld.inventory-fixture/v2";
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

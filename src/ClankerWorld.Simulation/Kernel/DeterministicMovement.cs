@@ -252,7 +252,7 @@ public static class MovementDigest
     public static string State(IEnumerable<MovementActor> actors)
     {
         ArgumentNullException.ThrowIfNull(actors);
-        var builder = new StringBuilder("agentworld.movement-state/v1\n");
+        var builder = new StringBuilder("clankerworld.movement-state/v1\n");
         foreach (var actor in actors.OrderBy(actor => actor.Id, StringComparer.Ordinal))
         {
             builder.Append(actor.Id).Append('|')
@@ -266,7 +266,7 @@ public static class MovementDigest
     public static string Events(IEnumerable<MovementEvent> events)
     {
         ArgumentNullException.ThrowIfNull(events);
-        var builder = new StringBuilder("agentworld.movement-events/v1\n");
+        var builder = new StringBuilder("clankerworld.movement-events/v1\n");
         foreach (var worldEvent in events.OrderBy(worldEvent => worldEvent.ActorId, StringComparer.Ordinal))
         {
             builder.Append(worldEvent.ActorId).Append('|')

@@ -22,7 +22,7 @@ public sealed record AssetProvenanceManifest(
     long DecodedBytes,
     long DurableStorageBytes)
 {
-    public const string Schema = "agentworld.asset-provenance-manifest/v1";
+    public const string Schema = "clankerworld.asset-provenance-manifest/v1";
 
     public bool CanExport => Provenance.Rights.ExportAllowed;
 
@@ -323,7 +323,7 @@ public static class AssetProvenanceManifestCodec
             using var document = JsonDocument.Parse(manifest.CanonicalMetadata);
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object ||
-                !string.Equals(root.GetProperty("schema").GetString(), "agentworld.inert-raster.v1", StringComparison.Ordinal) ||
+                !string.Equals(root.GetProperty("schema").GetString(), "clankerworld.inert-raster.v1", StringComparison.Ordinal) ||
                 !string.Equals(root.GetProperty("assetId").GetString(), manifest.AssetId, StringComparison.Ordinal) ||
                 !string.Equals(root.GetProperty("originalDigest").GetString(), manifest.OriginalDigest, StringComparison.Ordinal) ||
                 !string.Equals(root.GetProperty("normalizedDigest").GetString(), manifest.NormalizedDigest, StringComparison.Ordinal))

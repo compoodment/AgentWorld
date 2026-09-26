@@ -19,7 +19,7 @@ public static partial class OwnerBuildingDesign
         ArgumentNullException.ThrowIfNull(action);
         ArgumentNullException.ThrowIfNull(action.Name);
         ArgumentNullException.ThrowIfNull(action.Purpose);
-        return string.Join('\n', "agentworld.owner-building-design.v1",
+        return string.Join('\n', "clankerworld.owner-building-design.v1",
             "name=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(action.Name)),
             "purpose=" + Convert.ToBase64String(Encoding.UTF8.GetBytes(action.Purpose)),
             "wood-cost=" + action.WoodCost.ToString(CultureInfo.InvariantCulture));

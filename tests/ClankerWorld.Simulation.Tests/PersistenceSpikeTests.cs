@@ -13,8 +13,8 @@ public sealed class PersistenceSpikeTests
             CanonicalPersistenceCodec.EncodeSnapshot(new WorldSnapshot(state)));
         var versionOne = current
             .Replace(
-                "\"format\":\"agentworld.persistence-spike/v2\"",
-                "\"format\":\"agentworld.persistence-spike/v1\"",
+                "\"format\":\"clankerworld.persistence-spike/v2\"",
+                "\"format\":\"clankerworld.persistence-spike/v1\"",
                 StringComparison.Ordinal)
             .Replace(",\"canonical_state_payload\":null", string.Empty, StringComparison.Ordinal);
 

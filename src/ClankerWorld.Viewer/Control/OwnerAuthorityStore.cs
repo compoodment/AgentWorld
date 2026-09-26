@@ -283,9 +283,9 @@ public sealed record OwnerAuthorityResult<T>(OwnerAuthorityFailure Failure, T? V
 public sealed class OwnerAuthorityStore
 {
     public const string SignatureAlgorithm = "ecdsa-p256-sha256-p1363.v1";
-    public const string PairingActivationProofDomain = "agentworld.owner-pairing.activate.v1";
-    public const string ChallengeIssueProofDomain = "agentworld.owner-challenge.issue.v1";
-    public const string ChallengeConsumeProofDomain = "agentworld.owner-challenge.consume.v1";
+    public const string PairingActivationProofDomain = "clankerworld.owner-pairing.activate.v1";
+    public const string ChallengeIssueProofDomain = "clankerworld.owner-challenge.issue.v1";
+    public const string ChallengeConsumeProofDomain = "clankerworld.owner-challenge.consume.v1";
 
     public static readonly TimeSpan PendingPairingLifetime = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan ChallengeLifetime = TimeSpan.FromMinutes(2);

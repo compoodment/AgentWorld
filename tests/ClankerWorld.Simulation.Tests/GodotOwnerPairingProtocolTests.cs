@@ -11,7 +11,7 @@ public sealed class GodotOwnerPairingProtocolTests
         const string method = "POST";
         const string path = "/api/v1/owner/reconnect";
         const string requestId = "request_Åß-test";
-        const string payload = "agentworld.owner-reconnect.v1\nafter-event-id=42";
+        const string payload = "clankerworld.owner-reconnect.v1\nafter-event-id=42";
 
         var godotBinding = OwnerPairingProtocol.CreateHttpActionBinding(
             method,

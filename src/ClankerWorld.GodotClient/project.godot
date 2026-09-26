@@ -5,10 +5,10 @@ config_version=5
 
 [application]
 config/name="ClankerWorld"
-; Preserve the pre-rename Windows user:// folder so device registrations and
-; pending submissions remain available after an updated client is installed.
+; Use the current product's private Windows user:// folder. The pre-release
+; identifier reset deliberately starts a fresh owner registration.
 config/use_custom_user_dir=true
-config/custom_user_dir_name="Godot/app_userdata/AgentWorld"
+config/custom_user_dir_name="Godot/app_userdata/ClankerWorld"
 run/main_scene="res://Main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 

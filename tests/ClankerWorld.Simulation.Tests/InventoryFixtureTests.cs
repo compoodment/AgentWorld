@@ -139,7 +139,7 @@ public sealed class InventoryFixtureTests
     {
         var legacy = string.Join(
             '\n',
-            "agentworld.inventory-fixture/v1",
+            "clankerworld.inventory-fixture/v1",
             "tick=3",
             "lot=food-lot|food|alice|2|10000|9000|3|-",
             "event=1|3|created|food-lot",

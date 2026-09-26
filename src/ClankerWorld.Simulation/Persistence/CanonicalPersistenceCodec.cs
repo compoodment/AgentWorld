@@ -10,8 +10,8 @@ namespace ClankerWorld.Simulation.Persistence;
 /// </summary>
 public static class CanonicalPersistenceCodec
 {
-    private const string CurrentFormat = "agentworld.persistence-spike/v2";
-    private const string PriorFormat = "agentworld.persistence-spike/v1";
+    private const string CurrentFormat = "clankerworld.persistence-spike/v2";
+    private const string PriorFormat = "clankerworld.persistence-spike/v1";
 
     public static byte[] EncodeSnapshot(WorldSnapshot snapshot)
     {

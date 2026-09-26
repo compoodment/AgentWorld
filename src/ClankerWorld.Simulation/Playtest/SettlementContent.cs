@@ -7,12 +7,12 @@ namespace ClankerWorld.Simulation.Playtest;
 /// <summary>Additive built-in content; never rewrites an existing starter package identity.</summary>
 public static class SettlementContent
 {
-    public const string PackageId = "agentworld-settlement-v1";
+    public const string PackageId = "clankerworld-settlement-v1";
 
     public static ContentPackageManifest Create()
     {
         var digest = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes("agentworld-settlement-v1:1.0.0:stone-hearth-weaving-frame:bedding-clothing-grain:stone-fiber-seed")));
+            Encoding.UTF8.GetBytes("clankerworld-settlement-v1:1.0.0:stone-hearth-weaving-frame:bedding-clothing-grain:stone-fiber-seed")));
         var version = ContentVersion.Parse("1.0.0");
         var hearth = new BuildingDefinition(digest, "stone-hearth", version, "Stone hearth", 1, 1, 2,
             [new("stone", 8), new("wood", 4)], ["cooking", "warmth"]);

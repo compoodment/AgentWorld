@@ -36,7 +36,7 @@ public sealed record ContentPackageArtifact(
 /// </summary>
 public static class ContentPackageArtifactCodec
 {
-    public const string Schema = "agentworld.content-package-artifact/v1";
+    public const string Schema = "clankerworld.content-package-artifact/v1";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

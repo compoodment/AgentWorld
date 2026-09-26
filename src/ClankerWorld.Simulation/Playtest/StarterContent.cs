@@ -8,13 +8,13 @@ namespace ClankerWorld.Simulation.Playtest;
 /// <summary>Versioned, host-shipped data content; activation still uses package governance.</summary>
 public static class StarterContent
 {
-    public const string PackageId = "agentworld-starter-v1";
+    public const string PackageId = "clankerworld-starter-v1";
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public static ContentPackageManifest Create()
     {
         var digest = "sha256:" + Convert.ToHexStringLower(SHA256.HashData(
-            Encoding.UTF8.GetBytes("agentworld-starter-v1:1.0.0:shelter-storage-fire-workshop:crops-meals-tools")));
+            Encoding.UTF8.GetBytes("clankerworld-starter-v1:1.0.0:shelter-storage-fire-workshop:crops-meals-tools")));
         var version = ContentVersion.Parse("1.0.0");
         var shelter = new BuildingDefinition(digest, "shelter", version, "Shelter", 1, 1, 4,
             [new("wood", 8)], ["shelter"]);

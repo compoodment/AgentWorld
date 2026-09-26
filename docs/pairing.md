@@ -11,6 +11,12 @@ The private Tailnet provides encrypted transport and limits network reachability
 It is **not** authority to inspect or control a world. The current prototype grants owner
 access only to a specifically paired device.
 
+The approved pre-release ClankerWorld identifier reset creates a new Windows
+`user://` registration and CNG key name. A prior development client registration
+is not imported; after installing the matching new build, pair it with the new
+host authority through the normal flow below. The previous authority is kept
+only in the operator's rollback backup.
+
 ## Pairing flow
 
 1. A Windows client creates a non-exportable current-user CNG P-256 signing

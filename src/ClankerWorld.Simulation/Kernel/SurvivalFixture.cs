@@ -476,7 +476,7 @@ public static class SurvivalFixture
 /// </summary>
 public static class SurvivalCheckpointCodec
 {
-    private const string Header = "agentworld.survival-fixture/v1";
+    private const string Header = "clankerworld.survival-fixture/v1";
 
     public static byte[] Encode(SurvivalCheckpoint checkpoint)
     {

@@ -41,6 +41,12 @@ canonical world state or replay digests. The [current-state report](current-stat
 describes today's supported save behavior; historical schema-specific release
 notes remain in Git history rather than a growing checklist here.
 
+The September 2026 AgentWorld-to-ClankerWorld internal-identifier reset is an
+explicit **pre-release exception**: the prior development save and Windows
+owner registration are not migrated. Retain a rollback backup, start a fresh
+world, and pair a new device. This does not set a precedent for discarding
+players' saves after a public release.
+
 When rolling back an incompatible host upgrade, restore a **matching older
 application and pre-upgrade world save/history**. An older host is not expected
 to read a newer schema. Back up the checkpoint and its adjacent history,

@@ -70,7 +70,7 @@ var providerConfigurationPath = builder.Configuration["ClankerWorld:Runtime:Prov
 var approvedAssetCatalogPath = builder.Configuration["ClankerWorld:Assets:CatalogPath"] ??
     Path.Combine(builder.Environment.ContentRootPath, "approved-assets.json");
 var configuredAuthorityId = builder.Configuration["ClankerWorld:Pairing:ServerAuthorityId"] ??
-    $"agentworld-host:{Environment.MachineName}";
+    $"clankerworld-host:{Environment.MachineName}";
 
 // The catalog is loaded only from a host-owned path at startup. Its absence
 // intentionally yields an empty, deny-all allow-list; malformed existing

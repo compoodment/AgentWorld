@@ -236,10 +236,14 @@ release yet.
 
 ### Changed
 
+- Completed the pre-release ClankerWorld rename across save/content identifiers,
+  package and signature domains, Windows user storage/device-key names, and the
+  systemd template and installation paths. Previous development saves and
+  pairings are not compatible; the old installation is retained as a rollback
+  backup, while provider credentials are carried into the fresh installation.
+
 - Renamed the game, .NET projects, Godot client and Windows export to
-  **ClankerWorld**. Existing save/content format markers, built-in package IDs,
-  owner-device key names and private-host state paths remain stable so the
-  current world and paired client survive the branding change.
+  **ClankerWorld**.
 - Changed private-world lifetime so simulation ticks and hosted-provider calls
   run only while at least one authenticated game client remains connected.
   Closing or losing the last client stops the world after a five-second grace

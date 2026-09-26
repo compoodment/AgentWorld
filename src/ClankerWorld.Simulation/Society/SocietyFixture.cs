@@ -1204,7 +1204,7 @@ public static partial class SocietyFixture
         int ageYears)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(
-            $"agentworld.society-mortality/v1|{worldId}|{inhabitantId}|{ageYears}"));
+            $"clankerworld.society-mortality/v1|{worldId}|{inhabitantId}|{ageYears}"));
         return checked((int)(BitConverter.ToUInt32(bytes, 0) % 10_000));
     }
 

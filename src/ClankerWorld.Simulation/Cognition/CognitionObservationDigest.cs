@@ -20,7 +20,7 @@ public static class CognitionObservationDigest
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(candidates);
 
-        var builder = new StringBuilder("agentworld.cognition-observation/v1\n");
+        var builder = new StringBuilder("clankerworld.cognition-observation/v1\n");
         builder.Append("world_id=").Append(world.Identity.WorldId).Append('\n');
         builder.Append("world_tick=").Append(world.Identity.WorldTick).Append('\n');
         builder.Append("run_epoch=").Append(runEpoch).Append('\n');
