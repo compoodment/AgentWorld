@@ -66,6 +66,7 @@ public sealed record OwnerWorldInhabitantRelationship(
 
 public sealed record OwnerWorldPrivateThought(long WorldTick, string Text);
 public sealed record OwnerWorldAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
+public sealed record OwnerWorldCalendarPace(int TicksPerDay, int DaysPerYear);
 
 public sealed record OwnerWorldInhabitant(
     string Id,
@@ -221,6 +222,7 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
+    public OwnerWorldCalendarPace? CalendarPace { get; init; }
     public IReadOnlyList<OwnerWorldInhabitant> Inhabitants { get; init; } = [];
 
     public OwnerWorldAuthoringState? Authoring { get; init; }

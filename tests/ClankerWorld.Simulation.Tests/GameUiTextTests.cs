@@ -1,10 +1,23 @@
 using ClankerWorld.GodotClient.ClientState;
 using ClankerWorld.GodotClient.UI;
+using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
 public sealed class GameUiTextTests
 {
+    [Fact]
+    public void OwnerSnapshotReportsTheSavedWorldCalendarPace()
+    {
+        using var world = new PrivateWorldRuntime("calendar-projection");
+        var saved = world.ExportState();
+        var pace = new OwnerWorldObservationStore(world).GetSnapshot().CalendarPace;
+        Assert.NotNull(pace);
+        Assert.Equal(saved.WorldSystems!.Config.TicksPerDay, pace.TicksPerDay);
+        Assert.Equal(saved.WorldSystems.Config.DaysPerYear, pace.DaysPerYear);
+    }
+
     [Fact]
     public void ResourceHelpDistinguishesExhaustionRegrowthAndLegacyUnknownQuantities()
     {
@@ -19,21 +32,37 @@ public sealed class GameUiTextTests
     }
 
     [Theory]
-    [InlineData(0, "Day 1 · 00:00")]
-    [InlineData(1_440, "Day 2 · 00:00")]
-    public void WorldClockUsesDaysAndTimeInsteadOfRawTicks(long worldTick, string expected)
+    [InlineData(0, "01-01-0001 · 00:00")]
+    [InlineData(1_440, "02-01-0001 · 00:00")]
+    [InlineData(44_640, "01-02-0001 · 00:00")]
+    public void WorldClockUsesTheSavedCalendarInsteadOfRawTicks(long worldTick, string expected)
     {
         Assert.Equal(expected, GameUiText.FormatWorldClock(worldTick));
     }
 
     [Theory]
-    [InlineData(0, "Day 1 · 12:00 AM")]
-    [InlineData(720, "Day 1 · 12:00 PM")]
-    [InlineData(780, "Day 1 · 1:00 PM")]
-    [InlineData(1_439, "Day 1 · 11:59 PM")]
+    [InlineData(0, "01-01-0001 · 12:00 AM")]
+    [InlineData(720, "01-01-0001 · 12:00 PM")]
+    [InlineData(780, "01-01-0001 · 1:00 PM")]
+    [InlineData(1_439, "01-01-0001 · 11:59 PM")]
     public void WorldClockCanUseTwelveHourDisplayWithoutChangingWorldTime(long worldTick, string expected)
     {
         Assert.Equal(expected, GameUiText.FormatWorldClock(worldTick, useTwelveHourClock: true));
+    }
+
+    [Fact]
+    public void CustomFortyDayYearUsesFourTenDayMonthsAndScalesClockFromWorldTicks()
+    {
+        var calendar = new OwnerWorldCalendarPace(360, 40);
+        Assert.Equal("01-01-0001 · 00:04", GameUiText.FormatWorldClock(1, calendarPace: calendar));
+        Assert.Equal("01-02-0001 · 00:00", GameUiText.FormatWorldClock(3_600, calendarPace: calendar));
+        Assert.Equal("01-01-0002 · 00:00", GameUiText.FormatWorldClock(14_400, calendarPace: calendar));
+        Assert.Equal("02-01-0002 · 12:00 PM", GameUiText.FormatWorldClock(14_940,
+            useTwelveHourClock: true, calendarPace: calendar));
+        Assert.Equal("01-02-0002 · 12:00", GameUiText.FormatWorldClock(14_940,
+            calendarPace: calendar, dateFormat: "mdy"));
+        Assert.Equal("0002-01-02 · 12:00", GameUiText.FormatWorldClock(14_940,
+            calendarPace: calendar, dateFormat: "ymd"));
     }
 
     [Fact]
@@ -48,9 +77,10 @@ public sealed class GameUiTextTests
             var restored = new GameDisplayPreferencesStore(Path.Combine(directory, "game-settings.json")).Load();
             Assert.True(restored.UseTwelveHourClock);
             Assert.True(restored.NotifyBirths);
-            store.Save(restored with { NotifyDeaths = false });
+            store.Save(restored with { NotifyDeaths = false, DateFormat = "ymd" });
             Assert.False(store.Load().AllowsNotification("death"));
             Assert.True(store.Load().AllowsNotification("birth"));
+            Assert.Equal("ymd", store.Load().DateFormat);
         }
         finally
         {

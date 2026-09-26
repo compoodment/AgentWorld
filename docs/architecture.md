@@ -34,6 +34,11 @@ them after a short grace period; reconnecting does not simulate missed time.
 The current host schedules one world tick per real second, and a tick is one
 in-world minute. Its nominal 24-real-minute day is **prototype behavior**, not
 the chosen finished-game calendar or pace.
+Owner observations report the saved world-system ticks per day and days per
+year; the client uses those values for clock/date presentation rather than
+assuming one fixed tick length. The 365-day prototype and proposed 40-day
+calendar have display mappings. This does not change the current world's
+calendar or biological aging.
 
 In the repository's private-host path, hosted cognition is dispatched after a
 committed tick and resolved at a later tick boundary. The saved scheduler queue

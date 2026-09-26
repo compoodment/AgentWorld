@@ -258,6 +258,9 @@ public sealed class OwnerWorldObservationStore
                 council.FoodPolicy, council.Ballot?.Policy, council.Ballot?.Approvals.Count ?? 0,
                 council.Ballot?.Rejections.Count ?? 0, council.Ballot?.Electorate.Count ?? 0) : null,
             LifePaceRate = state.Society.Society.LifeClock?.Rate ?? 1,
+            CalendarPace = state.WorldSystems is { } worldSystems
+                ? new ViewerCalendarPace(worldSystems.Config.TicksPerDay, worldSystems.Config.DaysPerYear)
+                : null,
             Authoring = new ViewerAuthoringState(
                 state.Society.Society.IsPaused,
                 state.Society.Society.RunEpoch,

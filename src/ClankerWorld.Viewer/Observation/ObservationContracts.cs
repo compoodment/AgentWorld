@@ -65,6 +65,7 @@ public sealed record ViewerInhabitantRelationship(
 
 public sealed record ViewerPrivateThought(long WorldTick, string Text);
 public sealed record ViewerAgentMemory(long WorldTick, string SubjectId, string SubjectName, string Summary, string Visibility);
+public sealed record ViewerCalendarPace(int TicksPerDay, int DaysPerYear);
 
 /// <summary>
 /// An inspection projection, never an editable actor record. A founder draft
@@ -218,6 +219,7 @@ public sealed record ViewerWorldSnapshot(
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }
+    public ViewerCalendarPace? CalendarPace { get; init; }
     /// <summary>
     /// The inspectable population projection. <see cref="Actor"/> remains for
     /// backwards-compatible Phase 2 diagnostic clients.

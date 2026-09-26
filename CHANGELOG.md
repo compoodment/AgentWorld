@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- The top bar, World Info, agent histories and event log now format dates and
+  time from the saved world's calendar pace. Game Settings offers DD-MM-YYYY,
+  MM-DD-YYYY and YYYY-MM-DD display without changing world time. The old aging
+  multiplier has moved out of World Settings into clearly labelled prototype
+  developer tools; it is not the decided custom calendar.
+
 - Agent profiles now open a separate Memories panel showing that agent's
   saved records, including private memories and memories retained after death.
   These records no longer masquerade as public social notes. Quit Game now

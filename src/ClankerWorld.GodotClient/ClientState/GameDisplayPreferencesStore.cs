@@ -10,7 +10,8 @@ public sealed record GameDisplayPreferences(
     bool NotifyBirths = true,
     bool NotifyDeaths = true,
     bool NotifyInventions = true,
-    bool NotifySettlements = true)
+    bool NotifySettlements = true,
+    string DateFormat = "dmy")
 {
     public bool AllowsNotification(string category) => category switch
     {

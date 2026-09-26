@@ -113,6 +113,7 @@ public partial class Main : Control
     private readonly CheckBox fullscreenToggle = new();
     private readonly OptionButton resolutionChoice = new();
     private readonly OptionButton clockFormatChoice = new();
+    private readonly OptionButton dateFormatChoice = new();
     private readonly OptionButton lifePaceChoice = new();
     private readonly Button applyLifePaceButton = new();
     private int? lastObservedLifePace;
@@ -165,6 +166,7 @@ public partial class Main : Control
     private string? cameraWorldId;
     private bool draggingMap;
     private GameDisplayPreferences displayPreferences = new();
+    private OwnerWorldCalendarPace? observedCalendarPace;
     private string? notificationWorldId;
     private long lastNotificationEventId;
     private long? visibleNoticeEventId;
@@ -266,6 +268,11 @@ public partial class Main : Control
                 ContentPackages = [new("owner-building-ui-test", "1.0.0", "sha256:test", "proposed", null, null, null, null,
                     "sha256:manifest", "Mira's shelter study", "builder-test")],
             };
+            Render(sample with { WorldTick = 3_600, CalendarPace = new OwnerWorldCalendarPace(360, 40) }, []);
+            if (clockLabel.Text != "01-02-0001 · 00:00" ||
+                !worldInfoText.Text.Contains("40 days/year", StringComparison.Ordinal))
+                throw new InvalidOperationException("The HUD must use the world's saved calendar pace, not a hard-coded day length.");
+            Render(sample, []);
             RenderDesignPackages(sample);
             if (designPackages.ItemCount != 1 || !designPackages.GetItemText(0).Contains("proposed by builder-test", StringComparison.Ordinal))
                 throw new InvalidOperationException("Creation workbench must show inhabitant proposal provenance.");
@@ -1941,6 +1948,17 @@ public partial class Main : Control
         clockFormatRow.AddChild(clockFormatChoice);
         gameSettingsContent.AddChild(clockFormatRow);
 
+        var dateFormatRow = new HBoxContainer();
+        dateFormatRow.AddChild(new Label { Text = "Date display" });
+        dateFormatChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        dateFormatChoice.AddItem("DD-MM-YYYY");
+        dateFormatChoice.AddItem("MM-DD-YYYY");
+        dateFormatChoice.AddItem("YYYY-MM-DD");
+        dateFormatChoice.Selected = displayPreferences.DateFormat switch { "mdy" => 1, "ymd" => 2, _ => 0 };
+        dateFormatChoice.ItemSelected += SetDateFormat;
+        dateFormatRow.AddChild(dateFormatChoice);
+        gameSettingsContent.AddChild(dateFormatRow);
+
         gameSettingsContent.AddChild(new Label { Text = "Out-of-view event pop-ups" });
         AddNotificationPreference("Births", displayPreferences.NotifyBirths,
             enabled => displayPreferences with { NotifyBirths = enabled });
@@ -1952,7 +1970,7 @@ public partial class Main : Control
             enabled => displayPreferences with { NotifySettlements = enabled });
 
         var lifePaceRow = new HBoxContainer();
-        lifePaceRow.AddChild(new Label { Text = "Life pace" });
+        lifePaceRow.AddChild(new Label { Text = "Aging multiplier" });
         lifePaceChoice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         lifePaceChoice.AddItem("Calendar", 1);
         lifePaceChoice.AddItem("Generations", 365);
@@ -1960,13 +1978,20 @@ public partial class Main : Control
         lifePaceChoice.SetItemTooltip(0, "Original aging: one biological year per 365 world days.");
         lifePaceChoice.SetItemTooltip(1, "One biological year per world day (about 24 active minutes).");
         lifePaceChoice.SetItemTooltip(2, "One biological year per quarter-day (about 6 active minutes).");
-        lifePaceChoice.TooltipText = "Changes future biological aging only. Current ages, birth dates, seasons and model-call speed stay unchanged. Faster aging brings elderhood and mortality sooner.";
+        lifePaceChoice.TooltipText = "Prototype override only: changes future biological aging without changing the calendar, seasons or model-call speed. This is not the decided 40-day year or six-hour lifespan.";
         lifePaceRow.AddChild(lifePaceChoice);
         applyLifePaceButton.Text = "Apply";
         StyleButton(applyLifePaceButton);
         applyLifePaceButton.Pressed += () => _ = SaveLifePaceAsync();
         lifePaceRow.AddChild(applyLifePaceButton);
-        worldSettingsContent.AddChild(lifePaceRow);
+        var prototypePaceBody = new VBoxContainer();
+        prototypePaceBody.AddChild(new Label
+        {
+            Text = "Experimental prototype control. The decided world calendar and lifespan are not implemented by this setting.",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        });
+        prototypePaceBody.AddChild(lifePaceRow);
+        developerBody.AddChild(NewPanel("Prototype aging override", prototypePaceBody));
 
         BuildCognitionSettingsPanel();
         worldSettingsContent.AddChild(cognitionSettingsPanel);
@@ -2364,6 +2389,14 @@ public partial class Main : Control
             Render(current.Baseline.Snapshot, []);
     }
 
+    private void SetDateFormat(long index)
+    {
+        var format = index switch { 1 => "mdy", 2 => "ymd", _ => "dmy" };
+        SaveDisplayPreferences(displayPreferences with { DateFormat = format });
+        if (observationSession.Current is { } current)
+            Render(current.Baseline.Snapshot, []);
+    }
+
     private void AddNotificationPreference(
         string label, bool selected, Func<bool, GameDisplayPreferences> update)
     {
@@ -2386,7 +2419,8 @@ public partial class Main : Control
     }
 
     private string DisplayWorldClock(long worldTick) =>
-        GameUiText.FormatWorldClock(worldTick, displayPreferences.UseTwelveHourClock);
+        GameUiText.FormatWorldClock(worldTick, displayPreferences.UseTwelveHourClock,
+            observedCalendarPace, displayPreferences.DateFormat);
 
     private void AddAuthoringKinds()
     {
@@ -2435,10 +2469,12 @@ public partial class Main : Control
 
     private void Render(OwnerWorldSnapshot snapshot, IReadOnlyList<OwnerWorldEvent> appendedEvents)
     {
+        observedCalendarPace = snapshot.CalendarPace;
         if (cameraWorldId is not null && cameraWorldId != snapshot.WorldId)
         {
             knownEvents.Clear();
             familyTreePanel.Hide();
+            memoriesPanel.Hide();
         }
         foreach (var worldEvent in appendedEvents)
         {
@@ -2717,6 +2753,7 @@ public partial class Main : Control
             : "Not reported";
         worldInfoText.Text =
             $"Date and time: {DisplayWorldClock(snapshot.WorldTick)}\n" +
+            (snapshot.CalendarPace is { } pace ? $"Calendar: {pace.DaysPerYear} days/year\n" : "") +
             $"Living agents: {LivingPopulation(snapshot)}\n" +
             $"Map: {width} × {height} tiles\n" +
             $"Buildings: {snapshot.PlacedBuildings.Count}\n" +

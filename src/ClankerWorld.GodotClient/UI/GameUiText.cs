@@ -29,17 +29,58 @@ public static class GameUiText
         return title + (stock.Length == 0 ? "" : " · " + stock) + "\n" + HumanizeIdentifier(resource.State) + "\n" + renewal;
     }
 
-    public static string FormatWorldClock(long worldTick, bool useTwelveHourClock = false)
+    public static string FormatWorldClock(long worldTick, bool useTwelveHourClock = false,
+        OwnerWorldCalendarPace? calendarPace = null, string dateFormat = "dmy")
     {
         ArgumentOutOfRangeException.ThrowIfNegative(worldTick);
-        var day = (worldTick / MinutesPerDay) + 1;
-        var minuteOfDay = (int)(worldTick % MinutesPerDay);
+        var ticksPerDay = calendarPace?.TicksPerDay ?? MinutesPerDay;
+        var daysPerYear = calendarPace?.DaysPerYear ?? 365;
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(ticksPerDay);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(daysPerYear);
+        var dayIndex = worldTick / ticksPerDay;
+        var date = FormatWorldDate(dayIndex, daysPerYear, dateFormat);
+        var minuteOfDay = (int)(((worldTick % ticksPerDay) * MinutesPerDay) / ticksPerDay);
         var hour = minuteOfDay / 60;
         var minute = minuteOfDay % 60;
-        if (!useTwelveHourClock) return $"Day {day} · {hour:00}:{minute:00}";
+        if (!useTwelveHourClock) return $"{date} · {hour:00}:{minute:00}";
         var twelveHour = hour % 12;
         if (twelveHour == 0) twelveHour = 12;
-        return $"Day {day} · {twelveHour}:{minute:00} {(hour < 12 ? "AM" : "PM")}";
+        return $"{date} · {twelveHour}:{minute:00} {(hour < 12 ? "AM" : "PM")}";
+    }
+
+    private static string FormatWorldDate(long dayIndex, int daysPerYear, string dateFormat)
+    {
+        var year = (dayIndex / daysPerYear) + 1;
+        var dayOfYear = (int)(dayIndex % daysPerYear);
+        int month;
+        int day;
+        if (daysPerYear == 40)
+        {
+            month = (dayOfYear / 10) + 1;
+            day = (dayOfYear % 10) + 1;
+        }
+        else if (daysPerYear == 365)
+        {
+            var monthLengths = new[] { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+            month = 1;
+            while (dayOfYear >= monthLengths[month - 1])
+            {
+                dayOfYear -= monthLengths[month - 1];
+                month++;
+            }
+            day = dayOfYear + 1;
+        }
+        else
+        {
+            return $"Year {year} · Day {dayOfYear + 1}";
+        }
+
+        return dateFormat switch
+        {
+            "mdy" => $"{month:00}-{day:00}-{year:0000}",
+            "ymd" => $"{year:0000}-{month:00}-{day:00}",
+            _ => $"{day:00}-{month:00}-{year:0000}",
+        };
     }
 
     public static bool IsPlayerFacingEvent(string kind)
