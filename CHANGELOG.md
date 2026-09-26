@@ -8,6 +8,13 @@ release yet.
 
 ### Added
 
+- The Windows world view now supports mouse-wheel zoom, WASD/arrow and
+  middle-drag panning, plus a top-left Map button. Its data-drawn overview
+  marks the visible area and lets players click or drag to move the camera;
+  this adds no second regional texture set. The top bar shows the living-agent
+  count and opens a concise World Info panel; the pause menu separates current
+  Game Settings from World Settings.
+
 - Experienced builders can now propose bounded 1×1 shelter, storehouse or
   hearth designs through planning cognition. Completed building practice gates
   the choice; proposals are rate-limited, retain durable inhabitant authorship

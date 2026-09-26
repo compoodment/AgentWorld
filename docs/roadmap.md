@@ -34,11 +34,13 @@ not pass the gate.
 ## 2. Build the intended player/world foundation
 
 - Main Menu, New World generation/preview, size/climate options, east–west
-  wrapping, chunked map and map overview.
+  wrapping, chunked map and an overview that scales beyond the current fixed-map
+  prototype.
 - Empty generated base camp; four in-world founder additions with per-agent
   provider/model/key choice; explicit Start World.
 - Agreed world clock, day/night and regional weather; player-local display
-  preferences, the proposed Game/World Settings split, autosaves and recovery.
+  preferences, the missing controls within the now-separated Game/World
+  Settings panels, autosaves and recovery.
 - World-first pixel-art presentation, agent/event/conversation inspection,
   filters and usable navigation.
 

@@ -31,7 +31,12 @@ public partial class Main : Control
     private readonly Label statusLabel = new();
     private readonly PanelContainer statusToast = new();
     private readonly PanelContainer connectionPanel = new();
-    private readonly Button connectionSettingsButton = new();
+    private readonly Button gameSettingsButton = new();
+    private readonly Button worldSettingsButton = new();
+    private readonly Button gameSettingsCategoryButton = new();
+    private readonly Button worldSettingsCategoryButton = new();
+    private readonly VBoxContainer gameSettingsContent = new();
+    private readonly VBoxContainer worldSettingsContent = new();
     private readonly LineEdit worldUrlInput = new();
     private readonly Button connectButton = new();
     private readonly Button pairAgainButton = new();
@@ -55,6 +60,8 @@ public partial class Main : Control
     private readonly Button forgetRegistrationButton = new();
 
     private readonly HBoxContainer topBar = new();
+    private readonly Button mapButton = new();
+    private readonly Button worldInfoButton = new();
     private readonly Label clockLabel = new();
     private readonly Label climateLabel = new();
     private readonly Button inhabitantsButton = new();
@@ -64,6 +71,8 @@ public partial class Main : Control
     private readonly GridContainer worldGrid = new();
     private readonly Control mapCanvas = new();
     private readonly Control mapStage = new();
+    private readonly PanelContainer worldOverviewPanel = new();
+    private readonly WorldOverview worldOverview = new();
     private readonly Control objectLayer = new();
     private readonly Control entityLayer = new();
     private readonly Label rosterSummaryLabel = new();
@@ -75,10 +84,12 @@ public partial class Main : Control
     private readonly RichTextLabel inhabitantDetails = new();
     private readonly RichTextLabel inhabitantSocialDetails = new();
     private readonly RichTextLabel worldDetails = new();
+    private readonly RichTextLabel worldInfoText = new();
     private readonly RichTextLabel eventLog = new();
     private readonly PanelContainer rosterPanel = new();
     private readonly PanelContainer eventsPanel = new();
     private readonly PanelContainer settlementPanel = new();
+    private readonly PanelContainer worldInfoPanel = new();
     private readonly PanelContainer gameMenuPanel = new();
     private readonly PanelContainer settingsPanel = new();
     private readonly ColorRect menuShade = new();
@@ -131,7 +142,12 @@ public partial class Main : Control
     private bool isOwnerAction;
     private bool registeredEndpointInvalid;
     private bool menuPausedWorld;
+    private OwnerWorldSnapshot? renderedMapSnapshot;
     private int currentTileSize = DefaultTileSize;
+    private float cameraZoom = 1;
+    private Vector2 cameraCenterTiles;
+    private string? cameraWorldId;
+    private bool draggingMap;
 
     public Main()
     {
@@ -171,29 +187,43 @@ public partial class Main : Control
                 GetWindow().Size = size;
                 foreach (var settingsVisible in new[] { false, true })
                 {
-                    settingsPanel.Visible = settingsVisible;
-                    foreach (var selected in new[] { false, true, false })
+                    foreach (var worldSpecific in settingsVisible ? new[] { false, true } : new[] { false })
                     {
-                        selectedInhabitantCard.Visible = selected;
-                        for (var frame = 0; frame < 5; frame++)
+                        if (settingsVisible)
                         {
+                            ShowSettingsSection(worldSpecific);
+                            if (gameSettingsContent.Visible == worldSpecific || worldSettingsContent.Visible != worldSpecific)
+                                throw new InvalidOperationException("Game and World Settings must show different controls.");
+                        }
+                        else settingsPanel.Hide();
+                        foreach (var selected in new[] { false, true, false })
+                        {
+                            selectedInhabitantCard.Visible = selected;
+                            for (var frame = 0; frame < 5; frame++)
+                            {
+                                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                            }
+                            ApplyResponsiveLayout();
                             await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                            var menu = gameMenuPanel.GetGlobalRect();
+                            var bounds = gameMenuPanel.GetParent<Control>().GetGlobalRect();
+                            if (menu.GetCenter().DistanceTo(bounds.GetCenter()) > 2 || !bounds.Encloses(menu))
+                            {
+                                throw new InvalidOperationException($"Menu escaped its centered bounds: window={size}, settings={settingsVisible}, world={worldSpecific}, selected={selected}, menu={menu}, bounds={bounds}");
+                            }
+                            settlementPanel.Show();
+                            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                            if (!mapCanvas.GetGlobalRect().Encloses(settlementPanel.GetGlobalRect()))
+                            {
+                                throw new InvalidOperationException($"Settlement panel escaped the world viewport: window={size}");
+                            }
+                            settlementPanel.Hide();
+                            worldInfoPanel.Show();
+                            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                            if (!mapCanvas.GetGlobalRect().Encloses(worldInfoPanel.GetGlobalRect()))
+                                throw new InvalidOperationException($"World Info escaped the world viewport: window={size}");
+                            worldInfoPanel.Hide();
                         }
-                        ApplyResponsiveLayout();
-                        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-                        var menu = gameMenuPanel.GetGlobalRect();
-                        var bounds = gameMenuPanel.GetParent<Control>().GetGlobalRect();
-                        if (menu.GetCenter().DistanceTo(bounds.GetCenter()) > 2 || !bounds.Encloses(menu))
-                        {
-                            throw new InvalidOperationException($"Menu escaped its centered bounds: window={size}, settings={settingsVisible}, selected={selected}, menu={menu}, bounds={bounds}");
-                        }
-                        settlementPanel.Show();
-                        await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-                        if (!mapCanvas.GetGlobalRect().Encloses(settlementPanel.GetGlobalRect()))
-                        {
-                            throw new InvalidOperationException($"Settlement panel escaped the world viewport: window={size}");
-                        }
-                        settlementPanel.Hide();
                     }
                 }
                 creationOverlay.Show();
@@ -236,7 +266,57 @@ public partial class Main : Control
             RenderMap(sample with { Resources = [], PlacedBuildings = [] });
             if (mapObjectVisuals.ContainsKey("resource:wood")) throw new InvalidOperationException("Removed resource marker was retained.");
             if (mapObjectVisuals.ContainsKey("building:test-hall")) throw new InvalidOperationException("Removed building marker was retained.");
-            GD.Print("UI checks passed: centered menus/workbench and settlement panel at three sizes; proposal provenance, resource hover, stock updates and building footprints.");
+            var smallMapTileSize = currentTileSize;
+            HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.WheelUp, Pressed = true });
+            if (currentTileSize <= smallMapTileSize)
+                throw new InvalidOperationException("Mouse-wheel zoom must work even when the small starter map reaches its fitted tile-size cap.");
+            RenderMap(sample with
+            {
+                WorldId = "ui-navigation",
+                Tiles = Enumerable.Range(0, 192)
+                    .Select(index => new OwnerWorldTile(index % 16, index / 16, "meadow")).ToArray(),
+                Resources = [],
+                PlacedBuildings = [],
+            });
+            mapButton.EmitSignal(BaseButton.SignalName.Pressed);
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (!worldOverviewPanel.Visible || worldOverview.VisibleTiles.Size.Y <= 0)
+                throw new InvalidOperationException("The top-left map button did not open a camera-aware world overview.");
+            var fittedTileSize = currentTileSize;
+            var fittedViewHeight = worldOverview.VisibleTiles.Size.Y;
+            for (var index = 0; index < 2; index++)
+                HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.WheelUp, Pressed = true });
+            if (currentTileSize <= fittedTileSize || worldOverview.VisibleTiles.Size.Y >= fittedViewHeight)
+                throw new InvalidOperationException($"Mouse-wheel zoom did not narrow the visible world area: tile={fittedTileSize}->{currentTileSize}, view={fittedViewHeight}->{worldOverview.VisibleTiles.Size.Y}.");
+            var beforeOverviewClick = mapStage.Position;
+            worldOverview._GuiInput(new InputEventMouseButton
+            {
+                ButtonIndex = MouseButton.Left,
+                Pressed = true,
+                Position = new Vector2(worldOverview.Size.X / 2, 12),
+            });
+            if (mapStage.Position.DistanceTo(beforeOverviewClick) < 1)
+                throw new InvalidOperationException("Clicking the overview did not move the world camera.");
+            var beforeOverviewDrag = mapStage.Position;
+            worldOverview._GuiInput(new InputEventMouseMotion
+            {
+                Position = new Vector2(worldOverview.Size.X / 2, worldOverview.Size.Y - 12),
+            });
+            worldOverview._GuiInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false });
+            if (mapStage.Position.DistanceTo(beforeOverviewDrag) < 1)
+                throw new InvalidOperationException("Dragging the overview did not move the world camera.");
+            var beforeMiddleDrag = mapStage.Position;
+            HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = true });
+            HandleMapInput(new InputEventMouseMotion { Relative = new Vector2(0, 60) });
+            HandleMapInput(new InputEventMouseButton { ButtonIndex = MouseButton.Middle, Pressed = false });
+            if (mapStage.Position.DistanceTo(beforeMiddleDrag) < 1)
+                throw new InvalidOperationException("Middle-drag did not pan the world camera.");
+            GetViewport().GuiGetFocusOwner()?.ReleaseFocus();
+            var beforeKeyboardPan = mapStage.Position;
+            _UnhandledKeyInput(new InputEventKey { Keycode = Key.S, Pressed = true });
+            if (mapStage.Position.DistanceTo(beforeKeyboardPan) < 1)
+                throw new InvalidOperationException("Keyboard panning did not move the world camera.");
+            GD.Print("UI checks passed: menus/workbench, settlement panel, resource hover, building footprints, zoom, middle-drag, WASD and overview navigation.");
             GetTree().Quit();
         }
         catch (Exception exception)
@@ -1229,6 +1309,20 @@ public partial class Main : Control
         margin.AddThemeConstantOverride("margin_bottom", 9);
 
         topBar.AddThemeConstantOverride("separation", 8);
+        mapButton.Text = "Map";
+        mapButton.TooltipText = "Open the world overview; zoom with the mouse wheel and pan with WASD or middle-drag.";
+        StyleButton(mapButton);
+        mapButton.Pressed += () =>
+        {
+            var show = !worldOverviewPanel.Visible;
+            rosterPanel.Hide();
+            settlementPanel.Hide();
+            eventsPanel.Hide();
+            worldInfoPanel.Hide();
+            worldOverviewPanel.Visible = show;
+        };
+        topBar.AddChild(mapButton);
+
         clockLabel.Text = "Connecting…";
         clockLabel.AddThemeFontSizeOverride("font_size", 20);
         clockLabel.AddThemeColorOverride("font_color", new Color("F4F0E3"));
@@ -1238,6 +1332,12 @@ public partial class Main : Control
         climateLabel.Modulate = new Color("AFC4BA");
         climateLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         topBar.AddChild(climateLabel);
+
+        worldInfoButton.Text = "Info";
+        worldInfoButton.TooltipText = "World Info";
+        StyleButton(worldInfoButton);
+        worldInfoButton.Pressed += ToggleWorldInfo;
+        topBar.AddChild(worldInfoButton);
 
         inhabitantsButton.Text = "Inhabitants";
         StyleButton(inhabitantsButton);
@@ -1250,6 +1350,8 @@ public partial class Main : Control
         {
             rosterPanel.Hide();
             eventsPanel.Hide();
+            worldOverviewPanel.Hide();
+            worldInfoPanel.Hide();
             settlementPanel.Visible = !settlementPanel.Visible;
         };
         topBar.AddChild(settlementButton);
@@ -1371,17 +1473,29 @@ public partial class Main : Control
         RenderProviderConfiguration();
     }
 
-    private void ToggleConnectionSettings()
+    private void ToggleSettingsSection(bool worldSpecific)
     {
-        settingsPanel.Visible = !settingsPanel.Visible;
-        if (!settingsPanel.Visible)
+        if (settingsPanel.Visible && worldSettingsContent.Visible == worldSpecific)
         {
+            settingsPanel.Hide();
             cognitionApiKeyInput.Text = string.Empty;
+            ApplyResponsiveLayout();
+            return;
         }
 
+        ShowSettingsSection(worldSpecific);
+    }
+
+    private void ShowSettingsSection(bool worldSpecific)
+    {
+        settingsPanel.Show();
+        gameSettingsContent.Visible = !worldSpecific;
+        worldSettingsContent.Visible = worldSpecific;
+        gameSettingsCategoryButton.Disabled = !worldSpecific;
+        worldSettingsCategoryButton.Disabled = worldSpecific || registration is null;
         developerScroll.Hide();
         developerToggleButton.Text = "Developer tools";
-        if (settingsPanel.Visible && registration is not null)
+        if (worldSpecific && registration is not null)
         {
             _ = RefreshProviderConfigurationAsync();
         }
@@ -1491,6 +1605,14 @@ public partial class Main : Control
 
         BuildSelectedInhabitantCard();
         mapCanvas.AddChild(selectedInhabitantCard);
+
+        worldOverview.CenterRequested += CenterCameraAt;
+        AddPanelContents(worldOverviewPanel, "World Map", worldOverview);
+        worldOverviewPanel.Position = new Vector2(14, 14);
+        worldOverviewPanel.ZIndex = 80;
+        worldOverviewPanel.Hide();
+        mapCanvas.AddChild(worldOverviewPanel);
+        mapCanvas.GuiInput += HandleMapInput;
         content.AddChild(mapCanvas);
     }
 
@@ -1526,6 +1648,13 @@ public partial class Main : Control
         settlementPanel.ZIndex = 80;
         settlementPanel.Hide();
         content.AddChild(settlementPanel);
+
+        ConfigureTextPanel(worldInfoText, 220);
+        AddPanelContents(worldInfoPanel, "World Info", worldInfoText);
+        worldInfoPanel.CustomMinimumSize = new Vector2(365, 280);
+        worldInfoPanel.ZIndex = 80;
+        worldInfoPanel.Hide();
+        content.AddChild(worldInfoPanel);
     }
 
     private void BuildOwnerColumn(Control content)
@@ -1556,17 +1685,23 @@ public partial class Main : Control
         menuHeading.AddChild(closeButton);
         body.AddChild(menuHeading);
 
-        var menuActions = new HBoxContainer();
-        menuActions.AddThemeConstantOverride("separation", 6);
+        var menuActions = new GridContainer { Columns = 3 };
+        menuActions.AddThemeConstantOverride("h_separation", 6);
+        menuActions.AddThemeConstantOverride("v_separation", 6);
         menuResumeButton.Text = "Resume";
         StyleButton(menuResumeButton, primary: true);
         menuResumeButton.Pressed += () => _ = CloseGameMenuAsync();
         menuActions.AddChild(menuResumeButton);
 
-        connectionSettingsButton.Text = "Settings";
-        StyleButton(connectionSettingsButton);
-        connectionSettingsButton.Pressed += ToggleConnectionSettings;
-        menuActions.AddChild(connectionSettingsButton);
+        gameSettingsButton.Text = "Game Settings";
+        StyleButton(gameSettingsButton);
+        gameSettingsButton.Pressed += () => ToggleSettingsSection(worldSpecific: false);
+        menuActions.AddChild(gameSettingsButton);
+
+        worldSettingsButton.Text = "World Settings";
+        StyleButton(worldSettingsButton);
+        worldSettingsButton.Pressed += () => ToggleSettingsSection(worldSpecific: true);
+        menuActions.AddChild(worldSettingsButton);
 
         var creationButton = new Button { Text = "Create" };
         StyleButton(creationButton);
@@ -1596,19 +1731,19 @@ public partial class Main : Control
         menuActions.AddChild(quitButton);
         body.AddChild(menuActions);
 
-        var settingsBody = new VBoxContainer();
-        settingsBody.AddThemeConstantOverride("separation", 8);
+        gameSettingsContent.AddThemeConstantOverride("separation", 8);
+        worldSettingsContent.AddThemeConstantOverride("separation", 8);
         fullscreenToggle.Text = "Fullscreen";
         fullscreenToggle.ButtonPressed = DisplayServer.WindowGetMode() == DisplayServer.WindowMode.Fullscreen;
         fullscreenToggle.Toggled += SetFullscreen;
-        settingsBody.AddChild(fullscreenToggle);
+        gameSettingsContent.AddChild(fullscreenToggle);
 
         resolutionChoice.AddItem("1280 × 720");
         resolutionChoice.AddItem("1600 × 900");
         resolutionChoice.AddItem("1920 × 1080");
         resolutionChoice.Selected = 0;
         resolutionChoice.ItemSelected += SetWindowResolution;
-        settingsBody.AddChild(resolutionChoice);
+        gameSettingsContent.AddChild(resolutionChoice);
 
         var lifePaceRow = new HBoxContainer();
         lifePaceRow.AddChild(new Label { Text = "Life pace" });
@@ -1625,24 +1760,42 @@ public partial class Main : Control
         StyleButton(applyLifePaceButton);
         applyLifePaceButton.Pressed += () => _ = SaveLifePaceAsync();
         lifePaceRow.AddChild(applyLifePaceButton);
-        settingsBody.AddChild(lifePaceRow);
+        worldSettingsContent.AddChild(lifePaceRow);
 
         BuildCognitionSettingsPanel();
-        settingsBody.AddChild(cognitionSettingsPanel);
+        worldSettingsContent.AddChild(cognitionSettingsPanel);
 
         BuildConnectionPanel();
-        settingsBody.AddChild(connectionPanel);
+        gameSettingsContent.AddChild(connectionPanel);
         BuildPairingPanel();
-        settingsBody.AddChild(pairingPanel);
+        gameSettingsContent.AddChild(pairingPanel);
+        var settingsPages = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        settingsPages.AddChild(gameSettingsContent);
+        settingsPages.AddChild(worldSettingsContent);
+        worldSettingsContent.Hide();
         var settingsScroll = new ScrollContainer
         {
-            CustomMinimumSize = new Vector2(0, 380),
+            CustomMinimumSize = new Vector2(0, 340),
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
             SizeFlagsVertical = Control.SizeFlags.ExpandFill,
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
         };
-        settingsBody.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
-        settingsScroll.AddChild(settingsBody);
-        AddPanelContents(settingsPanel, "Settings", settingsScroll);
+        settingsScroll.AddChild(settingsPages);
+        var settingsCategories = new VBoxContainer { CustomMinimumSize = new Vector2(130, 0) };
+        gameSettingsCategoryButton.Text = "Game";
+        StyleButton(gameSettingsCategoryButton);
+        gameSettingsCategoryButton.Pressed += () => ShowSettingsSection(worldSpecific: false);
+        settingsCategories.AddChild(gameSettingsCategoryButton);
+        worldSettingsCategoryButton.Text = "World";
+        StyleButton(worldSettingsCategoryButton);
+        worldSettingsCategoryButton.Pressed += () => ShowSettingsSection(worldSpecific: true);
+        settingsCategories.AddChild(worldSettingsCategoryButton);
+        gameSettingsCategoryButton.Disabled = true;
+        var settingsLayout = new HBoxContainer();
+        settingsLayout.AddThemeConstantOverride("separation", 10);
+        settingsLayout.AddChild(settingsCategories);
+        settingsLayout.AddChild(settingsScroll);
+        AddPanelContents(settingsPanel, "Settings", settingsLayout);
         settingsPanel.Hide();
         body.AddChild(settingsPanel);
 
@@ -1803,6 +1956,8 @@ public partial class Main : Control
         var show = !rosterPanel.Visible;
         settlementPanel.Hide();
         eventsPanel.Hide();
+        worldOverviewPanel.Hide();
+        worldInfoPanel.Hide();
         rosterPanel.Visible = show;
     }
 
@@ -1811,7 +1966,19 @@ public partial class Main : Control
         var show = !eventsPanel.Visible;
         settlementPanel.Hide();
         rosterPanel.Hide();
+        worldOverviewPanel.Hide();
+        worldInfoPanel.Hide();
         eventsPanel.Visible = show;
+    }
+
+    private void ToggleWorldInfo()
+    {
+        var show = !worldInfoPanel.Visible;
+        settlementPanel.Hide();
+        rosterPanel.Hide();
+        eventsPanel.Hide();
+        worldOverviewPanel.Hide();
+        worldInfoPanel.Visible = show;
     }
 
     private async Task TogglePauseAsync()
@@ -1870,9 +2037,7 @@ public partial class Main : Control
         menuHeadingLabel.Text = "Set up your world";
         gameMenuPanel.Show();
         menuShade.Show();
-        settingsPanel.Show();
-        developerScroll.Hide();
-        ApplyResponsiveLayout();
+        ShowSettingsSection(worldSpecific: false);
     }
 
     private static void SetFullscreen(bool enabled)
@@ -1957,6 +2122,7 @@ public partial class Main : Control
         RenderInhabitantList(snapshot);
         RenderMap(snapshot);
         RenderWorldHud(snapshot);
+        RenderWorldInfo(snapshot);
         RenderInhabitantDetails(snapshot);
         RenderSelectedInhabitantCard(snapshot);
         RenderWorldDetails(snapshot);
@@ -1967,6 +2133,7 @@ public partial class Main : Control
 
     private void RenderMap(OwnerWorldSnapshot snapshot)
     {
+        renderedMapSnapshot = snapshot;
         foreach (var child in worldGrid.GetChildren())
         {
             child.QueueFree();
@@ -1990,6 +2157,14 @@ public partial class Main : Control
         }
 
         var mapWidth = snapshot.Tiles.Max(tile => tile.X) + 1;
+        var mapHeight = snapshot.Tiles.Max(tile => tile.Y) + 1;
+        if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
+        {
+            cameraWorldId = snapshot.WorldId;
+            cameraZoom = 1;
+            cameraCenterTiles = new Vector2(mapWidth / 2f, mapHeight / 2f);
+        }
+        worldOverview.SetWorld(snapshot.Tiles, mapWidth, mapHeight);
         UpdateMapGeometry(snapshot);
         worldGrid.Columns = mapWidth;
         foreach (var tile in snapshot.Tiles.OrderBy(tile => tile.Y).ThenBy(tile => tile.X))
@@ -2004,8 +2179,8 @@ public partial class Main : Control
             };
             cell.AddThemeFontSizeOverride("font_size", 13);
             cell.AddThemeColorOverride("font_color", new Color("E6F0E8"));
-            cell.AddThemeStyleboxOverride("normal", TileStyle(TerrainColor(tile.Terrain)));
-            cell.AddThemeStyleboxOverride("hover", TileStyle(TerrainColor(tile.Terrain).Lightened(0.15f)));
+            cell.AddThemeStyleboxOverride("normal", TileStyle(WorldMapPalette.TerrainColor(tile.Terrain)));
+            cell.AddThemeStyleboxOverride("hover", TileStyle(WorldMapPalette.TerrainColor(tile.Terrain).Lightened(0.15f)));
             worldGrid.AddChild(cell);
         }
 
@@ -2066,6 +2241,7 @@ public partial class Main : Control
                             previousPosition.Y * stride + offsetY)
                         : targetPosition,
                     CustomMinimumSize = new Vector2(actorSize, actorSize),
+                    MouseFilter = Control.MouseFilterEnum.Pass,
                     ZIndex = 10,
                 };
                 actorButton.AddThemeColorOverride("font_color", Colors.White);
@@ -2141,12 +2317,33 @@ public partial class Main : Control
     {
         var paused = snapshot.Authoring?.IsPaused == true;
         clockLabel.Text = GameUiText.FormatWorldClock(snapshot.WorldTick);
+        inhabitantsButton.Text = $"Agents {LivingPopulation(snapshot)}";
+        inhabitantsButton.TooltipText = "Living agents · open the inhabitant list";
         climateLabel.Text = snapshot.Authoring is { } authoring
             ? $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}"
             : string.Empty;
         pauseButton.Text = paused ? "Play" : "Pause";
         pauseButton.TooltipText = paused ? "Resume the world" : "Pause the world";
         menuResumeButton.Text = menuPausedWorld ? "Resume" : "Close menu";
+    }
+
+    private static int LivingPopulation(OwnerWorldSnapshot snapshot) => snapshot.Inhabitants.Count(inhabitant =>
+        !inhabitant.IsDraft && string.Equals(inhabitant.Lifecycle, "active", StringComparison.OrdinalIgnoreCase));
+
+    private void RenderWorldInfo(OwnerWorldSnapshot snapshot)
+    {
+        var width = snapshot.Tiles.Count == 0 ? 0 : snapshot.Tiles.Max(tile => tile.X) + 1;
+        var height = snapshot.Tiles.Count == 0 ? 0 : snapshot.Tiles.Max(tile => tile.Y) + 1;
+        var localWeather = snapshot.Authoring is { } authoring
+            ? $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}"
+            : "Not reported";
+        worldInfoText.Text =
+            $"Date and time: {GameUiText.FormatWorldClock(snapshot.WorldTick)}\n" +
+            $"Living agents: {LivingPopulation(snapshot)}\n" +
+            $"Map: {width} × {height} tiles\n" +
+            $"Buildings: {snapshot.PlacedBuildings.Count}\n" +
+            $"Resource sites: {snapshot.Resources.Count}\n" +
+            $"Local season and weather: {localWeather}";
     }
 
     private void RenderInhabitantList(OwnerWorldSnapshot snapshot)
@@ -2413,6 +2610,8 @@ public partial class Main : Control
     private void RefreshControlAvailability()
     {
         var paired = !registeredEndpointInvalid && registration is not null && deviceKey is not null;
+        worldSettingsButton.Disabled = !paired;
+        worldSettingsCategoryButton.Disabled = !paired || worldSettingsContent.Visible;
         var snapshot = observationSession.Current?.Baseline.Snapshot;
         var paused = snapshot?.Authoring?.IsPaused == true;
         var selected = snapshot?.Inhabitants.FirstOrDefault(item =>
@@ -2501,7 +2700,7 @@ public partial class Main : Control
             return;
         }
 
-        climateLabel.Visible = Size.X >= 820;
+        climateLabel.Visible = Size.X >= 1100;
 
         if (observationSession.Current?.Baseline.Snapshot is { Tiles.Count: > 0 } snapshot)
         {
@@ -2519,6 +2718,7 @@ public partial class Main : Control
 
         rosterPanel.Position = new Vector2(14, 14);
         settlementPanel.Position = new Vector2(14, 14);
+        worldInfoPanel.Position = new Vector2(14, 14);
         eventsPanel.Position = new Vector2(
             Math.Max(14, viewport.X - Math.Max(eventsPanel.Size.X, eventsPanel.CustomMinimumSize.X) - 14),
             14);
@@ -2544,15 +2744,114 @@ public partial class Main : Control
         var availableWidth = Math.Max(1, mapCanvas.Size.X - 36 - ((mapWidth - 1) * TileGap));
         var availableHeight = Math.Max(1, mapCanvas.Size.Y - 36 - ((mapHeight - 1) * TileGap));
         var fittedTileSize = (int)Math.Floor(Math.Min(availableWidth / mapWidth, availableHeight / mapHeight));
-        currentTileSize = Math.Clamp(fittedTileSize, 12, 220);
+        var baseTileSize = Math.Clamp(fittedTileSize, 12, 220);
+        currentTileSize = Math.Clamp((int)MathF.Round(baseTileSize * cameraZoom), 12, 880);
 
         var stageSize = new Vector2(
             (mapWidth * currentTileSize) + ((mapWidth - 1) * TileGap),
             (mapHeight * currentTileSize) + ((mapHeight - 1) * TileGap));
         mapStage.Size = stageSize;
+        var stride = currentTileSize + TileGap;
         mapStage.Position = new Vector2(
-            Math.Max(0, (mapCanvas.Size.X - stageSize.X) / 2),
-            Math.Max(0, (mapCanvas.Size.Y - stageSize.Y) / 2));
+            CameraAxis(cameraCenterTiles.X, stageSize.X, mapCanvas.Size.X, stride),
+            CameraAxis(cameraCenterTiles.Y, stageSize.Y, mapCanvas.Size.Y, stride));
+        cameraCenterTiles = new Vector2(
+            (mapCanvas.Size.X / 2 - mapStage.Position.X) / stride,
+            (mapCanvas.Size.Y / 2 - mapStage.Position.Y) / stride);
+        RefreshOverviewViewport(mapWidth, mapHeight, stride);
+    }
+
+    private static float CameraAxis(float centerTile, float stagePixels, float viewportPixels, float stride) =>
+        stagePixels <= viewportPixels
+            ? (viewportPixels - stagePixels) / 2
+            : Math.Clamp((viewportPixels / 2) - (centerTile * stride), viewportPixels - stagePixels, 0);
+
+    private void RefreshOverviewViewport(int mapWidth, int mapHeight, float stride)
+    {
+        var left = Math.Clamp(-mapStage.Position.X / stride, 0, mapWidth);
+        var top = Math.Clamp(-mapStage.Position.Y / stride, 0, mapHeight);
+        var right = Math.Clamp((mapCanvas.Size.X - mapStage.Position.X) / stride, 0, mapWidth);
+        var bottom = Math.Clamp((mapCanvas.Size.Y - mapStage.Position.Y) / stride, 0, mapHeight);
+        worldOverview.SetVisibleTiles(new Rect2(left, top, right - left, bottom - top));
+    }
+
+    private void CenterCameraAt(Vector2 tileCenter)
+    {
+        if (renderedMapSnapshot is not { Tiles.Count: > 0 } snapshot)
+        {
+            return;
+        }
+
+        cameraCenterTiles = tileCenter;
+        UpdateMapGeometry(snapshot);
+        PositionSelectedInhabitantCard(snapshot);
+    }
+
+    private void PanCamera(Vector2 deltaTiles)
+    {
+        if (renderedMapSnapshot is not { Tiles.Count: > 0 })
+        {
+            return;
+        }
+
+        CenterCameraAt(cameraCenterTiles + deltaTiles);
+    }
+
+    private void HandleMapInput(InputEvent @event)
+    {
+        if (gameMenuPanel.Visible || creationOverlay.Visible ||
+            renderedMapSnapshot is not { Tiles.Count: > 0 } snapshot)
+        {
+            return;
+        }
+
+        if (@event is InputEventMouseButton mouse)
+        {
+            if (mouse.ButtonIndex == MouseButton.Middle)
+            {
+                draggingMap = mouse.Pressed;
+                mapCanvas.AcceptEvent();
+            }
+            else if (mouse.Pressed && mouse.ButtonIndex is MouseButton.WheelUp or MouseButton.WheelDown)
+            {
+                var nextZoom = Math.Clamp(cameraZoom * (mouse.ButtonIndex == MouseButton.WheelUp ? 1.25f : 0.8f), 1, 4);
+                if (Math.Abs(nextZoom - cameraZoom) > 0.001f)
+                {
+                    cameraZoom = nextZoom;
+                    RenderMap(snapshot);
+                    PositionSelectedInhabitantCard(snapshot);
+                }
+                mapCanvas.AcceptEvent();
+            }
+        }
+        else if (@event is InputEventMouseMotion motion && draggingMap)
+        {
+            PanCamera(-motion.Relative / (currentTileSize + TileGap));
+            mapCanvas.AcceptEvent();
+        }
+    }
+
+    public override void _UnhandledKeyInput(InputEvent @event)
+    {
+        if (@event is not InputEventKey { Pressed: true } key || gameMenuPanel.Visible ||
+            creationOverlay.Visible || GetViewport().GuiGetFocusOwner() is LineEdit or TextEdit)
+        {
+            return;
+        }
+
+        var direction = key.Keycode switch
+        {
+            Key.W or Key.Up => new Vector2(0, -1),
+            Key.A or Key.Left => new Vector2(-1, 0),
+            Key.S or Key.Down => new Vector2(0, 1),
+            Key.D or Key.Right => new Vector2(1, 0),
+            _ => Vector2.Zero,
+        };
+        if (direction != Vector2.Zero)
+        {
+            PanCamera(direction * 1.5f);
+            GetViewport().SetInputAsHandled();
+        }
     }
 
     private void PositionSelectedInhabitantCard(OwnerWorldSnapshot snapshot)
@@ -2942,11 +3241,4 @@ public partial class Main : Control
         CornerRadiusBottomRight = 18,
     };
 
-    private static Color TerrainColor(string terrain) => terrain switch
-    {
-        "meadow" => new Color("5F8F5B"),
-        "water" => new Color("4B7FA7"),
-        "mountain" => new Color("756D68"),
-        _ => new Color("9B5463"),
-    };
 }
