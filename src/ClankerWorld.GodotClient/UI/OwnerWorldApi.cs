@@ -266,6 +266,12 @@ public sealed record OwnerReconnectAction(long AfterEventId);
 
 public sealed record OwnerControlAction(string Operation);
 public sealed record OwnerManualSaveAction(string Operation, string Value);
+public sealed record OwnerWorldCreationAction(string Name, string Seed, string Size,
+    int WaterPercent, bool WrapEastWest);
+public sealed record CatalogWorld(string Id, string Name, string WorldId, string Seed,
+    DateTimeOffset UpdatedUtc, IReadOnlyList<InhabitantProviderAssignment> Assignments,
+    WorldAutosaveSettings? AutosaveSettings);
+public sealed record WorldCatalogSnapshot(string ActiveId, IReadOnlyList<CatalogWorld> Worlds);
 public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick,
     bool IsAutosave = false);
 public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
@@ -558,6 +564,15 @@ public static class OwnerWorldActionPayload
         "clankerworld.owner-manual-save.v1",
         $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
         $"value={EncodeRequired(action.Value, nameof(action.Value))}");
+
+    public static string WorldCreation(OwnerWorldCreationAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-world-creation.v1",
+        $"name={EncodeRequired(action.Name, nameof(action.Name))}",
+        $"seed={EncodeRequired(action.Seed, nameof(action.Seed))}",
+        $"size={EncodeRequired(action.Size, nameof(action.Size))}",
+        $"water-percent={action.WaterPercent.ToString(CultureInfo.InvariantCulture)}",
+        $"wrap-east-west={action.WrapEastWest.ToString().ToLowerInvariant()}");
 
     public static string AutosaveConfiguration(OwnerAutosaveConfigurationAction action) => string.Join(
         '\n',
@@ -934,6 +949,36 @@ public sealed class OwnerWorldApi
         var action = new OwnerManualSaveAction("create", name);
         return pairing.SendSignedActionAsync<OwnerManualSaveAction, ManualWorldSave>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerSaveCreate,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.ManualSave(action),
+            action, deviceKey, cancellationToken);
+    }
+
+    public Task<WorldCatalogSnapshot> ListWorldsAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerControlAction("list-worlds");
+        return pairing.SendSignedActionAsync<OwnerControlAction, WorldCatalogSnapshot>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerWorldList,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("list-worlds"),
+            action, deviceKey, cancellationToken);
+    }
+
+    public Task<CatalogWorld> CreateWorldAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        OwnerWorldCreationAction action, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken) =>
+        pairing.SendSignedActionAsync<OwnerWorldCreationAction, CatalogWorld>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerWorldCreate,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.WorldCreation(action),
+            action, deviceKey, cancellationToken);
+
+    public Task<CatalogWorld> SelectWorldAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        string id, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerManualSaveAction("select-world", id);
+        return pairing.SendSignedActionAsync<OwnerManualSaveAction, CatalogWorld>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerWorldSelect,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.ManualSave(action),
             action, deviceKey, cancellationToken);
     }

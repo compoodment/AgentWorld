@@ -15,7 +15,7 @@ public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset Crea
 public sealed class ManualWorldSaveStore
 {
     private sealed record Metadata(ManualWorldSave Save, IReadOnlyList<InhabitantProviderAssignment> Assignments,
-        WorldAutosaveSettings? AutosaveSettings);
+        WorldAutosaveSettings? AutosaveSettings, string? WorldId = null);
     private readonly object gate = new();
     private readonly string directory;
 
@@ -59,32 +59,33 @@ public sealed class ManualWorldSaveStore
             RestrictDirectory();
             WriteAtomic(StatePath(entry.Id), PrivateWorldRuntimeCodec.Encode(state));
             WriteAtomic(MetadataPath(entry.Id), JsonSerializer.SerializeToUtf8Bytes(
-                new Metadata(entry, assignments, autosaveSettings)));
+                new Metadata(entry, assignments, autosaveSettings, state.Society.Society.WorldId)));
         }
         return entry;
     }
 
-    public IReadOnlyList<ManualWorldSave> List()
+    public IReadOnlyList<ManualWorldSave> List(string? worldId = null)
     {
         lock (gate)
         {
             if (!Directory.Exists(directory)) return [];
             return Directory.EnumerateFiles(directory, "*.meta.json")
-                .Select(path => JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(path))?.Save)
-                .Where(item => item is not null && IsId(item.Id) && File.Exists(StatePath(item.Id)))
-                .Select(item => item!)
+                .Select(path => JsonSerializer.Deserialize<Metadata>(File.ReadAllBytes(path)))
+                .Where(item => item is not null && (worldId is null || item.WorldId == worldId) &&
+                    IsId(item.Save.Id) && File.Exists(StatePath(item.Save.Id)))
+                .Select(item => item!.Save)
                 .OrderByDescending(item => item.CreatedUtc)
                 .ThenBy(item => item.Id, StringComparer.Ordinal)
                 .ToArray();
         }
     }
 
-    public void KeepNewestAutosaves(int count, string? preserveId = null)
+    public void KeepNewestAutosaves(int count, string? preserveId = null, string? worldId = null)
     {
         if (count is < 1 or > 10) throw new ArgumentOutOfRangeException(nameof(count));
         lock (gate)
         {
-            var candidates = List().Where(item => item.IsAutosave && item.Id != preserveId)
+            var candidates = List(worldId).Where(item => item.IsAutosave && item.Id != preserveId)
                 .Skip(preserveId is null ? count : count - 1);
             foreach (var old in candidates)
             {

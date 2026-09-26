@@ -17,15 +17,18 @@ public sealed class PrivateWorldStateFile
     private readonly Func<string, IDecisionProvider>? providerFactory;
     private readonly WorldStartPace newWorldPace;
     private readonly GeographyOptions? newWorldGeography;
+    private readonly bool allowDifferentSavedSeed;
 
     public PrivateWorldStateFile(string path, Func<string, IDecisionProvider>? providerFactory = null,
-        WorldStartPace newWorldPace = WorldStartPace.Legacy, GeographyOptions? newWorldGeography = null)
+        WorldStartPace newWorldPace = WorldStartPace.Legacy, GeographyOptions? newWorldGeography = null,
+        bool allowDifferentSavedSeed = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         Path = System.IO.Path.GetFullPath(path);
         this.providerFactory = providerFactory;
         this.newWorldPace = newWorldPace;
         this.newWorldGeography = newWorldGeography;
+        this.allowDifferentSavedSeed = allowDifferentSavedSeed;
     }
 
     public string Path { get; }
@@ -45,7 +48,7 @@ public sealed class PrivateWorldStateFile
 
             var state = PrivateWorldRuntimeCodec.Decode(File.ReadAllBytes(Path));
             VerifyHistory(state.HistoryArchiveHead);
-            if (!string.Equals(state.WorldSeed, worldSeed, StringComparison.Ordinal))
+            if (!allowDifferentSavedSeed && !string.Equals(state.WorldSeed, worldSeed, StringComparison.Ordinal))
             {
                 throw new InvalidDataException("The private-world save belongs to a different configured seed.");
             }

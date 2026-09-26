@@ -23,6 +23,9 @@ public static class OwnerPairingEndpoints
     public const string OwnerSaveList = "/api/v1/owner/saves/list";
     public const string OwnerSaveCreate = "/api/v1/owner/saves/create";
     public const string OwnerSaveLoad = "/api/v1/owner/saves/load";
+    public const string OwnerWorldList = "/api/v1/owner/worlds/list";
+    public const string OwnerWorldCreate = "/api/v1/owner/worlds/create";
+    public const string OwnerWorldSelect = "/api/v1/owner/worlds/select";
     public const string OwnerAutosaveStatus = "/api/v1/owner/saves/autosave/status";
     public const string OwnerAutosaveConfigure = "/api/v1/owner/saves/autosave/configure";
     public const string OwnerFounderPlace = "/api/v1/owner/founders/place";

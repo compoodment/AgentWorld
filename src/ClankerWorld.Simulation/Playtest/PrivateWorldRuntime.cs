@@ -101,7 +101,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly SemaphoreSlim tickGate = new(1, 1);
-    private readonly string worldSeed;
+    private string worldSeed;
     private GeographyOptions? geographyOptions;
     private readonly Func<string, IDecisionProvider>? providerFactory;
     private readonly double minimumCognitionConfidence;
@@ -513,6 +513,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     {
         // Transfer the committed society; disposing the proposal retires the old one.
         (society, proposed.society) = (proposed.society, society);
+        worldSeed = proposed.worldSeed;
         map = proposed.map;
         geographyOptions = proposed.geographyOptions;
         contentRegistry = proposed.contentRegistry;
@@ -557,6 +558,29 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                     maxCognitionDispatchPerCycle, minimumCognitionConfidence);
                 // Loading never resumes a world implicitly, even if the saved
                 // checkpoint was taken while it was running.
+                restored.Pause();
+                foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
+                CommitPreparedTick(restored);
+            }
+            finally { gate.Release(); }
+        }
+        finally { tickGate.Release(); }
+    }
+
+    /// <summary>Replace the selected world while the current world is paused.</summary>
+    public void SwitchPausedWorld(PrivateWorldRuntimeState checkpoint)
+    {
+        ArgumentNullException.ThrowIfNull(checkpoint);
+        tickGate.Wait();
+        try
+        {
+            gate.Wait();
+            try
+            {
+                if (!society.Checkpoint.IsPaused)
+                    throw new InvalidOperationException("Pause the world before selecting another world.");
+                using var restored = Restore(checkpoint, providerFactory,
+                    maxCognitionDispatchPerCycle, minimumCognitionConfidence);
                 restored.Pause();
                 foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 CommitPreparedTick(restored);

@@ -2,6 +2,7 @@ using System.Net;
 using ClankerWorld.Simulation.Cognition;
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
 
@@ -104,7 +105,8 @@ builder.Services.AddSingleton<OwnerWorldRuntime>(services => services
 builder.Services.AddSingleton<PrivateWorldStateFile>(services => new PrivateWorldStateFile(
     privateRuntimeStatePath,
     _ => services.GetRequiredService<IDecisionProvider>(),
-    WorldStartPace.FounderSetup));
+    WorldStartPace.FounderSetup,
+    allowDifferentSavedSeed: isPrivateWorld));
 builder.Services.AddSingleton(new ManualWorldSaveStore(privateRuntimeStatePath));
 builder.Services.AddSingleton<PrivateWorldRuntime>(services =>
 {
@@ -113,7 +115,38 @@ builder.Services.AddSingleton<PrivateWorldRuntime>(services =>
     return runtime;
 });
 builder.Services.AddSingleton<WorldAutosaveStore>(services => new WorldAutosaveStore(
-    privateRuntimeStatePath, services.GetRequiredService<PrivateWorldRuntime>().Society.WorldId));
+    privateRuntimeStatePath, services.GetRequiredService<PrivateWorldRuntime>().Society.WorldId,
+    allowWorldSwitch: isPrivateWorld));
+if (isPrivateWorld)
+{
+    builder.Services.AddSingleton<WorldCatalogStore>(services =>
+    {
+        var providers = services.GetRequiredService<ProviderConfigurationStore>();
+        var autosave = services.GetRequiredService<WorldAutosaveStore>();
+        var catalog = new WorldCatalogStore(privateRuntimeStatePath,
+            services.GetRequiredService<PrivateWorldRuntime>().ExportState(),
+            providers.CaptureRuntimeConfiguration().Assignments ?? [], autosave.Capture());
+        var active = catalog.Active();
+        if (catalog.RecoveredSelection)
+        {
+            if (!(providers.CaptureRuntimeConfiguration().Assignments ?? [])
+                .SequenceEqual(active.Assignments))
+                providers.RestoreWorldAssignments(active.Assignments);
+            if (active.AutosaveSettings is { } settings && autosave.Capture() != settings)
+                autosave.SelectWorld(active.WorldId, settings);
+        }
+        return catalog;
+    });
+    builder.Services.AddSingleton<WorldSelectionCoordinator>(services => new WorldSelectionCoordinator(
+        services.GetRequiredService<WorldCatalogStore>(),
+        services.GetRequiredService<PrivateWorldRuntime>(),
+        services.GetRequiredService<PrivateWorldStateFile>(),
+        services.GetRequiredService<ProviderConfigurationStore>(),
+        services.GetRequiredService<WorldAutosaveStore>(),
+        services.GetRequiredService<WorldJevPolicy>(),
+        services.GetRequiredService<ILogger<WorldSelectionCoordinator>>(),
+        _ => services.GetRequiredService<IDecisionProvider>()));
+}
 builder.Services.AddSingleton<OwnerWorldObservationStore>(services => isPrivateWorld
     ? new OwnerWorldObservationStore(services.GetRequiredService<PrivateWorldRuntime>())
     : new OwnerWorldObservationStore(services.GetRequiredService<OwnerWorldRuntime>()));
@@ -126,7 +159,8 @@ builder.Services.AddSingleton<OwnerAuthorityStore>(services =>
         ? services.GetRequiredService<PrivateWorldRuntime>().Society.WorldId
         : services.GetRequiredService<OwnerWorldRuntime>().Capture().Snapshot.World.Identity.WorldId;
     return services.GetRequiredService<OwnerAuthorityStateFile>().LoadOrCreate(
-        new OwnerAuthorityIdentity(configuredAuthorityId, worldId));
+        new OwnerAuthorityIdentity(configuredAuthorityId, worldId),
+        allowWorldSwitch: isPrivateWorld);
 });
 builder.Services.AddSingleton<OwnerRequestAuthorizer>();
 builder.Services.AddSingleton(new OwnerClientPresenceLease(
@@ -482,10 +516,72 @@ app.MapPost("/api/v1/owner/control/resume", (
     return Results.Ok(OwnerControlReceipt.From("resume", legacyChanged, runtime.Capture().Snapshot));
 });
 
+app.MapPost("/api/v1/owner/worlds/list", (
+    OwnerSignedHttpRequest<OwnerControlAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services) =>
+{
+    if (!IsControl(request, "list-worlds"))
+        return Results.BadRequest(new { error = "A world-list action is required." });
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/worlds/list",
+        OwnerHttpBinding.EmptyPayload("list-worlds"));
+    if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (!isPrivateWorld) return Results.Conflict(new { error = "World selection requires a private world." });
+    return Results.Ok(services.GetRequiredService<WorldSelectionCoordinator>().List());
+});
+
+app.MapPost("/api/v1/owner/worlds/create", (
+    OwnerSignedHttpRequest<OwnerWorldCreationAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services) =>
+{
+    if (request?.Action is not { } action)
+        return Results.BadRequest(new { error = "World options are required." });
+    string creationPayload;
+    try { creationPayload = OwnerHttpBinding.WorldCreationPayload(action); }
+    catch (ArgumentException) { return Results.BadRequest(new { error = "World name, seed, and size are required." }); }
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/worlds/create",
+        creationPayload);
+    if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (!isPrivateWorld) return Results.Conflict(new { error = "World creation requires a private world." });
+    if (action.Name.Length is < 1 or > 80 || action.Name.Any(char.IsControl) ||
+        action.Seed.Length is < 1 or > 100 || action.Seed.Any(char.IsControl) ||
+        !Enum.TryParse<WorldSizePreset>(action.Size, true, out var size) ||
+        !Enum.IsDefined(size) || action.WaterPercent is < 10 or > 80)
+        return Results.BadRequest(new { error = "World seed, size, or water choice is invalid." });
+    try
+    {
+        var entry = services.GetRequiredService<WorldSelectionCoordinator>().Create(action.Name,
+            new GeographyOptions(action.Seed, size, action.WrapEastWest, action.WaterPercent));
+        return Results.Ok(entry);
+    }
+    catch (ArgumentException exception) { return Results.BadRequest(new { error = exception.Message }); }
+    catch (InvalidOperationException exception) { return Results.Conflict(new { error = exception.Message }); }
+});
+
+app.MapPost("/api/v1/owner/worlds/select", (
+    OwnerSignedHttpRequest<OwnerManualSaveAction> request,
+    OwnerRequestAuthorizer authorizer,
+    IServiceProvider services) =>
+{
+    if (request?.Action is not { Operation: "select-world" } action)
+        return Results.BadRequest(new { error = "A world selection is required." });
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/worlds/select",
+        OwnerHttpBinding.ManualSavePayload(action));
+    if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (!isPrivateWorld) return Results.Conflict(new { error = "World selection requires a private world." });
+    try { return Results.Ok(services.GetRequiredService<WorldSelectionCoordinator>().Select(action.Value)); }
+    catch (FileNotFoundException) { return Results.NotFound(new { error = "The selected world does not exist." }); }
+    catch (InvalidOperationException exception) { return Results.Conflict(new { error = exception.Message }); }
+    catch (InvalidDataException) { return Results.Conflict(new { error = "The selected world is invalid." }); }
+    catch (ArgumentException) { return Results.Conflict(new { error = "This world's model configuration is unavailable." }); }
+});
+
 app.MapPost("/api/v1/owner/saves/list", (
     OwnerSignedHttpRequest<OwnerControlAction> request,
     OwnerRequestAuthorizer authorizer,
-    ManualWorldSaveStore saves) =>
+    ManualWorldSaveStore saves,
+    PrivateWorldRuntime runtime) =>
 {
     if (!IsControl(request, "list-saves"))
         return Results.BadRequest(new { error = "A save-list action is required." });
@@ -493,7 +589,7 @@ app.MapPost("/api/v1/owner/saves/list", (
         OwnerHttpBinding.EmptyPayload("list-saves"));
     if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
     if (!isPrivateWorld) return Results.Conflict(new { error = "Manual saves require a private world." });
-    return Results.Ok(saves.List());
+    return Results.Ok(saves.List(runtime.Society.WorldId));
 });
 
 app.MapPost("/api/v1/owner/saves/autosave/status", (

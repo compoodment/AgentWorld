@@ -1,4 +1,6 @@
 using Godot;
+using ClankerWorld.GodotClient.UI;
+using System.Globalization;
 
 namespace ClankerWorld.GodotClient;
 
@@ -8,11 +10,26 @@ public partial class Main
     private readonly PanelContainer mainMenuCard = new();
     private readonly Label mainMenuStatus = new();
     private readonly Button mainMenuContinueButton = new();
+    private readonly Button mainMenuNewButton = new();
     private readonly Button mainMenuConnectButton = new();
     private readonly Button mainMenuLoadButton = new();
     private readonly Button menuQuitToMainButton = new();
     private readonly Button menuCreationButton = new();
     private readonly Button menuSaveWorldButton = new();
+    private readonly Control worldMenuOverlay = new();
+    private readonly PanelContainer worldMenuCard = new();
+    private readonly Label worldMenuHeading = new();
+    private readonly Label worldMenuStatus = new();
+    private readonly LineEdit worldNameInput = new();
+    private readonly LineEdit worldSeedInput = new();
+    private readonly OptionButton worldSizeChoice = new();
+    private readonly OptionButton worldWaterChoice = new();
+    private readonly CheckBox worldWrapChoice = new();
+    private readonly ItemList worldSelectionList = new();
+    private readonly Button worldCreateButton = new();
+    private readonly Button worldSelectButton = new();
+    private CatalogWorld[] listedWorlds = [];
+    private bool worldMenuBusy;
     private readonly ConfirmationDialog quitToMenuConfirmation = new();
     private bool isInWorld;
     private bool returnToMainMenu;
@@ -60,15 +77,15 @@ public partial class Main
         mainMenuContinueButton.Pressed += () => _ = EnterWorldAsync();
         body.AddChild(mainMenuContinueButton);
 
-        var newWorld = new Button { Text = "New World", Disabled = true };
-        newWorld.TooltipText = "The world-size, climate and preview flow is under construction.";
-        StyleButton(newWorld);
-        body.AddChild(newWorld);
+        mainMenuNewButton.Text = "New World";
+        StyleButton(mainMenuNewButton);
+        mainMenuNewButton.Pressed += () => OpenWorldMenu(create: true);
+        body.AddChild(mainMenuNewButton);
 
-        mainMenuLoadButton.Text = "Load Save";
-        mainMenuLoadButton.TooltipText = "Load a named checkpoint of the current world. The current state is preserved first.";
+        mainMenuLoadButton.Text = "Load World";
+        mainMenuLoadButton.TooltipText = "Choose a world. Named checkpoints remain inside each world's pause menu.";
         StyleButton(mainMenuLoadButton);
-        mainMenuLoadButton.Pressed += () => _ = OpenManualSavesAsync(loadMode: true);
+        mainMenuLoadButton.Pressed += () => OpenWorldMenu(create: false);
         body.AddChild(mainMenuLoadButton);
 
         var settings = new Button { Text = "Settings" };
@@ -93,6 +110,7 @@ public partial class Main
         quitToMenuConfirmation.DialogText = "Leave this world and return to the Main Menu? The simulation will remain paused until you continue it.";
         quitToMenuConfirmation.Confirmed += QuitToMainMenu;
         AddChild(quitToMenuConfirmation);
+        BuildWorldMenu();
         RefreshMainMenuAvailability();
     }
 
@@ -107,10 +125,11 @@ public partial class Main
     {
         var paired = !registeredEndpointInvalid && registration is not null && deviceKey is not null;
         mainMenuContinueButton.Disabled = !paired;
+        mainMenuNewButton.Disabled = !paired;
         mainMenuLoadButton.Disabled = !paired;
         mainMenuConnectButton.Visible = !paired;
         mainMenuStatus.Text = paired
-            ? "Continue the current development world. World generation and multiple saves are being built."
+            ? "Continue your current world, create another, or load a different world."
             : "Connect or pair this device to the private development world. No model key is needed to open the game.";
     }
 
@@ -177,5 +196,186 @@ public partial class Main
         menuCreationButton.Visible = visible;
         developerToggleButton.Visible = visible;
         menuQuitToMainButton.Visible = visible;
+    }
+
+    private void BuildWorldMenu()
+    {
+        worldMenuOverlay.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        worldMenuOverlay.MouseFilter = MouseFilterEnum.Stop;
+        worldMenuOverlay.ZIndex = 210;
+        AddChild(worldMenuOverlay);
+        var shade = new ColorRect { Color = new Color("071015E0"), MouseFilter = MouseFilterEnum.Stop };
+        shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        worldMenuOverlay.AddChild(shade);
+        var center = new CenterContainer();
+        center.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        worldMenuOverlay.AddChild(center);
+        center.AddChild(worldMenuCard);
+
+        var body = new VBoxContainer { CustomMinimumSize = new Vector2(440, 0) };
+        body.AddThemeConstantOverride("separation", 8);
+        worldMenuHeading.AddThemeFontSizeOverride("font_size", 24);
+        body.AddChild(worldMenuHeading);
+        worldMenuStatus.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        body.AddChild(worldMenuStatus);
+        worldNameInput.PlaceholderText = "World name";
+        worldNameInput.MaxLength = 80;
+        body.AddChild(worldNameInput);
+        worldSeedInput.PlaceholderText = "Generation seed";
+        worldSeedInput.MaxLength = 100;
+        var seedRow = new HBoxContainer();
+        worldSeedInput.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+        seedRow.AddChild(worldSeedInput);
+        var reroll = new Button { Text = "Reroll seed" };
+        StyleButton(reroll);
+        reroll.Pressed += () => worldSeedInput.Text = Guid.NewGuid().ToString("N")[..12];
+        seedRow.AddChild(reroll);
+        body.AddChild(seedRow);
+        worldSizeChoice.AddItem("Small · 256 × 128", 0);
+        worldSizeChoice.AddItem("Medium · 512 × 256", 1);
+        body.AddChild(worldSizeChoice);
+        worldWaterChoice.AddItem("Less water · 35%", 35);
+        worldWaterChoice.AddItem("Balanced water · 45%", 45);
+        worldWaterChoice.AddItem("More water · 55%", 55);
+        worldWaterChoice.Select(1);
+        body.AddChild(worldWaterChoice);
+        worldWrapChoice.Text = "Wrap east/west";
+        worldWrapChoice.ButtonPressed = true;
+        body.AddChild(worldWrapChoice);
+        worldSelectionList.CustomMinimumSize = new Vector2(0, 240);
+        worldSelectionList.ItemSelected += _ => worldSelectButton.Disabled = false;
+        worldSelectionList.Hide();
+        body.AddChild(worldSelectionList);
+        worldCreateButton.Text = "Create World";
+        StyleButton(worldCreateButton, primary: true);
+        worldCreateButton.Pressed += () => _ = CreateSelectedWorldAsync();
+        body.AddChild(worldCreateButton);
+        worldSelectButton.Text = "Open World";
+        StyleButton(worldSelectButton, primary: true);
+        worldSelectButton.Pressed += () => _ = SelectListedWorldAsync();
+        worldSelectButton.Hide();
+        body.AddChild(worldSelectButton);
+        var back = new Button { Text = "Back" };
+        StyleButton(back);
+        back.Pressed += () => { if (!worldMenuBusy) worldMenuOverlay.Hide(); };
+        body.AddChild(back);
+        AddPanelContents(worldMenuCard, body);
+        worldMenuCard.CustomMinimumSize = new Vector2(480, 0);
+        worldMenuOverlay.Hide();
+    }
+
+    private void OpenWorldMenu(bool create)
+    {
+        if (registration is null || deviceKey is null || registeredEndpointInvalid) return;
+        worldMenuHeading.Text = create ? "New World" : "Load World";
+        worldMenuStatus.Text = create
+            ? "Choose a seed and size. The new world opens paused at its empty camp; add four founders before starting time."
+            : "Choose a world. The current world is saved before switching.";
+        worldNameInput.Visible = create;
+        worldSeedInput.GetParent<Control>().Visible = create;
+        worldSizeChoice.Visible = create;
+        worldWaterChoice.Visible = create;
+        worldWrapChoice.Visible = create;
+        worldCreateButton.Visible = create;
+        worldSelectionList.Visible = !create;
+        worldSelectButton.Visible = !create;
+        worldSelectButton.Disabled = true;
+        worldNameInput.Text = "New World";
+        worldSeedInput.Text = Guid.NewGuid().ToString("N")[..12];
+        worldMenuOverlay.Show();
+        if (!create) _ = RefreshWorldListAsync();
+    }
+
+    private async Task RefreshWorldListAsync()
+    {
+        if (!TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        worldMenuStatus.Text = "Loading worlds…";
+        try
+        {
+            var catalog = await ownerApi.ListWorldsAsync(ResolveWorldUri(), authority,
+                deviceId, signer, CancellationToken.None);
+            listedWorlds = catalog.Worlds.OrderByDescending(world => world.Id == catalog.ActiveId)
+                .ThenByDescending(world => world.UpdatedUtc).ToArray();
+            worldSelectionList.Clear();
+            foreach (var world in listedWorlds)
+                worldSelectionList.AddItem(world.Name +
+                    (world.Id == catalog.ActiveId ? " · current" : "") +
+                    " · " + world.UpdatedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture));
+            worldMenuStatus.Text = listedWorlds.Length == 0 ? "No worlds yet." :
+                "Choose a world. Opening it leaves the current one paused and saved.";
+        }
+        catch (Exception exception)
+        {
+            worldMenuStatus.Text = "Could not list worlds: " + FriendlyFailure(exception);
+        }
+    }
+
+    private async Task CreateSelectedWorldAsync()
+    {
+        if (worldMenuBusy || !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        var name = worldNameInput.Text.Trim();
+        var seed = worldSeedInput.Text.Trim();
+        if (name.Length is < 1 or > 80 || seed.Length is < 1 or > 100 ||
+            name.Any(char.IsControl) || seed.Any(char.IsControl))
+        {
+            worldMenuStatus.Text = "Enter a world name (1–80 characters) and seed (1–100 characters).";
+            return;
+        }
+        worldMenuBusy = true;
+        worldCreateButton.Disabled = true;
+        worldMenuStatus.Text = "Generating world…";
+        try
+        {
+            await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
+                signer, CancellationToken.None);
+            var action = new OwnerWorldCreationAction(name, seed,
+                worldSizeChoice.GetSelectedId() == 1 ? "Medium" : "Small",
+                worldWaterChoice.GetSelectedId(), worldWrapChoice.ButtonPressed);
+            await ownerApi.CreateWorldAsync(ResolveWorldUri(), authority, deviceId,
+                action, signer, CancellationToken.None);
+            observationSession.ResetAfterLoad();
+            resumeWorldOnContinue = false;
+            worldMenuOverlay.Hide();
+            await EnterWorldAsync();
+        }
+        catch (Exception exception)
+        {
+            worldMenuStatus.Text = "Could not create world: " + FriendlyFailure(exception);
+        }
+        finally
+        {
+            worldMenuBusy = false;
+            worldCreateButton.Disabled = false;
+        }
+    }
+
+    private async Task SelectListedWorldAsync()
+    {
+        if (worldMenuBusy || worldSelectionList.GetSelectedItems() is not { Length: 1 } selected ||
+            selected[0] < 0 || selected[0] >= listedWorlds.Length ||
+            !TryGetOwner(out var authority, out var deviceId, out var signer)) return;
+        worldMenuBusy = true;
+        worldSelectButton.Disabled = true;
+        worldMenuStatus.Text = "Opening world…";
+        try
+        {
+            await ownerApi.SetPausedAsync(ResolveWorldUri(), authority, deviceId, true,
+                signer, CancellationToken.None);
+            await ownerApi.SelectWorldAsync(ResolveWorldUri(), authority, deviceId,
+                listedWorlds[selected[0]].Id, signer, CancellationToken.None);
+            observationSession.ResetAfterLoad();
+            resumeWorldOnContinue = false;
+            worldMenuOverlay.Hide();
+            await EnterWorldAsync();
+        }
+        catch (Exception exception)
+        {
+            worldMenuStatus.Text = "Could not open world: " + FriendlyFailure(exception);
+        }
+        finally
+        {
+            worldMenuBusy = false;
+            worldSelectButton.Disabled = false;
+        }
     }
 }

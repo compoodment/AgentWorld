@@ -231,6 +231,12 @@ public partial class Main : Control
                     manualSaveOverlay.GetGlobalRect().GetCenter().DistanceTo(manualSaveCard.GetGlobalRect().GetCenter()) > 2)
                     throw new InvalidOperationException($"Save/load panel escaped its centered bounds at {size}.");
                 manualSaveOverlay.Hide();
+                worldMenuOverlay.Show();
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (!worldMenuOverlay.GetGlobalRect().Encloses(worldMenuCard.GetGlobalRect()) ||
+                    worldMenuOverlay.GetGlobalRect().GetCenter().DistanceTo(worldMenuCard.GetGlobalRect().GetCenter()) > 2)
+                    throw new InvalidOperationException($"World creation/selection panel escaped its centered bounds at {size}.");
+                worldMenuOverlay.Hide();
             }
             OpenMainMenuSettings();
             if (mainMenuOverlay.Visible || !gameMenuPanel.Visible || !gameSettingsContent.Visible)

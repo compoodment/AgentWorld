@@ -18,7 +18,7 @@ public sealed class WorldAutosaveStore
     private readonly string path;
     private WorldAutosaveSettings state;
 
-    public WorldAutosaveStore(string activeSavePath, string worldId)
+    public WorldAutosaveStore(string activeSavePath, string worldId, bool allowWorldSwitch = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(activeSavePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(worldId);
@@ -27,7 +27,13 @@ public sealed class WorldAutosaveStore
         {
             state = JsonSerializer.Deserialize<WorldAutosaveSettings>(File.ReadAllBytes(path))
                 ?? throw new InvalidDataException("Autosave settings are empty.");
-            if (state.WorldId != worldId) throw new InvalidDataException("Autosave settings belong to another world.");
+            if (state.WorldId != worldId)
+            {
+                if (!allowWorldSwitch)
+                    throw new InvalidDataException("Autosave settings belong to another world.");
+                state = new WorldAutosaveSettings(worldId, true, 5, 5, DateTimeOffset.UtcNow, -1);
+                Save(state);
+            }
             Validate(state.IntervalMinutes, state.RotationCount);
             RestrictPermissions(path);
         }
@@ -74,6 +80,22 @@ public sealed class WorldAutosaveStore
         }
     }
 
+    public WorldAutosaveSettings SelectWorld(string worldId, WorldAutosaveSettings? previous)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(worldId);
+        lock (gate)
+        {
+            if (previous is not null && previous.WorldId != worldId)
+                throw new InvalidDataException("Autosave settings belong to another world.");
+            var next = previous ?? new WorldAutosaveSettings(worldId, true, 5, 5,
+                DateTimeOffset.UtcNow, -1);
+            Validate(next.IntervalMinutes, next.RotationCount);
+            Save(next);
+            state = next;
+            return next;
+        }
+    }
+
     public ManualWorldSave? MaybeSave(DateTimeOffset now, PrivateWorldRuntime runtime,
         ProviderConfigurationStore providers, ManualWorldSaveStore saves)
     {
@@ -92,7 +114,7 @@ public sealed class WorldAutosaveStore
                 providers.CaptureRuntimeConfiguration().Assignments ?? [], next);
             Save(next);
             state = next;
-            saves.KeepNewestAutosaves(Math.Max(1, state.RotationCount), saved.Id);
+            saves.KeepNewestAutosaves(Math.Max(1, state.RotationCount), saved.Id, state.WorldId);
             return saved;
         }
     }

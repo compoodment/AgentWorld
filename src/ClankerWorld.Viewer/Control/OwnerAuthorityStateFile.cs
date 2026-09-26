@@ -31,7 +31,8 @@ public sealed class OwnerAuthorityStateFile
     public OwnerAuthorityStore LoadOrCreate(
         OwnerAuthorityIdentity initialIdentity,
         IOwnerAuthorityClock? clock = null,
-        IOwnerAuthorityRandom? random = null)
+        IOwnerAuthorityRandom? random = null,
+        bool allowWorldSwitch = false)
     {
         ArgumentNullException.ThrowIfNull(initialIdentity);
         lock (gate)
@@ -51,7 +52,7 @@ public sealed class OwnerAuthorityStateFile
                 throw new InvalidDataException("The owner-authority state file is empty.");
             if (state.Authority is null ||
                 !string.Equals(initialIdentity.ServerAuthorityId, state.Authority.ServerAuthorityId, StringComparison.Ordinal) ||
-                !string.Equals(initialIdentity.WorldId, state.Authority.WorldId, StringComparison.Ordinal))
+                (!allowWorldSwitch && !string.Equals(initialIdentity.WorldId, state.Authority.WorldId, StringComparison.Ordinal)))
             {
                 throw new InvalidDataException("The owner-authority state belongs to another server authority or world.");
             }

@@ -34,14 +34,14 @@ them after a short grace period; reconnecting does not simulate missed time.
 The Godot terrain layer draws only camera-visible tiles from a compact local
 terrain index. Its top-left overview samples that index into a small atlas;
 neither path creates a Control per tile or a separate regional art set. The
-host still sends the full tile list in each owner baseline, so map observation
-and the fixed playable map remain large-world blockers.
+host sends packed terrain for generated worlds, but repeated full-map transfer
+remains a large-world blocker.
 The simulation can project Small/Medium deterministic generated geography into
 its existing physical-map contract, place an empty camp on a clear 64×64
 region, then carry generation options through save/reload and founder setup.
 This bridge maps rivers, lakes, ocean, mountain and peak but does not yet
-preserve separate climate, surface and vegetation layers. It is not connected
-to the host's one-world startup or a New World client action. The larger
+preserve separate climate, surface and vegetation layers. The signed New World
+action now selects it in the host and client. The larger
 geography presets remain compact generator outputs, not playable-map promises.
 The physical map now indexes terrain for constant-time passability/build-site
 checks. An internally captured proposed tick reuses its committed map rather
@@ -55,6 +55,20 @@ into its compact camera/overview index. The existing 6×5 world still emits
 the former tile list for the currently paired Windows build. Generated-world
 snapshots still resend the full packed terrain on each observation; viewport
 chunk requests and compact persistence are not implemented yet.
+
+The private host keeps one active runtime object so existing signed controls
+remain directed at the selected world. A private catalog archives each world's
+checkpoint and saves the active world before a paused switch. Its world IDs,
+names, generation seeds, provider-slot assignments and autosave settings are
+separate; installation-level API keys and device pairing are not copied into
+world files. The active recovery checkpoint wins if a crash interrupts the
+catalog selection update. Named manual saves are listed only for their world.
+World creation and selection require the paired owner's signed request and
+leave the selected world paused.
+The existing paired-device authority ID remains installation-stable across
+world selection; it does not become the selected simulation world's ID. A
+restart checks the server authority and restores the paired key even when the
+active simulation world has changed.
 
 The current host schedules one world tick per real second. Newly created
 private worlds start paused and save the accepted playtest pace: 360 ticks per day and a 40-day

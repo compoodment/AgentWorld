@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using ClankerWorld.Simulation.Playtest;
+using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +12,122 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed partial class ViewerHttpTests
 {
+    [Fact]
+    public async Task SignedWorldCreationAndSelectionKeepTwoIndependentPausedWorldsAcrossRestart()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-world-catalog-");
+        try
+        {
+            using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+            string firstId;
+            string generatedId;
+            string deviceId;
+            using (var host = new ViewerWebApplicationFactory(directory.FullName, null,
+                       privateWorld: true, legacyPrivateWorld: false))
+            using (var client = host.CreateClient())
+            {
+                var selectionLog = new RecordingLogger<WorldSelectionCoordinator>();
+                host.Services.GetRequiredService<ILoggerFactory>().AddProvider(
+                    new RecordingLoggerProvider<WorldSelectionCoordinator>(selectionLog));
+                var device = await StartAndActivateAsync(host, client, key);
+                deviceId = device.DeviceId;
+                var listAction = new OwnerControlAction("list-worlds");
+                using var listed = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/worlds/list", listAction,
+                    OwnerHttpBinding.EmptyPayload("list-worlds"));
+                Assert.Equal(HttpStatusCode.OK, listed.StatusCode);
+                var initial = (await listed.Content.ReadFromJsonAsync<WorldCatalogSnapshot>())!;
+                firstId = initial.ActiveId;
+                Assert.Single(initial.Worlds);
+                var providers = host.Services.GetRequiredService<ProviderConfigurationStore>();
+                var credentialSlotId = Guid.NewGuid().ToString("N");
+                providers.Configure(new OwnerProviderConfigurationAction("personal", "openai", "gpt-5-mini",
+                    "test-secret-key", false, "founder:checkpoint", credentialSlotId, "Test account"));
+                host.Services.GetRequiredService<WorldAutosaveStore>().Configure(false, 1, 0);
+
+                var create = new OwnerWorldCreationAction("Riverland", "riverland-test-seed",
+                    "Small", 45, true);
+                const string createPath = "/api/v1/owner/worlds/create";
+                var signed = await CreateSignedRequestAsync(host, client, key, device.DeviceId,
+                    createPath, create, OwnerHttpBinding.WorldCreationPayload(create));
+                using var tampered = await client.PostAsJsonAsync(createPath, signed with
+                {
+                    Action = create with { Seed = "different-seed" },
+                });
+                Assert.False(tampered.IsSuccessStatusCode);
+                using var created = await SendSignedAsync(host, client, key, device.DeviceId,
+                    createPath, create, OwnerHttpBinding.WorldCreationPayload(create));
+                Assert.Equal(HttpStatusCode.OK, created.StatusCode);
+                var entry = (await created.Content.ReadFromJsonAsync<CatalogWorld>())!;
+                generatedId = entry.Id;
+                var runtime = host.Services.GetRequiredService<PrivateWorldRuntime>();
+                Assert.True(runtime.Society.IsPaused);
+                Assert.Empty(runtime.Inhabitants);
+                Assert.Equal(WorldSizePreset.Small, runtime.ExportState().Geography?.Size);
+                Assert.Equal(256, runtime.ExportState().Map.Width);
+                var reconnect = new OwnerReconnectAction(0);
+                using var observed = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/reconnect", reconnect,
+                    OwnerHttpBinding.ReconnectPayload(reconnect));
+                Assert.Equal(HttpStatusCode.OK, observed.StatusCode);
+                var view = (await observed.Content.ReadFromJsonAsync<ViewerOwnerReconnect>())!;
+                Assert.Equal(entry.WorldId, view.Baseline.Snapshot.WorldId);
+                Assert.Equal(256, view.Baseline.Snapshot.PackedTerrain?.Width);
+                Assert.Empty(view.Baseline.Snapshot.Tiles);
+                Assert.Empty(providers.CaptureRuntimeConfiguration().Assignments ?? []);
+                Assert.Equal(5, host.Services.GetRequiredService<WorldAutosaveStore>().Capture().IntervalMinutes);
+                Assert.DoesNotContain("test-secret-key", File.ReadAllText(Path.Combine(
+                    host.Services.GetRequiredService<PrivateWorldStateFile>().Path + ".worlds", "catalog.json")));
+                Assert.Contains(selectionLog.Messages, message => message.Contains(
+                    "world_selection outcome=created", StringComparison.Ordinal));
+                Assert.DoesNotContain(selectionLog.Messages, message => message.Contains(
+                    "test-secret-key", StringComparison.Ordinal));
+
+                var select = new OwnerManualSaveAction("select-world", firstId);
+                using var selected = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/worlds/select", select,
+                    OwnerHttpBinding.ManualSavePayload(select));
+                Assert.Equal(HttpStatusCode.OK, selected.StatusCode);
+                Assert.Null(runtime.ExportState().Geography);
+                Assert.True(runtime.Society.IsPaused);
+                Assert.Contains(providers.CaptureRuntimeConfiguration().Assignments ?? [],
+                    assignment => assignment.CredentialSlotId == credentialSlotId);
+                Assert.False(host.Services.GetRequiredService<WorldAutosaveStore>().Capture().Enabled);
+                var returnToGenerated = new OwnerManualSaveAction("select-world", generatedId);
+                using var returned = await SendSignedAsync(host, client, key, device.DeviceId,
+                    "/api/v1/owner/worlds/select", returnToGenerated,
+                    OwnerHttpBinding.ManualSavePayload(returnToGenerated));
+                Assert.Equal(HttpStatusCode.OK, returned.StatusCode);
+            }
+
+            using var restarted = new ViewerWebApplicationFactory(directory.FullName, null,
+                privateWorld: true, legacyPrivateWorld: false);
+            using var restartedClient = restarted.CreateClient();
+            var listAfterRestart = new OwnerControlAction("list-worlds");
+            using var signedListAfterRestart = await SendSignedAsync(restarted, restartedClient,
+                key, deviceId, "/api/v1/owner/worlds/list", listAfterRestart,
+                OwnerHttpBinding.EmptyPayload("list-worlds"));
+            Assert.Equal(HttpStatusCode.OK, signedListAfterRestart.StatusCode);
+            var restoredCatalog = restarted.Services.GetRequiredService<WorldCatalogStore>().Capture();
+            Assert.Equal(generatedId, restoredCatalog.ActiveId);
+            Assert.Equal(2, restoredCatalog.Worlds.Count);
+            Assert.Contains(restoredCatalog.Worlds, world => world.Id == generatedId);
+            var restoredRuntime = restarted.Services.GetRequiredService<PrivateWorldRuntime>();
+            Assert.Equal(WorldSizePreset.Small, restoredRuntime.ExportState().Geography?.Size);
+            var selectedOld = restarted.Services.GetRequiredService<WorldSelectionCoordinator>()
+                .Select(firstId);
+            Assert.Equal(firstId, selectedOld.Id);
+            Assert.Null(restoredRuntime.ExportState().Geography);
+            Assert.False(restarted.Services.GetRequiredService<WorldAutosaveStore>().Capture().Enabled);
+            var restoredEntry = restarted.Services.GetRequiredService<WorldSelectionCoordinator>()
+                .Select(generatedId);
+            Assert.Equal("Riverland", restoredEntry.Name);
+            Assert.Equal(WorldSizePreset.Small, restoredRuntime.ExportState().Geography?.Size);
+            Assert.True(restoredRuntime.Society.IsPaused);
+        }
+        finally { directory.Delete(recursive: true); }
+    }
+
     [Fact]
     public async Task SignedManualSaveSurvivesRestartAndLoadPreservesThePreviousTimeline()
     {

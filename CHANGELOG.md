@@ -8,18 +8,27 @@ release yet.
 
 ### Added
 
+- Main Menu **New World** now creates a separately saved Small or Medium map
+  from a chosen seed, water share and east/west-wrap choice, then opens its
+  empty camp paused for four-founder setup. **Load World** selects an archived
+  world and restores its per-agent model/key-slot assignments and autosave
+  choices without copying API keys or re-pairing. The current world is saved
+  before switching; named checkpoints remain in the pause menu for the selected
+  world. Climate controls, inspectable map preview and larger playable presets
+  are still pending.
+
 - Generated Small/Medium worlds now have a compact row-major terrain payload
   for owner observations instead of tens of thousands of JSON tile objects.
   The Godot client can draw that payload, inspect the minimap and place founders
   through the same single-view camera. The current live world still uses its
-  existing small-map wire format; New World selection is not yet in the menu.
+  existing small-map wire format.
 
 - The deterministic geography generator can now form a valid empty base camp
   on Small and Medium maps and carry its seed, wrapping and water options
   through the private-world save. A four-founder generated world can advance
   and reload in the simulation. River/lake/ocean and mountain/peak ground are
   represented in the current physical map; mountain and peak are not buildable.
-  This is a backend bridge, not a New World menu or finished layered ecology.
+  The later New World menu uses this bridge; layered ecology is not finished.
   Larger presets remain in the compact geography generator only.
   Terrain lookups are indexed, and proposed ticks reuse their committed map
   instead of regenerating the whole geography each tick.
@@ -28,8 +37,7 @@ release yet.
   Godot button for every tile. The top-left overview uses a compact atlas of
   the same terrain data; it remains the existing single zoomable view, not a
   separate regional art set. A regional-size UI smoke map exercises this path.
-  The playable host still needs generated terrain and a compact map observation
-  protocol before New World can be enabled.
+  New World uses the compact map observation protocol added below.
 
 - World Settings now controls per-world autosaves: on by default every five
   minutes with five rotating copies, with the agreed interval and rotation
@@ -38,7 +46,7 @@ release yet.
   per-change emergency recovery checkpoint.
 
 - Pause Menu → **Save World** now creates an unlimited named checkpoint of the
-  paused world. Main Menu → **Load Save** lists those checkpoints, confirms a
+  paused world. Pause Menu → **Load Save** lists those checkpoints, confirms a
   rewind, preserves the current state as a new checkpoint first, and opens the
   loaded world paused. Saves survive restart and retain per-agent model/key-slot
   choices without copying API-key secrets into world files.
@@ -60,8 +68,8 @@ release yet.
 
 - The Windows client now starts at a Main Menu with Continue, Settings,
   connection/pairing and Quit Game. Quit to Menu pauses the host world; Continue
-  returns to it. New World remains unavailable until generated worlds can be
-  played; Load Save handles named checkpoints of the current development world.
+  returns to it. New World and Load World were enabled in a subsequent batch;
+  Load Save remains for checkpoints of the selected world.
 
 - Building placement now has an explicit buildable-ground rule. The existing
   mountain tiles reject construction, including owner-authored placement;
