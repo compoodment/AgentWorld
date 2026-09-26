@@ -212,11 +212,12 @@ public sealed class OwnerWorldObservationStore
         }
         var jobs = state.WorldSimulation?.ProductionJobs.Concat(state.WorldSimulation.CropBuilds ?? []).ToArray() ?? [];
         var latestEventId = state.Events.Count == 0 ? 0 : state.Events[^1].EventId;
+        var packedTerrain = state.Geography is null ? null : PackTerrain(map);
         return new ViewerWorldSnapshot(
             state.Society.Society.WorldId,
             state.Society.Society.WorldTick,
             map.ManifestDigest,
-            map.Tiles
+            (packedTerrain is null ? map.Tiles : [])
                 .OrderBy(tile => tile.Position.Y)
                 .ThenBy(tile => tile.Position.X)
                 .Select(tile => new ViewerTile(tile.Position.X, tile.Position.Y, ToWireValue(tile.Terrain)))
@@ -244,6 +245,7 @@ public sealed class OwnerWorldObservationStore
             actor,
             latestEventId)
         {
+            PackedTerrain = packedTerrain,
             Inhabitants = activeInhabitants
                 .Select(inhabitant => ToPlaytestInhabitant(state, inhabitant, physicalById[inhabitant.Id]))
                 .Concat(state.Society.Society.Inhabitants
@@ -372,6 +374,15 @@ public sealed class OwnerWorldObservationStore
                     item.State.ToString().ToLowerInvariant()))
                 .ToArray(),
         };
+    }
+
+    private static ViewerPackedTerrain PackTerrain(SeededMap map)
+    {
+        var bytes = new byte[checked(map.Width * map.Height)];
+        foreach (var tile in map.Tiles)
+            bytes[tile.Position.Y * map.Width + tile.Position.X] = checked((byte)tile.Terrain);
+        return new ViewerPackedTerrain(map.Width, map.Height, "terrain-kind-v1",
+            Convert.ToBase64String(bytes));
     }
 
     private static List<ViewerInhabitant> CreateInhabitants(OwnerWorldSnapshot state)

@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Harness;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.World;
+using ClankerWorld.Viewer.Observation;
 
 namespace ClankerWorld.Simulation.Tests;
 
@@ -34,6 +35,13 @@ public sealed class GeographyGeneratorTests
         Assert.Equal(options, initial.Geography);
         Assert.Empty(world.Inhabitants);
         Assert.True(world.Society.IsPaused);
+        var projection = new OwnerWorldObservationStore(world).GetSnapshot();
+        Assert.Empty(projection.Tiles);
+        Assert.Equal((256, 128), (projection.PackedTerrain?.Width, projection.PackedTerrain?.Height));
+        Assert.Equal("terrain-kind-v1", projection.PackedTerrain!.Encoding);
+        var terrainBytes = Convert.FromBase64String(projection.PackedTerrain.Data);
+        Assert.Equal(initial.Map.Tiles.Count, terrainBytes.Length);
+        Assert.Equal((byte)initial.Map.Tiles[0].Terrain, terrainBytes[0]);
         var bedroll = initial.Map.GetObject("bedroll").Position;
         var positions = initial.Map.Tiles.Where(tile =>
                 tile.Position.X >= bedroll.X - 1 && tile.Position.X < bedroll.X + 5 &&

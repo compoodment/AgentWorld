@@ -14,6 +14,9 @@ public sealed record ViewerPosition(int X, int Y);
 
 public sealed record ViewerTile(int X, int Y, string Terrain);
 
+/// <summary>Row-major terrain-kind bytes, base64-encoded for owner JSON.</summary>
+public sealed record ViewerPackedTerrain(int Width, int Height, string Encoding, string Data);
+
 public sealed record ViewerMapObject(string Id, string Kind, ViewerPosition Position);
 
 public sealed record ViewerResource(string Id, string Kind, ViewerPosition Position, bool IsRenewable, string State,
@@ -218,6 +221,7 @@ public sealed record ViewerWorldSnapshot(
     ViewerActor? Actor,
     long LatestEventId)
 {
+    public ViewerPackedTerrain? PackedTerrain { get; init; }
     public IReadOnlyList<ViewerStockpile> Stockpiles { get; init; } = [];
     public ViewerCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }

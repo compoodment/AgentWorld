@@ -18,6 +18,7 @@ public sealed record OwnerWorldHandshake(
 public sealed record OwnerWorldPosition(int X, int Y);
 
 public sealed record OwnerWorldTile(int X, int Y, string Terrain);
+public sealed record OwnerWorldPackedTerrain(int Width, int Height, string Encoding, string Data);
 
 public sealed record OwnerWorldObject(string Id, string Kind, OwnerWorldPosition Position);
 
@@ -220,6 +221,7 @@ public sealed record OwnerWorldSnapshot(
     OwnerWorldActor? Actor,
     long LatestEventId)
 {
+    public OwnerWorldPackedTerrain? PackedTerrain { get; init; }
     public IReadOnlyList<OwnerWorldStockpile> Stockpiles { get; init; } = [];
     public OwnerWorldCouncil? Council { get; init; }
     public int? LifePaceRate { get; init; }

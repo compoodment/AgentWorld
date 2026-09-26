@@ -46,8 +46,15 @@ geography presets remain compact generator outputs, not playable-map promises.
 The physical map now indexes terrain for constant-time passability/build-site
 checks. An internally captured proposed tick reuses its committed map rather
 than regenerating generated geography; external save loads still validate and
-regenerate it before acceptance. The current save and owner observation still
-serialize every terrain tile, so this alone does not make huge worlds viable.
+regenerate it before acceptance. The current save still serializes a JSON
+object per terrain tile, and owner observations still send the whole terrain,
+so this alone does not make huge worlds viable.
+For generated maps, the owner projection now carries terrain as row-major
+terrain-kind bytes encoded in base64; the matching Godot client decodes those
+into its compact camera/overview index. The existing 6×5 world still emits
+the former tile list for the currently paired Windows build. Generated-world
+snapshots still resend the full packed terrain on each observation; viewport
+chunk requests and compact persistence are not implemented yet.
 
 The current host schedules one world tick per real second. Newly created
 private worlds start paused and save the accepted playtest pace: 360 ticks per day and a 40-day

@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- Generated Small/Medium worlds now have a compact row-major terrain payload
+  for owner observations instead of tens of thousands of JSON tile objects.
+  The Godot client can draw that payload, inspect the minimap and place founders
+  through the same single-view camera. The current live world still uses its
+  existing small-map wire format; New World selection is not yet in the menu.
+
 - The deterministic geography generator can now form a valid empty base camp
   on Small and Medium maps and carry its seed, wrapping and water options
   through the private-world save. A four-founder generated world can advance

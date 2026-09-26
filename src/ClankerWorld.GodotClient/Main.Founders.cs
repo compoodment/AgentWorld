@@ -145,7 +145,7 @@ public partial class Main
     private async Task PlaceAgentAtAsync(Vector2I tile)
     {
         if (isOwnerAction || observationSession.Current?.Baseline.Snapshot is not { FounderSetup: { Started: true } } snapshot ||
-            !snapshot.Tiles.Any(item => item.X == tile.X && item.Y == tile.Y) ||
+            !MapContains(snapshot, tile.X, tile.Y) ||
             snapshot.Inhabitants.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y) ||
             snapshot.Objects.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y) ||
             snapshot.Resources.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y))
@@ -193,7 +193,7 @@ public partial class Main
     private async Task PlaceFounderAtAsync(Vector2I tile)
     {
         if (isOwnerAction || observationSession.Current?.Baseline.Snapshot is not { FounderSetup: { Started: false } } snapshot ||
-            !snapshot.Tiles.Any(item => item.X == tile.X && item.Y == tile.Y) ||
+            !MapContains(snapshot, tile.X, tile.Y) ||
             snapshot.Inhabitants.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y) ||
             snapshot.Objects.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y) ||
             snapshot.Resources.Any(item => item.Position.X == tile.X && item.Position.Y == tile.Y))

@@ -43,6 +43,30 @@ public sealed class WorldTerrainMap
         return new WorldTerrainMap(width, height, terrain);
     }
 
+    public static WorldTerrainMap FromPacked(OwnerWorldPackedTerrain packed)
+    {
+        ArgumentNullException.ThrowIfNull(packed);
+        if (packed.Encoding != "terrain-kind-v1" || packed.Width <= 0 || packed.Height <= 0)
+            throw new InvalidDataException("The world terrain encoding or dimensions are unsupported.");
+        var source = Convert.FromBase64String(packed.Data);
+        if (source.Length != checked(packed.Width * packed.Height))
+            throw new InvalidDataException("The packed world terrain length is invalid.");
+        var terrain = new byte[source.Length];
+        for (var index = 0; index < source.Length; index++)
+            terrain[index] = source[index] switch
+            {
+                0 => 1, // meadow
+                1 => 2, // fixture water
+                2 => 3, // mountain
+                3 => 4, // river
+                4 => 5, // lake
+                5 => 6, // ocean
+                6 => 10, // peak
+                _ => throw new InvalidDataException("The packed world terrain contains an unknown kind."),
+            };
+        return new WorldTerrainMap(packed.Width, packed.Height, terrain);
+    }
+
     public byte At(int x, int y) => terrain[y * Width + x];
 
     public static Color ColorFor(byte kind) => kind switch

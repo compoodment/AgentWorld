@@ -406,25 +406,26 @@ public partial class Main : Control
             eventLog.EmitSignal(RichTextLabel.SignalName.MetaClicked, "100");
             if (cameraCenterTiles.DistanceTo(beforeEventJump) < 0.5f)
                 throw new InvalidOperationException("Clicking a located event did not move the world camera.");
-            var largeTiles = Enumerable.Range(0, 256 * 128)
-                .Select(index => new OwnerWorldTile(index % 256, index / 256,
-                    index % 37 == 0 ? "river" : "meadow")).ToArray();
+            var largeTerrain = Enumerable.Range(0, 256 * 128)
+                .Select(index => (byte)(index % 37 == 0 ? 3 : 0)).ToArray();
             RenderMap(sample with
             {
                 WorldId = "ui-large-map",
                 MapManifestDigest = "ui-large-map-v1",
-                Tiles = largeTiles,
+                Tiles = [],
+                PackedTerrain = new OwnerWorldPackedTerrain(256, 128, "terrain-kind-v1",
+                    Convert.ToBase64String(largeTerrain)),
                 Resources = [],
                 PlacedBuildings = [],
             });
             for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
-            if (terrainLayer.GetChildCount() != 0 || terrainLayer.VisibleTileCount >= largeTiles.Length / 4 ||
+            if (terrainLayer.GetChildCount() != 0 || terrainLayer.VisibleTileCount >= largeTerrain.Length / 4 ||
                 worldOverview.VisibleTiles.Size.X >= 256)
                 throw new InvalidOperationException("A regional map must draw only the visible terrain without per-tile nodes.");
             var beforeLargePan = worldOverview.VisibleTiles.Position;
             CenterCameraAt(new Vector2(20, 20));
             if (worldOverview.VisibleTiles.Position.DistanceTo(beforeLargePan) < 1 ||
-                terrainLayer.VisibleTileCount >= largeTiles.Length / 4)
+                terrainLayer.VisibleTileCount >= largeTerrain.Length / 4)
                 throw new InvalidOperationException("Panning a large map must update the camera-bounded terrain view.");
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("archived-mira", "Mira", "dead", formerPosition,
@@ -2832,6 +2833,20 @@ public partial class Main : Control
             ToggleEvents();
     }
 
+    private static bool HasMap(OwnerWorldSnapshot snapshot) =>
+        snapshot.PackedTerrain is not null || snapshot.Tiles.Count > 0;
+
+    private static (int Width, int Height) MapDimensions(OwnerWorldSnapshot snapshot) =>
+        snapshot.PackedTerrain is { } packed ? (packed.Width, packed.Height) :
+        snapshot.Tiles.Count == 0 ? (0, 0) :
+        (snapshot.Tiles.Max(tile => tile.X) + 1, snapshot.Tiles.Max(tile => tile.Y) + 1);
+
+    private static bool MapContains(OwnerWorldSnapshot snapshot, int x, int y)
+    {
+        var (width, height) = MapDimensions(snapshot);
+        return x >= 0 && y >= 0 && x < width && y < height;
+    }
+
     private void RenderMap(OwnerWorldSnapshot snapshot)
     {
         renderedMapSnapshot = snapshot;
@@ -2848,7 +2863,7 @@ public partial class Main : Control
             mapObjectVisuals.Remove(id);
         }
 
-        if (snapshot.Tiles.Count == 0)
+        if (!HasMap(snapshot))
         {
             return;
         }
@@ -2857,9 +2872,10 @@ public partial class Main : Control
         if (terrainMap is null || !string.Equals(terrainWorldId, snapshot.WorldId, StringComparison.Ordinal) ||
             !string.Equals(terrainManifestDigest, manifest, StringComparison.Ordinal))
         {
-            var width = snapshot.Tiles.Max(tile => tile.X) + 1;
-            var height = snapshot.Tiles.Max(tile => tile.Y) + 1;
-            terrainMap = WorldTerrainMap.FromTiles(snapshot.Tiles, width, height);
+            var (width, height) = MapDimensions(snapshot);
+            terrainMap = snapshot.PackedTerrain is { } packed
+                ? WorldTerrainMap.FromPacked(packed)
+                : WorldTerrainMap.FromTiles(snapshot.Tiles, width, height);
             terrainWorldId = snapshot.WorldId;
             terrainManifestDigest = manifest;
             terrainLayer.SetWorld(terrainMap);
@@ -3023,8 +3039,7 @@ public partial class Main : Control
 
     private void RenderWorldInfo(OwnerWorldSnapshot snapshot)
     {
-        var width = snapshot.Tiles.Count == 0 ? 0 : snapshot.Tiles.Max(tile => tile.X) + 1;
-        var height = snapshot.Tiles.Count == 0 ? 0 : snapshot.Tiles.Max(tile => tile.Y) + 1;
+        var (width, height) = MapDimensions(snapshot);
         var localWeather = snapshot.Authoring is { } authoring
             ? $"{Pretty(authoring.Season)} · {Pretty(authoring.Weather)}"
             : "Not reported";
@@ -3481,7 +3496,7 @@ public partial class Main : Control
 
         climateLabel.Visible = Size.X >= 1100;
 
-        if (observationSession.Current?.Baseline.Snapshot is { Tiles.Count: > 0 } snapshot)
+        if (observationSession.Current?.Baseline.Snapshot is { } snapshot && HasMap(snapshot))
         {
             var previousTileSize = currentTileSize;
             UpdateMapGeometry(snapshot);
@@ -3528,13 +3543,12 @@ public partial class Main : Control
 
     private void UpdateMapGeometry(OwnerWorldSnapshot snapshot)
     {
-        if (snapshot.Tiles.Count == 0 || mapCanvas.Size.X <= 0 || mapCanvas.Size.Y <= 0)
+        if (!HasMap(snapshot) || mapCanvas.Size.X <= 0 || mapCanvas.Size.Y <= 0)
         {
             return;
         }
 
-        var mapWidth = terrainMap?.Width ?? snapshot.Tiles.Max(tile => tile.X) + 1;
-        var mapHeight = terrainMap?.Height ?? snapshot.Tiles.Max(tile => tile.Y) + 1;
+        var (mapWidth, mapHeight) = MapDimensions(snapshot);
         var availableWidth = Math.Max(1, mapCanvas.Size.X - 36 - ((mapWidth - 1) * TileGap));
         var availableHeight = Math.Max(1, mapCanvas.Size.Y - 36 - ((mapHeight - 1) * TileGap));
         var fittedTileSize = (int)Math.Floor(Math.Min(availableWidth / mapWidth, availableHeight / mapHeight));
@@ -3574,7 +3588,7 @@ public partial class Main : Control
 
     private void CenterCameraAt(Vector2 tileCenter)
     {
-        if (renderedMapSnapshot is not { Tiles.Count: > 0 } snapshot)
+        if (renderedMapSnapshot is not { } snapshot || !HasMap(snapshot))
         {
             return;
         }
@@ -3586,7 +3600,7 @@ public partial class Main : Control
 
     private void PanCamera(Vector2 deltaTiles)
     {
-        if (renderedMapSnapshot is not { Tiles.Count: > 0 })
+        if (renderedMapSnapshot is not { } snapshot || !HasMap(snapshot))
         {
             return;
         }
@@ -3597,7 +3611,7 @@ public partial class Main : Control
     private void HandleMapInput(InputEvent @event)
     {
         if (gameMenuPanel.Visible || creationOverlay.Visible ||
-            renderedMapSnapshot is not { Tiles.Count: > 0 } snapshot)
+            renderedMapSnapshot is not { } snapshot || !HasMap(snapshot))
         {
             return;
         }
