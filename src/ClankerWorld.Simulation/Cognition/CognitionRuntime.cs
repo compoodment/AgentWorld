@@ -111,6 +111,34 @@ public sealed class CognitionRuntime
 
     public long ProviderEpoch => provider.ProviderEpoch;
 
+    public DecisionProviderKind ProviderKindFor(InhabitantObservation observation) => provider.KindFor(observation);
+
+    /// <summary>
+    /// Reserves no state. A host may send this exact request outside the world
+    /// tick, then admit its answer through IssueRequest/ApplyResponse only if
+    /// the same decision point and provider binding are still current.
+    /// </summary>
+    public CognitionDecisionRequest PreviewRequest(InhabitantObservation observation)
+    {
+        ArgumentNullException.ThrowIfNull(observation);
+        observation.Validate();
+        if (!string.Equals(observation.InhabitantId, InhabitantId, StringComparison.Ordinal))
+            throw new ArgumentException("The observation belongs to a different inhabitant.", nameof(observation));
+        lock (sync)
+        {
+            if (isPaused || inFlight is not null || observation.RunEpoch < runEpoch)
+                throw new InvalidOperationException("This cognition decision point is no longer available.");
+            return new CognitionDecisionRequest(
+                $"cognition-{nextRequestSequence.ToString("D10", CultureInfo.InvariantCulture)}",
+                provider.ProviderEpoch,
+                observation);
+        }
+    }
+
+    public ValueTask<CognitionDecisionResponse> DecidePreviewAsync(
+        CognitionDecisionRequest request, CancellationToken cancellationToken = default) =>
+        provider.DecideAsync(request, cancellationToken);
+
     public CognitionDecisionRequest IssueRequest(InhabitantObservation observation)
     {
         ArgumentNullException.ThrowIfNull(observation);

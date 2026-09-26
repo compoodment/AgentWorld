@@ -7,17 +7,15 @@ updated: 2026-09-26
 
 # Documentation
 
-**ClankerWorld** is the product, repository and codebase name. Some old
-internal save, content and pairing identifiers deliberately retain the former
-name so existing worlds and paired devices continue to work.
+**ClankerWorld** is the product, repository and codebase name. The pre-release
+identifier reset intentionally required a fresh save and device pairing.
 
 | Question | Read |
 | --- | --- |
 | What does computment want the finished game to be? | [Vision interview and decision ledger](vision-interview.md) |
 | What actually works in the Godot/private-VPS prototype today? | [Current state](current-state.md) |
-| What is the next playable outcome? | [Roadmap](roadmap.md) |
 | How are the current client, simulation, saves and model calls separated? | [Architecture](architecture.md) |
-| Which confirmed problems remain? | [Known bugs](bugs.md) |
+| Which confirmed problems or unverified fixes remain? | [Known bugs](bugs.md) |
 
 Development references: [build and test](building.md), [current private-host
 pairing](pairing.md), and [release/version policy](releasing.md).
@@ -34,7 +32,8 @@ pairing](pairing.md), and [release/version policy](releasing.md).
   does not make a feature playable.
 - **Architecture** describes the present technical boundary and the protected
   invariants that current code must respect. It does not override the finished
-  vision. **Roadmap** chooses sequence; **known bugs** tracks confirmed gaps.
+  vision. **Known bugs** tracks confirmed gaps; current state may note the
+  immediate implementation focus without creating another vision document.
 - Keep these answers separate. Update the affected current document when
   behavior or policy changes; link to it instead of maintaining another copy.
 

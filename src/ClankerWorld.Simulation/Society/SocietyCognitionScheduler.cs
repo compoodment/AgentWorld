@@ -21,6 +21,11 @@ public sealed record SocietyCognitionDispatchResult(
     string InhabitantId,
     CognitionAdmissionResult Admission);
 
+public sealed record SocietyDeferredCognitionRequest(
+    string InhabitantId,
+    CognitionDecisionRequest Request,
+    Func<CancellationToken, ValueTask<CognitionDecisionResponse>> DecideAsync);
+
 public sealed record SocietyCognitionSchedulerState(
     int SchemaVersion,
     int MaxQueueLength,
@@ -151,13 +156,94 @@ public sealed class SocietyCognitionScheduler
     }
 
     public async ValueTask<IReadOnlyList<SocietyCognitionDispatchResult>> DispatchAsync(
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        await DispatchEligibleAsync(_ => true, cancellationToken).ConfigureAwait(false);
+
+    public ValueTask<IReadOnlyList<SocietyCognitionDispatchResult>> DispatchDeterministicAsync(
+        CancellationToken cancellationToken = default) =>
+        DispatchEligibleAsync(entry => runtimes[entry.InhabitantId].ProviderKindFor(entry.Observation) ==
+            DecisionProviderKind.Deterministic, cancellationToken);
+
+    public IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(
+        IReadOnlySet<string> excludedInhabitantIds)
     {
-        var selected = queue
-            .OrderByDescending(item => item.Priority)
-            .ThenBy(item => item.EnqueuedTick)
-            .ThenBy(item => item.InhabitantId, StringComparer.Ordinal)
-            .ThenBy(item => item.ScheduleId, StringComparer.Ordinal)
+        ArgumentNullException.ThrowIfNull(excludedInhabitantIds);
+        var selected = OrderedQueue()
+            .Where(entry => !excludedInhabitantIds.Contains(entry.InhabitantId) &&
+                runtimes[entry.InhabitantId].ProviderKindFor(entry.Observation) != DecisionProviderKind.Deterministic)
+            .Take(maxDispatchPerCycle)
+            .ToArray();
+        var previews = new List<SocietyDeferredCognitionRequest>(selected.Length);
+        foreach (var entry in selected)
+        {
+            var runtime = runtimes[entry.InhabitantId];
+            try
+            {
+                var request = runtime.PreviewRequest(entry.Observation);
+                previews.Add(new SocietyDeferredCognitionRequest(
+                    entry.InhabitantId,
+                    request,
+                    token => runtime.DecidePreviewAsync(request, token)));
+            }
+            catch (InvalidOperationException)
+            {
+                // The durable queue may outlive a pause/resume boundary. A
+                // later observation will replace the stale decision point.
+            }
+        }
+        return previews;
+    }
+
+    public IReadOnlySet<string> PendingHostedInhabitantIds() => queue
+        .Where(entry => runtimes[entry.InhabitantId].ProviderKindFor(entry.Observation) != DecisionProviderKind.Deterministic)
+        .Select(entry => entry.InhabitantId)
+        .ToHashSet(StringComparer.Ordinal);
+
+    public long CurrentProviderEpoch(string inhabitantId) => GetRuntime(inhabitantId).ProviderEpoch;
+
+    public SocietyCognitionDispatchResult? CompleteDeferred(
+        CognitionDecisionRequest originalRequest,
+        CognitionDecisionResponse? response,
+        string? failure,
+        long currentRunEpoch,
+        IReadOnlySet<string> legalCandidateIds)
+    {
+        ArgumentNullException.ThrowIfNull(originalRequest);
+        var inhabitantId = originalRequest.Observation.InhabitantId;
+        var entry = queue.SingleOrDefault(item => item.InhabitantId == inhabitantId);
+        if (entry is null || !runtimes.TryGetValue(inhabitantId, out var runtime) ||
+            originalRequest.Observation.RunEpoch != currentRunEpoch ||
+            originalRequest.ProviderEpoch != runtime.ProviderEpoch)
+            return null;
+        var currentRequest = runtime.PreviewRequest(entry.Observation);
+        if (currentRequest.RequestId != originalRequest.RequestId ||
+            currentRequest.Observation.RunEpoch != currentRunEpoch ||
+            response is not null && !legalCandidateIds.Contains(response.SelectedCandidateId))
+            return null;
+
+        var issued = runtime.IssueRequest(originalRequest.Observation);
+        CognitionAdmissionResult admission = response is null
+            ? runtime.FailRequest(issued.RequestId, failure ?? "provider_failure")
+            : runtime.ApplyResponse(response);
+        queue.Remove(entry);
+        AppendEvent(entry.Observation.WorldTick,
+            admission.Accepted ? "cognition_dispatched" : "cognition_dispatch_rejected",
+            $"{inhabitantId}:{admission.Outcome}");
+        return new SocietyCognitionDispatchResult(inhabitantId, admission);
+    }
+
+    private IOrderedEnumerable<SocietyCognitionScheduleEntry> OrderedQueue() => queue
+        .OrderByDescending(item => item.Priority)
+        .ThenBy(item => item.EnqueuedTick)
+        .ThenBy(item => item.InhabitantId, StringComparer.Ordinal)
+        .ThenBy(item => item.ScheduleId, StringComparer.Ordinal);
+
+    private async ValueTask<IReadOnlyList<SocietyCognitionDispatchResult>> DispatchEligibleAsync(
+        Func<SocietyCognitionScheduleEntry, bool> predicate,
+        CancellationToken cancellationToken)
+    {
+        var selected = OrderedQueue()
+            .Where(predicate)
             .Take(maxDispatchPerCycle)
             .ToArray();
 

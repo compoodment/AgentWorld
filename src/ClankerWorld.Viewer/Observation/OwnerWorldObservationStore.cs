@@ -466,6 +466,8 @@ public sealed class OwnerWorldObservationStore
         };
         var runtime = state.Society.Cognition.Runtimes
             .FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
+        if (state.Society.Cognition.Queue.Any(item => item.InhabitantId == inhabitant.Id))
+            decisionFactors.Add(new ViewerDecisionFactor("decision-pending", "true"));
         if (runtime?.CurrentIntention is { } intention)
         {
             decisionFactors.Add(new ViewerDecisionFactor("current-intention", intention.CandidateId));
@@ -775,7 +777,8 @@ public sealed class OwnerWorldObservationStore
         worldEvent.EventId,
         worldEvent.WorldTick,
         worldEvent.Kind,
-        worldEvent.Detail);
+        worldEvent.Detail,
+        worldEvent.Position is { } position ? ToPosition(position) : null);
 
     private static ViewerCognition ToCognition(PrivateWorldRuntimeState state)
     {

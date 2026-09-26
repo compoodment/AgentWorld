@@ -6,6 +6,103 @@ namespace ClankerWorld.Simulation.Tests;
 
 public sealed class OwnerClientPresenceLeaseTests
 {
+    [Fact]
+    public async Task DisconnectCancelsDeferredHostedCallButKeepsCommittedWorldAndQueue()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"clankerworld-deferred-presence-{Guid.NewGuid():N}");
+        try
+        {
+            var clock = new ManualTimeProvider();
+            var presence = new OwnerClientPresenceLease(TimeSpan.FromSeconds(5), clock);
+            var provider = new WaitingHostedProvider();
+            using var runtime = new PrivateWorldRuntime("deferred-presence", id =>
+                id == "founder-scout" ? provider : new DeterministicDecisionProvider());
+            using var service = new PrivateWorldRuntimeService(runtime,
+                new PrivateWorldStateFile(Path.Combine(directory, "world.json")), presence);
+            presence.RecordAuthenticatedReconnect("owner");
+            Assert.True(await service.TryAdvanceOnceAsync());
+            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            var committedTick = runtime.WorldTick;
+            clock.Advance(TimeSpan.FromSeconds(5));
+            Assert.False(await service.TryAdvanceOnceAsync());
+            await provider.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(committedTick, runtime.WorldTick);
+            Assert.Contains(runtime.ExportState().Society.Cognition.Queue,
+                item => item.InhabitantId == "founder-scout");
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private sealed class WaitingHostedProvider : IDecisionProvider
+    {
+        public TaskCompletionSource<bool> Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<bool> Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public DecisionProviderKind Kind => DecisionProviderKind.Jev;
+        public long ProviderEpoch => 1;
+        public async ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            Started.TrySetResult(true);
+            try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                Cancelled.TrySetResult(true);
+                throw;
+            }
+            throw new InvalidOperationException("The hosted request must be cancelled.");
+        }
+    }
+
+    [Fact]
+    public async Task HostedFailureLogReportsOutcomeWithoutProviderExceptionText()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"clankerworld-hosted-log-{Guid.NewGuid():N}");
+        try
+        {
+            var presence = new OwnerClientPresenceLease(TimeSpan.FromMinutes(1));
+            var provider = new ThrowingHostedProvider();
+            var logger = new RecordingLogger<PrivateWorldRuntimeService>();
+            using var runtime = new PrivateWorldRuntime("hosted-log", id =>
+                id == "founder-scout" ? provider : new DeterministicDecisionProvider());
+            using var service = new PrivateWorldRuntimeService(runtime,
+                new PrivateWorldStateFile(Path.Combine(directory, "world.json")), presence, logger);
+            presence.RecordAuthenticatedReconnect("owner");
+            Assert.True(await service.TryAdvanceOnceAsync());
+            await provider.Retried.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            for (var attempt = 0; attempt < 50 &&
+                 !logger.Messages.Any(message => message.Contains("hosted_decision", StringComparison.Ordinal) &&
+                     message.Contains("provider_failure", StringComparison.Ordinal)); attempt++)
+            {
+                await service.TryAdvanceOnceAsync();
+                await Task.Delay(10);
+            }
+            Assert.Contains(logger.Messages, message => message.Contains("hosted_decision", StringComparison.Ordinal) &&
+                message.Contains("provider_failure:HttpRequestException", StringComparison.Ordinal));
+            Assert.DoesNotContain(logger.Messages, message => message.Contains("super-secret-api-key", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    private sealed class ThrowingHostedProvider : IDecisionProvider
+    {
+        private int calls;
+        public TaskCompletionSource<bool> Retried { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public DecisionProviderKind Kind => DecisionProviderKind.Jev;
+        public long ProviderEpoch => 1;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request, CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref calls) >= 2) Retried.TrySetResult(true);
+            throw new HttpRequestException("super-secret-api-key-must-not-appear");
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

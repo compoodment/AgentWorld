@@ -40,9 +40,9 @@ loops. A starter and settlement content path now supplies materials and work,
 but trade and social life are still narrow. Factions, law, currency and culture
 do not yet feel like a living civilization.
 
-See the canonical [current-state report](docs/current-state.md) for the
-capability-by-capability truth, the [roadmap](docs/roadmap.md) for what
-comes next, and [known bugs](docs/bugs.md) for confirmed defects and gaps.
+See the [vision interview](docs/vision-interview.md) for the intended game,
+the canonical [current-state report](docs/current-state.md) for what works,
+and [known bugs](docs/bugs.md) for confirmed defects and gaps.
 
 ## Runtime rules
 
@@ -80,7 +80,6 @@ path, but richer autonomous planning and society remain roadmap work.
 | `tests/ClankerWorld.Simulation.Tests` | Deterministic, protocol, persistence, security and client-contract tests |
 | `docs/vision-interview.md` | Canonical finished-game intent and open decisions |
 | `docs/current-state.md` | Canonical implemented/playable status |
-| `docs/roadmap.md` | Canonical future sequence and acceptance gates |
 | `docs/bugs.md` | Canonical confirmed bugs and product gaps |
 
 The static web root retained by the host is legacy protocol-diagnostic
@@ -105,16 +104,15 @@ release or installer.
 
 ## Documentation
 
-Start at the [documentation map](docs/README.md). It keeps the intended game,
-current prototype and future implementation sequence separate.
+Start at the [documentation map](docs/README.md). It keeps the intended game
+and current prototype separate.
 
 The short version:
 
 1. [Vision interview and decision ledger](docs/vision-interview.md)
 2. [Current state](docs/current-state.md)
-3. [Roadmap](docs/roadmap.md)
-4. [Architecture](docs/architecture.md)
-5. [Known bugs](docs/bugs.md)
+3. [Architecture](docs/architecture.md)
+4. [Known bugs](docs/bugs.md)
 
 ## What ClankerWorld is not yet
 

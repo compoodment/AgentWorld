@@ -8,6 +8,14 @@ release yet.
 
 ### Added
 
+- Slow hosted agent-model calls no longer hold the entire world tick in the
+  private-host build. Other agents and world systems advance while a request
+  waits; pause/disconnect discard the external call, and saved unresolved
+  decisions can be retried safely after reload. An agent card marks a queued
+  decision so the wait is visible.
+- The Events panel can jump to the recorded map location of an
+  actor-associated event; global events remain informational.
+
 - Deceased inhabitants now leave a saved, read-only record with their last
   location, age, role, relationships and death details. They remain inspectable
   from the inhabitant list after reload without appearing as living map actors.

@@ -195,7 +195,7 @@ public sealed record ViewerAuthoringState(
     string Season,
     IReadOnlyList<string> ApprovedAssetReferences);
 
-public sealed record ViewerEvent(long EventId, long WorldTick, string Kind, string Detail);
+public sealed record ViewerEvent(long EventId, long WorldTick, string Kind, string Detail, ViewerPosition? Position = null);
 
 public sealed record ViewerWorldSnapshot(
     string WorldId,

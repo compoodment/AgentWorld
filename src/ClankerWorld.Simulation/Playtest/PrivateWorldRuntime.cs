@@ -39,7 +39,8 @@ public sealed record PlaytestWorldEvent(
     long EventId,
     long WorldTick,
     string Kind,
-    string Detail);
+    string Detail,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GridPoint? Position = null);
 
 public sealed record PrivateWorldRuntimeState(
     int SchemaVersion,
@@ -113,6 +114,13 @@ public sealed partial class PrivateWorldRuntime : IDisposable
     private string? historyArchiveHead;
     private int checkpointSchemaVersion = StateSchemaVersion;
     private long nextInstructionSequence = 1;
+    private readonly Dictionary<string, PendingHostedDecision> pendingHosted = new(StringComparer.Ordinal);
+
+    private sealed record HostedDecisionOutcome(CognitionDecisionResponse? Response, string? Failure);
+    private sealed record PendingHostedDecision(
+        CognitionDecisionRequest Request,
+        Task<HostedDecisionOutcome> Task,
+        CancellationTokenSource Cancellation);
 
     public PrivateWorldRuntime(
         string worldSeed,
@@ -286,19 +294,42 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         AdvanceOneTickAsync(null, cancellationToken);
 
     public async ValueTask<PrivateWorldStepResult> AdvanceOneTickAsync(
-        Func<bool>? commitPermitted, CancellationToken cancellationToken = default)
+        Func<bool>? commitPermitted, CancellationToken cancellationToken = default) =>
+        await AdvanceOneTickCoreAsync(false, commitPermitted, cancellationToken).ConfigureAwait(false);
+
+    /// <summary>Playable-host path: hosted decisions run between ticks, never inside a tick transaction.</summary>
+    public ValueTask<PrivateWorldStepResult> AdvanceOneTickNonBlockingAsync(
+        Func<bool>? commitPermitted = null, CancellationToken cancellationToken = default) =>
+        AdvanceOneTickCoreAsync(true, commitPermitted, cancellationToken);
+
+    private async ValueTask<PrivateWorldStepResult> AdvanceOneTickCoreAsync(
+        bool deferHosted, Func<bool>? commitPermitted, CancellationToken cancellationToken)
     {
         await tickGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             PrivateWorldRuntimeState baseline;
             long baselineEventId;
+            PendingHostedDecision[] completed = [];
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
                 if (society.Checkpoint.IsPaused)
                 {
                     return new PrivateWorldStepResult(false, "paused", WorldTick, [], []);
+                }
+                if (deferHosted)
+                {
+                    foreach (var (id, pending) in pendingHosted.ToArray())
+                    {
+                        if (!society.Checkpoint.Inhabitants.Any(person => person.Id == id && person.Status == SocietyInhabitantStatus.Active) ||
+                            society.CurrentProviderEpoch(id) != pending.Request.ProviderEpoch ||
+                            society.Checkpoint.RunEpoch != pending.Request.Observation.RunEpoch)
+                        {
+                            CancelPendingHosted(id);
+                        }
+                    }
+                    completed = pendingHosted.Values.Where(item => item.Task.IsCompleted).ToArray();
                 }
                 baseline = CaptureState();
                 baselineEventId = nextEventId;
@@ -308,10 +339,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                 gate.Release();
             }
 
-            // External cognition operates only on an isolated proposed tick.
-            // Readers and owner controls continue to use the last committed world.
+            // World mutations operate on an isolated proposed tick. In the
+            // playable path, external cognition itself runs between ticks.
+            // Readers and owner controls use the last committed world.
             using var proposed = Restore(baseline, providerFactory, maxCognitionDispatchPerCycle, minimumCognitionConfidence);
-            var result = await proposed.AdvancePreparedTickAsync(cancellationToken).ConfigureAwait(false);
+            var result = await proposed.AdvancePreparedTickAsync(deferHosted, completed, cancellationToken).ConfigureAwait(false);
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
@@ -329,7 +361,16 @@ public sealed partial class PrivateWorldRuntime : IDisposable
                     return result;
                 }
                 CommitPreparedTick(proposed);
-                return result;
+                if (deferHosted)
+                {
+                    foreach (var item in completed)
+                    {
+                        pendingHosted.Remove(item.Request.Observation.InhabitantId);
+                        item.Cancellation.Dispose();
+                    }
+                    if (commitPermitted is null || commitPermitted()) StartHostedDecisions();
+                }
+                return result with { Events = events.Where(item => item.EventId >= baselineEventId).ToArray() };
             }
             finally
             {
@@ -340,6 +381,57 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             tickGate.Release();
         }
+    }
+
+    private void StartHostedDecisions()
+    {
+        var capacity = Math.Max(0, maxCognitionDispatchPerCycle - pendingHosted.Count);
+        if (capacity == 0) return;
+        foreach (var preview in society.PreviewHostedRequests(pendingHosted.Keys.ToHashSet(StringComparer.Ordinal)).Take(capacity))
+        {
+            var cancellation = new CancellationTokenSource();
+            var task = Task.Run(async () =>
+            {
+                for (var attempt = 0; attempt < 2; attempt++)
+                {
+                    try
+                    {
+                        cancellation.Token.ThrowIfCancellationRequested();
+                        return new HostedDecisionOutcome(
+                            await preview.DecideAsync(cancellation.Token).ConfigureAwait(false), null);
+                    }
+                    catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+                    {
+                        return new HostedDecisionOutcome(null, "provider_cancelled");
+                    }
+                    catch (Exception exception) when (exception is not OutOfMemoryException)
+                    {
+                        if (attempt == 1)
+                            return new HostedDecisionOutcome(null, $"provider_failure:{exception.GetType().Name}");
+                    }
+                }
+                return new HostedDecisionOutcome(null, "provider_failure:retry_exhausted");
+            });
+            pendingHosted.Add(preview.InhabitantId, new PendingHostedDecision(preview.Request, task, cancellation));
+            AppendEvent("hosted_decision_started", preview.InhabitantId);
+        }
+    }
+
+    private void CancelPendingHosted(string inhabitantId)
+    {
+        if (!pendingHosted.Remove(inhabitantId, out var pending)) return;
+        pending.Cancellation.Cancel();
+        _ = pending.Task.ContinueWith(_ => pending.Cancellation.Dispose(), TaskScheduler.Default);
+    }
+
+    public void CancelPendingHostedDecisions()
+    {
+        gate.Wait();
+        try
+        {
+            foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
+        }
+        finally { gate.Release(); }
     }
 
     private void CommitPreparedTick(PrivateWorldRuntime proposed)
@@ -368,7 +460,9 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         nextInstructionSequence = proposed.nextInstructionSequence;
     }
 
-    private async ValueTask<PrivateWorldStepResult> AdvancePreparedTickAsync(CancellationToken cancellationToken)
+    private async ValueTask<PrivateWorldStepResult> AdvancePreparedTickAsync(
+        bool deferHosted, IReadOnlyList<PendingHostedDecision> completed,
+        CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -453,16 +547,42 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             MaintainParenthood();
             MaintainDependentCare();
             EnqueueDueCognition();
-            var dispatch = await society.DispatchCognitionAsync(cancellationToken).ConfigureAwait(false);
-            foreach (var decision in dispatch.Decisions.OrderBy(item => item.InhabitantId, StringComparer.Ordinal))
+            var deferredDecisions = new List<SocietyCognitionDispatchResult>();
+            if (deferHosted)
+            {
+                foreach (var item in completed)
+                {
+                    var id = item.Request.Observation.InhabitantId;
+                    if (!inhabitants.TryGetValue(id, out var physical)) continue;
+                    var outcome = await item.Task.ConfigureAwait(false);
+                    var legal = CreateCandidates(id, physical).Select(candidate => candidate.Id)
+                        .ToHashSet(StringComparer.Ordinal);
+                    var decision = society.CompleteDeferredCognition(item.Request, outcome.Response,
+                        outcome.Failure, legal);
+                    if (decision is not null)
+                    {
+                        deferredDecisions.Add(decision);
+                        AppendEvent("hosted_decision_completed", $"{id}:{decision.Admission.Outcome}");
+                    }
+                    else AppendEvent("hosted_decision_discarded", id);
+                }
+            }
+            var dispatch = deferHosted
+                ? await society.DispatchDeterministicCognitionAsync(cancellationToken).ConfigureAwait(false)
+                : await society.DispatchCognitionAsync(cancellationToken).ConfigureAwait(false);
+            var decisions = deferredDecisions.Concat(dispatch.Decisions)
+                .OrderBy(item => item.InhabitantId, StringComparer.Ordinal).ToArray();
+            foreach (var decision in decisions)
             {
                 ApplyDecision(decision);
             }
-            ApplyContinuingIntentions(dispatch.Decisions.Select(item => item.InhabitantId));
+            var waiting = deferHosted ? society.PendingHostedInhabitantIds() : new HashSet<string>(StringComparer.Ordinal);
+            ApplyContinuingIntentions(decisions.Select(item => item.InhabitantId).Concat(waiting));
+            if (deferHosted) ApplySafeRoutinesWhileWaiting(waiting);
 
             AppendEvent("tick_advanced", targetTick.ToString(System.Globalization.CultureInfo.InvariantCulture));
             var newEvents = events.Skip(startingEvent).ToArray();
-            return new PrivateWorldStepResult(true, "advanced", targetTick, dispatch.Decisions, newEvents);
+            return new PrivateWorldStepResult(true, "advanced", targetTick, decisions, newEvents);
         }
         finally
         {
@@ -928,6 +1048,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
             var result = society.Pause();
             if (!wasPaused && result.Checkpoint.IsPaused)
             {
+                foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
                 AppendEvent("paused", "owner_request");
             }
         }
@@ -1031,7 +1152,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             if (worldEvent.EventId != expectedEventId ||
                 worldEvent.WorldTick < previousTick ||
-                worldEvent.WorldTick > WorldTick)
+                worldEvent.WorldTick > WorldTick ||
+                worldEvent.Position is { } eventPosition && !map.Contains(eventPosition))
             {
                 throw new InvalidDataException("Private-world events are not a committed ordered sequence.");
             }
@@ -1043,6 +1165,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
     public void Dispose()
     {
+        foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
         society.Dispose();
         gate.Dispose();
         tickGate.Dispose();
@@ -1883,6 +2006,27 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         }
     }
 
+    private void ApplySafeRoutinesWhileWaiting(IEnumerable<string> waitingIds)
+    {
+        var safe = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "consume_food", "collect_shared_food", "harvest_food", "seek_food", "sleep",
+            "wear_clothing", "tend_fire", "seek_warmth",
+        };
+        foreach (var id in waitingIds.OrderBy(item => item, StringComparer.Ordinal))
+        {
+            if (!inhabitants.TryGetValue(id, out var state)) continue;
+            if (state.HungerBasisPoints >= 3_500 && state.EnergyBasisPoints >= 2_500 && !HasUrgentExposure(state))
+                continue;
+            var candidate = CreateCandidates(id, state)
+                .Where(item => safe.Contains(item.Id))
+                .OrderBy(item => item.DeterministicPriority)
+                .ThenBy(item => item.Id, StringComparer.Ordinal)
+                .FirstOrDefault();
+            if (candidate is not null) ApplyCandidate(id, state, candidate.Id, reportIdle: false);
+        }
+    }
+
     private void ApplyDecision(SocietyCognitionDispatchResult decision)
     {
         if (!decision.Admission.Accepted || decision.Admission.Intention is null ||
@@ -2500,7 +2644,22 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
     private void AppendEvent(string kind, string detail)
     {
-        events.Add(new PlaytestWorldEvent(nextEventId++, WorldTick, kind, detail));
+        GridPoint? position = null;
+        for (var length = detail.Length; length > 0; length = detail.LastIndexOf(':', length - 1))
+        {
+            var prefix = detail[..length];
+            if (inhabitants.TryGetValue(prefix, out var living))
+            {
+                position = living.Position;
+                break;
+            }
+            if (deceasedInhabitants.TryGetValue(prefix, out var deceased))
+            {
+                position = deceased.LastPhysical.Position;
+                break;
+            }
+        }
+        events.Add(new PlaytestWorldEvent(nextEventId++, WorldTick, kind, detail, position));
     }
 
     internal static void ValidateStateForCodec(PrivateWorldRuntimeState state)

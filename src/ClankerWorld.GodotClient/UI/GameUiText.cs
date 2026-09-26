@@ -51,6 +51,7 @@ public static class GameUiText
             "movement_blocked" or
             "inhabitant_idle" => false,
             _ when kind.StartsWith("cognition_", StringComparison.Ordinal) => false,
+            _ when kind.StartsWith("hosted_decision_", StringComparison.Ordinal) => false,
             _ when kind.StartsWith("instruction_", StringComparison.Ordinal) => false,
             _ when kind.StartsWith("content_", StringComparison.Ordinal) => false,
             _ when kind.StartsWith("owner_", StringComparison.Ordinal) => false,

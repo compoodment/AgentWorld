@@ -12,19 +12,19 @@ may track active implementation work, but closing an issue does not remove an
 entry here until the fix is merged and verified through the normal product
 path.
 
-## Open vision-to-code defect
+## Live verification pending
 
-- **Provider-held tick — open, high priority:** the private-world cognition
-  scheduler awaits every selected provider result before committing the next
-  tick. One slow model therefore delays the world and unrelated agents, against
-  the [decided continuous-simulation behavior](vision-interview.md#world-time-pausing-and-slow-models).
-  Failed requests now use only `safe_idle`, but that does not fix slow calls.
-  Acceptance: an indefinitely pending provider for one agent does not prevent
-  other agents and world systems from advancing; pause/quit promptly discard
-  pending work; late answers cannot mutate a later tick; save/reload retains
-  the affected agent's unresolved decision point without a partial action.
+The provider-held tick fix is in the repository build but is not yet installed
+on the current paired client and live host. Its product-path smoke check is
+still pending; see the resolution evidence below.
 
 ## Original reports and resolution evidence
+
+- **Provider-held tick — fixed in build, live verification pending:** hosted
+  provider calls now sit outside the tick transaction. Tests prove an
+  indefinitely pending model does not hold the world or deterministic agents,
+  and pause/reload cannot admit the old answer. A live client/host playtest
+  remains before calling the defect fully closed.
 
 - **AW-B020 — fixed:** rollback deleted placed buildings and production history
   belonging to the package, despite committed costs and outputs. Referenced
@@ -166,7 +166,7 @@ pages retain reproductions and regression requirements.
 ## Register maintenance
 
 - Record only reproduced defects or demonstrated product gaps.
-- Put scheduled features on the [roadmap](roadmap.md), not here.
+- Put intended features in the [vision ledger](vision-interview.md), not here.
 - Never store credentials, private world contents or raw provider payloads in a
   bug report.
 - When a fix lands, update the affected canonical status/roadmap document in

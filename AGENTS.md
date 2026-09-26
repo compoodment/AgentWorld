@@ -41,9 +41,12 @@ There is one canonical source per question:
   game, with decided/preferred/open labels;
 - [current state](docs/current-state.md) owns what is playable,
   integrated, fixture-only, or planned;
-- [roadmap](docs/roadmap.md) owns future sequence and acceptance gates;
 - [known bugs](docs/bugs.md) owns confirmed defects and product gaps;
 - [architecture](docs/architecture.md) owns current technical boundaries.
+
+The vision ledger, not a separate roadmap, owns intended features. Put a short
+current implementation focus in current state only when it helps distinguish
+unfinished work from playable behavior.
 
 Every user-visible gameplay, UI, world-runtime, compatibility, packaging,
 security, or operational change must include a documentation-impact review.

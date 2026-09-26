@@ -316,6 +316,13 @@ public partial class Main : Control
             _UnhandledKeyInput(new InputEventKey { Keycode = Key.S, Pressed = true });
             if (mapStage.Position.DistanceTo(beforeKeyboardPan) < 1)
                 throw new InvalidOperationException("Keyboard panning did not move the world camera.");
+            var eventDestination = cameraCenterTiles.X < 8 ? new OwnerWorldPosition(15, 11) : new OwnerWorldPosition(0, 0);
+            knownEvents[100] = new OwnerWorldEvent(100, 1, "food_consumed", "founder-scout", eventDestination);
+            RenderEventLog();
+            var beforeEventJump = cameraCenterTiles;
+            eventLog.EmitSignal(RichTextLabel.SignalName.MetaClicked, "100");
+            if (cameraCenterTiles.DistanceTo(beforeEventJump) < 0.5f)
+                throw new InvalidOperationException("Clicking a located event did not move the world camera.");
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("archived-mira", "Mira", "dead", formerPosition,
                 5_000, 5_000, [], [new("age-band", "elder"), new("death-tick", "1")],
@@ -1656,6 +1663,8 @@ public partial class Main : Control
         content.AddChild(rosterPanel);
 
         ConfigureTextPanel(eventLog, 300);
+        eventLog.MetaClicked += meta => JumpToEvent(meta.AsString());
+        eventLog.TooltipText = "Click a located event to jump to where it happened.";
         AddPanelContents(eventsPanel, "Recent events", eventLog);
         eventsPanel.CustomMinimumSize = new Vector2(390, 360);
         eventsPanel.ZIndex = 80;
@@ -2130,6 +2139,8 @@ public partial class Main : Control
 
     private void Render(OwnerWorldSnapshot snapshot, IReadOnlyList<OwnerWorldEvent> appendedEvents)
     {
+        if (cameraWorldId is not null && cameraWorldId != snapshot.WorldId)
+            knownEvents.Clear();
         foreach (var worldEvent in appendedEvents)
         {
             knownEvents[worldEvent.EventId] = worldEvent;
@@ -2450,12 +2461,15 @@ public partial class Main : Control
         var deathTick = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "death-tick")?.Detail;
         var deathCause = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "death-cause")?.Detail;
         var isDeceased = string.Equals(inhabitant.Lifecycle, "dead", StringComparison.OrdinalIgnoreCase);
+        var waitingForDecision = inhabitant.DecisionFactors.Any(factor => factor.Key == "decision-pending");
         selectedActorSummaryLabel.Text = Pretty(inhabitant.Lifecycle) + (ageBand is null ? "" : " · " + Pretty(ageBand)) +
             (ageYears is null ? "" : " · " + ageYears + " years") +
             (deathTick is not null && long.TryParse(deathTick, CultureInfo.InvariantCulture, out var finalTick)
                 ? $" · {GameUiText.FormatWorldClock(finalTick)}" : "");
         var intention = isDeceased
             ? $"Life ended{(deathCause is null ? "" : " · " + Pretty(deathCause))}. No current thoughts or activity."
+            : waitingForDecision
+            ? "Decision pending."
             : inhabitant.PublicIntention is { } publicIntention
             ? $"Wants to {GameUiText.HumanizeIdentifier(publicIntention.Summary).ToLowerInvariant()}."
             : "Taking in their surroundings.";
@@ -2471,7 +2485,7 @@ public partial class Main : Control
                 }));
         inhabitantSocialDetails.Clear();
         var decision = snapshot.Cognition?.Decisions?.FirstOrDefault(item => item.InhabitantId == inhabitant.Id);
-        var activity = decision is null
+        var activity = waitingForDecision ? "Decision pending" : decision is null
             ? "No decision yet"
             : $"{Pretty(decision.Provider)}{(decision.FellBack ? " (fallback)" : "")} · {GameUiText.HumanizeIdentifier(decision.CandidateId)}";
         var projectText = inhabitant.Project is { } project
@@ -2574,10 +2588,27 @@ public partial class Main : Control
 
         foreach (var worldEvent in events)
         {
-            eventLog.AppendText(
-                $"{GameUiText.FormatWorldClock(worldEvent.WorldTick)}\n" +
-                $"{DescribeWorldEvent(worldEvent, snapshot)}\n\n");
+            var line = $"{GameUiText.FormatWorldClock(worldEvent.WorldTick)}\n" +
+                $"{DescribeWorldEvent(worldEvent, snapshot)}";
+            if (worldEvent.Position is not null)
+            {
+                eventLog.PushMeta(worldEvent.EventId.ToString(CultureInfo.InvariantCulture));
+                eventLog.AddText(line + " ↗");
+                eventLog.Pop();
+            }
+            else eventLog.AddText(line);
+            eventLog.AddText("\n\n");
         }
+    }
+
+    private void JumpToEvent(string eventId)
+    {
+        if (!long.TryParse(eventId, CultureInfo.InvariantCulture, out var id) ||
+            !knownEvents.TryGetValue(id, out var worldEvent) ||
+            worldEvent.Position is not { } position)
+            return;
+        CenterCameraAt(new Vector2(position.X + 0.5f, position.Y + 0.5f));
+        eventsPanel.Hide();
     }
 
     private void SelectInhabitantFromList(long index)

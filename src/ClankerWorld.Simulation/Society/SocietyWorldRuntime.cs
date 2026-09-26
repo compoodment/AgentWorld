@@ -162,6 +162,51 @@ public sealed class SocietyWorldRuntime : IDisposable
         }
     }
 
+    public async ValueTask<SocietyDispatchCycleResult> DispatchDeterministicCognitionAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return new SocietyDispatchCycleResult(society,
+                await cognition.DispatchDeterministicAsync(cancellationToken).ConfigureAwait(false));
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public IReadOnlyList<SocietyDeferredCognitionRequest> PreviewHostedRequests(IReadOnlySet<string> excludedIds)
+    {
+        gate.Wait();
+        try { return cognition.PreviewHostedRequests(excludedIds); }
+        finally { gate.Release(); }
+    }
+
+    public IReadOnlySet<string> PendingHostedInhabitantIds()
+    {
+        gate.Wait();
+        try { return cognition.PendingHostedInhabitantIds(); }
+        finally { gate.Release(); }
+    }
+
+    public long CurrentProviderEpoch(string inhabitantId)
+    {
+        gate.Wait();
+        try { return cognition.CurrentProviderEpoch(inhabitantId); }
+        finally { gate.Release(); }
+    }
+
+    public SocietyCognitionDispatchResult? CompleteDeferredCognition(
+        CognitionDecisionRequest request, CognitionDecisionResponse? response, string? failure,
+        IReadOnlySet<string> legalCandidateIds)
+    {
+        gate.Wait();
+        try { return cognition.CompleteDeferred(request, response, failure, society.RunEpoch, legalCandidateIds); }
+        finally { gate.Release(); }
+    }
+
     public void Validate()
     {
         SocietyFixture.Validate(society);

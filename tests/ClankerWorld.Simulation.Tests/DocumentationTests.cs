@@ -18,7 +18,6 @@ public sealed partial class DocumentationTests
             "docs/README.md",
             "docs/vision-interview.md",
             "docs/current-state.md",
-            "docs/roadmap.md",
             "docs/architecture.md",
             "docs/bugs.md",
         };

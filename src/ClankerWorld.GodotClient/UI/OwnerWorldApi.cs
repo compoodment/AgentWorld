@@ -232,7 +232,7 @@ public sealed record OwnerWorldSnapshot(
     public IReadOnlyList<OwnerWorldProductionJob> ProductionJobs { get; init; } = [];
 }
 
-public sealed record OwnerWorldEvent(long EventId, long WorldTick, string Kind, string Detail);
+public sealed record OwnerWorldEvent(long EventId, long WorldTick, string Kind, string Detail, OwnerWorldPosition? Position = null);
 
 public sealed record OwnerWorldEventSlice(
     long SnapshotTick,

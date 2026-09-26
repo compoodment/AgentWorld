@@ -26,6 +26,10 @@ public sealed partial class PrivateWorldRuntimeService(
         Message = "inhabitant_content_proposal tick={WorldTick} inhabitant={InhabitantId} package={PackageId} kind=building lifecycle=proposed")]
     private static partial void LogInhabitantContentProposal(ILogger logger, long worldTick, string inhabitantId, string packageId);
 
+    [LoggerMessage(EventId = 2218, Level = LogLevel.Information,
+        Message = "hosted_decision tick={WorldTick} inhabitant={InhabitantId} outcome={Outcome}")]
+    private static partial void LogHostedDecision(ILogger logger, long worldTick, string inhabitantId, string outcome);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
@@ -44,6 +48,7 @@ public sealed partial class PrivateWorldRuntimeService(
     {
         if (!clientPresence.HasActiveClient)
         {
+            runtime.CancelPendingHostedDecisions();
             LogGateTransition("waiting_for_client", runtime.WorldTick);
             return false;
         }
@@ -55,7 +60,7 @@ public sealed partial class PrivateWorldRuntimeService(
         PrivateWorldStepResult result;
         try
         {
-            result = await runtime.AdvanceOneTickAsync(() => clientPresence.HasActiveClient, tickCancellation.Token);
+            result = await runtime.AdvanceOneTickNonBlockingAsync(() => clientPresence.HasActiveClient, tickCancellation.Token);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && tickCancellation.IsCancellationRequested)
         {
@@ -77,6 +82,12 @@ public sealed partial class PrivateWorldRuntimeService(
             }
             if (logger?.IsEnabled(LogLevel.Information) == true)
             {
+                foreach (var worldEvent in result.Events.Where(item => item.Kind.StartsWith("hosted_decision_", StringComparison.Ordinal)))
+                {
+                    var split = worldEvent.Detail.Split(':', 2);
+                    LogHostedDecision(logger, result.WorldTick, split[0],
+                        worldEvent.Kind["hosted_decision_".Length..] + (split.Length > 1 ? ":" + split[1] : ""));
+                }
                 var actors = runtime.Inhabitants.Select(person => person.InhabitantId).OrderByDescending(id => id.Length).ToArray();
                 string? EventActor(string detail) => actors.FirstOrDefault(id => detail == id || detail.StartsWith(id + ":", StringComparison.Ordinal));
                 var projects = runtime.Inhabitants.Where(person => person.Project is not null)

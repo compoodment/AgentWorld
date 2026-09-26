@@ -35,6 +35,15 @@ The current host schedules one world tick per real second, and a tick is one
 in-world minute. Its nominal 24-real-minute day is **prototype behavior**, not
 the chosen finished-game calendar or pace.
 
+In the repository's private-host path, hosted cognition is dispatched after a
+committed tick and resolved at a later tick boundary. The saved scheduler queue
+is the unresolved decision point; the external HTTP task itself is never save
+authority. Admission checks request ID, provider epoch, run epoch and current
+candidate legality. Other agents and world systems continue while it waits.
+Pause, lost client presence and quit cancel the host task without inventing a
+strategic answer; a restored world can retry its saved queue entry. Historical
+fixture methods still support synchronous provider dispatch for isolated tests.
+
 ## Authority and failure boundaries
 
 - A model chooses among legal intentions; deterministic world code validates
@@ -88,8 +97,7 @@ local host is embedded or bundled as a companion process is open.
 
 The vision ledger owns future behavior, including the custom calendar,
 in-world founder setup, private-memory inspection, optional AI-usage stop,
-Jev toggle, safe agent inventions and external mods. The
-[roadmap](roadmap.md) sequences implementation; [current state](current-state.md)
+Jev toggle, safe agent inventions and external mods. [Current state](current-state.md)
 reports what is connected to normal play.
 
 ## Deliberate pre-release identifier reset

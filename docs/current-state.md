@@ -41,11 +41,17 @@ The static web assets retained by the HTTP host are legacy protocol-diagnostic
 infrastructure. They are not a supported game client or an alternative owner
 interface.
 
-Provider work runs against an isolated proposed tick, so owner observations and
-pause remain responsive. Cancellation or intervening owner changes discard the
-proposal without partial world mutations. In-flight provider work is cancelled
-on manual pause or client lease expiry.
-Save schema 12 preserves optional bounded directed trust and work practice alongside biological
+In the repository build, hosted model work now runs **between** world ticks.
+The agent's unresolved decision remains in the saved cognition queue while
+the world and other agents advance; urgent food, rest and exposure routines
+can continue, but new projects wait for a valid answer. Pause, client absence,
+provider changes and quit discard the external call, not the queued decision.
+Late answers are admitted only against the same request/provider/run epoch and
+a still-legal action. Deterministic decisions remain in the isolated tick.
+This path has automated coverage but has not yet been installed on the current
+paired Windows client or live VPS host.
+
+Save schema 13 preserves deceased records, optional bounded directed trust and work practice alongside biological
 life-clock anchors, parenthood preparation, practical lessons and council
 policy/ballots, survival conditions, fuel deadlines, work projects and additive
 settlement resources;
@@ -55,6 +61,11 @@ stale cursors. See [architecture](architecture.md#authority-and-failure-boundari
 for the save and recovery boundary.
 Signed polling uses process-local one-use challenges rather than rewriting
 the authority file; old challenges fail closed after restart.
+
+The event stream now stores a location for actor-associated events. The Godot
+Events panel marks those entries as navigable and moves the camera to the
+recorded event location when clicked. The selected agent card also shows when
+a decision is queued. Global events have no map destination.
 
 ## Capability matrix
 
