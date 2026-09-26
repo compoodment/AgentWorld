@@ -16,10 +16,11 @@ public sealed partial class DocumentationTests
         {
             "README.md",
             "docs/README.md",
-            "docs/status/current-state.md",
-            "docs/planning/roadmap.md",
+            "docs/vision-interview.md",
+            "docs/current-state.md",
+            "docs/roadmap.md",
+            "docs/architecture.md",
             "docs/bugs.md",
-            "docs/governance/document-authority.md",
         };
 
         foreach (var relativePath in required)

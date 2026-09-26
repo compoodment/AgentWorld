@@ -1,7 +1,9 @@
-# AgentWorld
+# ClankerWorld (AgentWorld repository)
 
-**AgentWorld** is a private, persistent simulation inhabited by autonomous
-people. The player observes the whole world, inspects its inhabitants, gives
+**ClankerWorld** is the intended game; this repository and current prototype
+still use the AgentWorld name in code. The prototype is a private, persistent
+simulation inhabited by autonomous people. The player observes the whole
+world, inspects its inhabitants, gives
 suggestive or mandatory instructions, and watches a deterministic simulation
 execute every accepted action.
 
@@ -24,7 +26,7 @@ authoritative simulation, saves, cognition and provider adapters
 
 Today the integrated private world has:
 
-- four persistent inhabitants;
+- four initial inhabitants, with bounded births and descendants;
 - movement, hunger, energy, harvesting, eating and sleep;
 - a seeded map, renewable resources, calendar, seasons and weather;
 - inspectable needs, intentions, inventories, relationships and events;
@@ -35,13 +37,12 @@ Today the integrated private world has:
 
 The important limitation is that many deeper systems exist as contracts,
 fixtures or narrow runtime primitives rather than recurring player-visible
-loops. A fresh private world does not yet activate a useful built-in content
-pack, so inhabitants have few items, projects or economic reasons to interact.
-Trade, family, factions, law, currency and culture are present in bounded state
-or tests, but they do not yet feel like a living settlement.
+loops. A starter and settlement content path now supplies materials and work,
+but trade and social life are still narrow. Factions, law, currency and culture
+do not yet feel like a living civilization.
 
-See the canonical [current-state report](docs/status/current-state.md) for the
-capability-by-capability truth, the [roadmap](docs/planning/roadmap.md) for what
+See the canonical [current-state report](docs/current-state.md) for the
+capability-by-capability truth, the [roadmap](docs/roadmap.md) for what
 comes next, and [known bugs](docs/bugs.md) for confirmed defects and gaps.
 
 ## Runtime rules
@@ -67,9 +68,8 @@ The paired owner configures two independent roles in the game settings:
 - **Planning and work:** Deterministic, OpenAI or Ollama Cloud
 
 Jev and one large-model provider can be active at the same time. Critical
-survival needs suppress strategic work. The current default world rarely
-reaches meaningful planning decisions because it lacks an activated starter
-content set; fixing that is the first roadmap milestone.
+survival needs suppress strategic work. The current game has a starter content
+path, but richer autonomous planning and society remain roadmap work.
 
 ## Repository layout
 
@@ -79,8 +79,9 @@ content set; fixing that is the first roadmap milestone.
 | `src/AgentWorld.Viewer` | Headless HTTP host, pairing, signed owner API and live runtime |
 | `src/AgentWorld.GodotClient` | Player-facing Godot client and Windows export |
 | `tests/AgentWorld.Simulation.Tests` | Deterministic, protocol, persistence, security and client-contract tests |
-| `docs/status/current-state.md` | Canonical implemented/playable status |
-| `docs/planning/roadmap.md` | Canonical future sequence and acceptance gates |
+| `docs/vision-interview.md` | Canonical finished-game intent and open decisions |
+| `docs/current-state.md` | Canonical implemented/playable status |
+| `docs/roadmap.md` | Canonical future sequence and acceptance gates |
 | `docs/bugs.md` | Canonical confirmed bugs and product gaps |
 
 The static web root retained by the host is legacy protocol-diagnostic
@@ -105,18 +106,16 @@ release or installer.
 
 ## Documentation
 
-Start at the [documentation map](docs/README.md). It defines which document is
-canonical for each kind of question and labels design, current status, future
-work, implementation evidence and history separately.
+Start at the [documentation map](docs/README.md). It keeps the intended game,
+current prototype and future implementation sequence separate.
 
 The short version:
 
-1. [Current state](docs/status/current-state.md)
-2. [Roadmap](docs/planning/roadmap.md)
-3. [Known bugs](docs/bugs.md)
-4. [Vision](docs/concept/vision.md)
-5. [Decision register](docs/decisions/decision-register.md)
-6. [Architecture](docs/planning/architecture.md)
+1. [Vision interview and decision ledger](docs/vision-interview.md)
+2. [Current state](docs/current-state.md)
+3. [Roadmap](docs/roadmap.md)
+4. [Architecture](docs/architecture.md)
+5. [Known bugs](docs/bugs.md)
 
 ## What AgentWorld is not yet
 

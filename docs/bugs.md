@@ -2,7 +2,7 @@
 title: Known Bugs and Product Gaps
 type: defect-register
 status: active
-updated: 2026-09-23
+updated: 2026-09-26
 ---
 
 # Known bugs and product gaps
@@ -154,7 +154,7 @@ pages retain reproductions and regression requirements.
 ## Register maintenance
 
 - Record only reproduced defects or demonstrated product gaps.
-- Put speculative features on the [roadmap](planning/roadmap.md), not here.
+- Put scheduled features on the [roadmap](roadmap.md), not here.
 - Never store credentials, private world contents or raw provider payloads in a
   bug report.
 - When a fix lands, update the affected canonical status/roadmap document in

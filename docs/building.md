@@ -1,15 +1,15 @@
 ---
-title: C# and Godot Toolchain
-type: implementation-policy
+title: Build and Test the Current Prototype
+type: development-reference
 status: active
-updated: 2026-09-22
+updated: 2026-09-26
 ---
 
-# C# and Godot Toolchain
+# Build and Test the Current Prototype
 
-Phase 1 uses **C# 14 on .NET 10 LTS** for the authoritative, headless
+The current prototype uses **C# 14 on .NET 10 LTS** for the authoritative, headless
 simulation kernel. The exact SDK baseline is `10.0.401`, selected by
-[`global.json`](../../global.json); patch updates within that feature band are
+[`global.json`](../global.json); patch updates within that feature band are
 permitted. .NET 10 is an LTS release supported through November 2028.
 
 This choice concerns the world brain, not the player-facing renderer. Godot is
@@ -23,9 +23,7 @@ The first end-user export target is **Windows 11 x64**. The repository now has
 an unsigned portable-export path and a CI artifact configuration for that
 target; the Godot editor remains a development-only tool. This is not an
 installer choice, code-signing provider, or public release. The separate
-Windows smoke test and paired reconnect required for the Phase 2 gate were
-completed on 2026-09-21; the evidence is recorded in the
-[Phase 2 implementation ledger](../implementation/phase-2.md).
+Windows smoke test and paired reconnect were completed on 2026-09-21.
 
 The export check proves that a reproducible bundle is produced, not that a
 person can use it on Windows; it does not substitute for the completed Windows
@@ -54,18 +52,18 @@ The Windows client uses a non-exportable current-user CNG P-256 device key for
 normal pairing. Its saved registration contains only non-secret metadata; the
 private key is never bundled into an export or written into a world save. The
 full bootstrap, revocation, and transport policy lives in
-[Phase 2 owner device pairing](device-pairing.md).
+[current private-host device pairing](pairing.md).
 
 ## Test and dependency policy
 
-- **xUnit** is the Phase 1 test framework.
+- **xUnit** is the current test framework.
 - `Microsoft.NET.Test.Sdk` runs tests through `dotnet test`.
 - NuGet lock files are committed for every project with external packages.
   Routine verification uses `--locked-mode`, so dependency changes are
   deliberate reviewable diffs rather than surprise downloads.
 - Shared compiler, nullability, warning, analyzer, deterministic-build, and
   prerelease-version settings live in
-  [`Directory.Build.props`](../../Directory.Build.props). Its `VersionPrefix`
+  [`Directory.Build.props`](../Directory.Build.props). Its `VersionPrefix`
   and `VersionSuffix` are the single source for future .NET package/runtime
   metadata; do not add a hand-maintained version constant.
 

@@ -2,12 +2,13 @@
 title: Current Product State
 type: product-status
 status: active
-updated: 2026-09-23
+updated: 2026-09-26
 ---
 
 # Current product state
 
-This is the canonical answer to **what AgentWorld actually does today**. It
+This is the canonical answer to **what the AgentWorld prototype actually does
+today**. It
 describes the default private-world runtime and Godot client, not only schemas,
 contracts or isolated fixtures.
 
@@ -50,7 +51,8 @@ policy/ballots, survival conditions, fuel deadlines, work projects and additive
 settlement resources;
 the schema-4 history mechanism bounds hot histories
 and archives older events with verified hashes; reconnect explicitly resets
-stale cursors. See [persistence and backup requirements](../planning/architecture.md#persistence-and-replay).
+stale cursors. See [architecture](architecture.md#authority-and-failure-boundaries)
+for the save and recovery boundary.
 Signed polling uses process-local one-use challenges rather than rewriting
 the authority file; old challenges fail closed after restart.
 
@@ -208,10 +210,11 @@ adapter token counts can be zero when the provider omits usage.
 
 ## Evidence boundary
 
-The phase ledgers under `docs/implementation/` remain useful proof that
-specific invariants and fixtures passed. They are not the current product
-status. The repository's executable evidence is the merged code, automated
-tests, Godot startup/export checks and exact-commit CI.
+The repository's executable evidence is the merged code, automated tests,
+Godot startup/export checks and exact-commit CI. Retired phase documents are
+available in Git history, not active status sources. The
+[vision ledger](vision-interview.md) describes the intended finished game,
+which is not interchangeable with this prototype capability matrix.
 
 Future changes must update this document when a capability moves between
 planned, verified primitive, integrated or playable status.

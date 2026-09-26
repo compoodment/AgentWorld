@@ -2,9 +2,10 @@
 
 AgentWorld is an early private alpha with a substantial deterministic and
 security foundation but incomplete connected gameplay. Start with the
-[current-state matrix](docs/status/current-state.md), then read the
-[roadmap](docs/planning/roadmap.md) and [known bugs](docs/bugs.md). Do not infer
-player-visible completeness from a phase ledger or data type.
+[current-state matrix](docs/current-state.md), then read the
+[roadmap](docs/roadmap.md), [vision ledger](docs/vision-interview.md), and
+[known bugs](docs/bugs.md). Do not infer player-visible completeness from a
+data type or isolated fixture.
 
 ## Useful contributions now
 
@@ -17,8 +18,8 @@ player-visible completeness from a phase ledger or data type.
 
 ## Change rules
 
-1. Read the relevant current-state, roadmap, decision and contract documents.
-2. Separate product policy, implementation choice and historical evidence.
+1. Read the relevant current-state, roadmap, vision and architecture documents.
+2. Separate owner intent, current implementation and historical evidence.
 3. Keep the authoritative simulation independent of Godot and model providers.
 4. Treat model output as untrusted input; legal actions and state transitions
    remain server-owned.
@@ -28,6 +29,6 @@ player-visible completeness from a phase ledger or data type.
    operations, compatibility, known bugs or scope changes.
 7. Add reproducible tests and run the repository verification gate.
 
-GitHub issues and pull requests own active execution details. Durable current
-truth stays in the canonical docs; implementation ledgers record bounded proof,
-not daily project status.
+GitHub issues and pull requests own active execution details. Durable product
+intent and current implementation truth stay in their separate canonical docs;
+Git history retains retired implementation evidence.

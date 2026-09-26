@@ -9,7 +9,7 @@ done: commit the intended changes, push them, and verify `main` matches
 
 ## Release versioning
 
-Follow [the release-version policy](docs/planning/versioning-and-releases.md)
+Follow [the release-version policy](docs/releasing.md)
 for every AgentWorld release. Keep the public game release version separate
 from saved-world compatibility versions. Do not create a release tag merely
 because a commit exists.
@@ -34,28 +34,28 @@ operational promise. Before pushing, compare the intended diff with the
 
 ## Documentation discipline
 
-Follow [the document-authority guide](docs/governance/document-authority.md).
+Follow the [documentation map and authority rules](docs/README.md).
 There is one canonical source per question:
 
-- [current state](docs/status/current-state.md) owns what is playable,
+- [vision ledger](docs/vision-interview.md) owns computment's intended finished
+  game, with decided/preferred/open labels;
+- [current state](docs/current-state.md) owns what is playable,
   integrated, fixture-only, or planned;
-- [roadmap](docs/planning/roadmap.md) owns future sequence and acceptance gates;
+- [roadmap](docs/roadmap.md) owns future sequence and acceptance gates;
 - [known bugs](docs/bugs.md) owns confirmed defects and product gaps;
-- decisions and contracts own policy and required semantics;
-- implementation ledgers own bounded historical evidence.
+- [architecture](docs/architecture.md) owns current technical boundaries.
 
 Every user-visible gameplay, UI, world-runtime, compatibility, packaging,
 security, or operational change must include a documentation-impact review.
 Update the affected canonical document in the same commit; do not copy a
-volatile current-status summary into phase ledgers, design history, or several
-overview files. A schema, contract, fixture, or passing unit test is not a
+volatile current-status summary into other overview files. A schema, fixture,
+or passing unit test is not a
 player-visible feature. Call a capability playable only after it is connected
 to the default private world and normal Godot path.
 
 Before publishing documentation changes, run the normal test suite so required
-metadata and local Markdown links are checked. Preserve historical evidence
-unless it is factually wrong; add a superseding link instead of rewriting the
-past to resemble the present.
+metadata and local Markdown links are checked. Git history retains retired
+phase and exploratory documents; they are not active product authority.
 
 ## Operational observability
 

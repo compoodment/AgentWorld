@@ -1,14 +1,14 @@
 ---
-title: Phase 2 Owner Device Pairing
-type: implementation-policy
+title: Current Private-Host Device Pairing
+type: development-reference
 status: active
-updated: 2026-09-22
+updated: 2026-09-26
 ---
 
-# Phase 2 Owner Device Pairing
+# Current Private-Host Device Pairing
 
 The private Tailnet provides encrypted transport and limits network reachability.
-It is **not** authority to inspect or control a world. Phase 2 grants owner
+It is **not** authority to inspect or control a world. The current prototype grants owner
 access only to a specifically paired device.
 
 ## Pairing flow
@@ -102,10 +102,10 @@ host-owned approved-asset catalog loaded at process startup. A missing catalog
 is an empty deny-all catalog. An existing catalog that is malformed, ambiguous,
 or has an unknown schema prevents host startup; the host never guesses or
 partially trusts a catalog update. Owner-device requests cannot modify the
-catalog or upload asset bytes. This narrow Phase 2 reference policy is not yet
+catalog or upload asset bytes. This narrow current reference policy is not yet
 the later content-proposal or provenance pipeline.
 
-## Phase 2 scope
+## Current scope
 
 Every paired device has the sole `owner` scope: world observation,
 pause/resume, instruction submission, authoring-batch submission, and device
@@ -123,7 +123,7 @@ diagnostic assets are not a supported game client.
 
 ## Required evidence
 
-Phase 2 completion evidence must cover expiry, bounded failed-code attempts,
+Current pairing evidence must cover expiry, bounded failed-code attempts,
 invalid proof, replayed challenge, revocation, unpaired read/write denial,
 owner-only observation, server-derived issuer/tick/sequence, idempotent control
 submission, paired-origin binding, signed registry/approval/revocation,
