@@ -273,7 +273,7 @@ public static class GeneratedCampMapGenerator
             Position = new GridPoint(item.Position.X + origin.X, item.Position.Y + origin.Y),
             IsRenewable = item.Id == "timber-tree" || item.IsRenewable,
         }).ToArray();
-        var distributed = GenerateResourceSites(options.Seed, geography, kinds, objects, resources);
+        var distributed = GenerateResourceSites(options, geography, kinds, objects, resources);
         var withoutDigest = new SeededMap(width, height, 0, tiles, objects,
             resources.Concat(distributed).ToArray(), string.Empty)
         { ClimateZones = climateZones };
@@ -284,7 +284,7 @@ public static class GeneratedCampMapGenerator
         return map;
     }
 
-    private static List<MapResource> GenerateResourceSites(string seed, GeneratedGeography geography,
+    private static List<MapResource> GenerateResourceSites(GeographyOptions options, GeneratedGeography geography,
         TerrainKind[] kinds, IReadOnlyList<CampObject> camp, IReadOnlyList<MapResource> starter)
     {
         const int spacing = 16;
@@ -296,35 +296,46 @@ public static class GeneratedCampMapGenerator
         for (var top = 0; top < height; top += spacing)
             for (var left = 0; left < width; left += spacing)
             {
-                var random = Pcg32XshRrV1.Create(seed, $"resource-site:{left},{top}");
+                var sitesInCell = options.ResourceAbundance switch
+                {
+                    ResourceAbundance.Sparse => (left / spacing + top / spacing) % 2 == 0 ? 1 : 0,
+                    ResourceAbundance.Normal => 1,
+                    ResourceAbundance.Abundant => 2,
+                    _ => throw new ArgumentOutOfRangeException(nameof(options)),
+                };
+                var random = Pcg32XshRrV1.Create(options.Seed, $"resource-site:{left},{top}");
                 // A few candidates let coast and mountains leave some cells
                 // empty without ever placing a site on water or high ground.
-                for (var attempt = 0; attempt < 12; attempt++)
+                for (var site = 0; site < sitesInCell; site++)
                 {
-                    var x = left + (int)(random.NextUInt() % (uint)Math.Min(spacing, width - left));
-                    var y = top + (int)(random.NextUInt() % (uint)Math.Min(spacing, height - top));
-                    var position = new GridPoint(x, y);
-                    var kind = kinds[y * width + x];
-                    if (kind is not (TerrainKind.Meadow or TerrainKind.Sand or TerrainKind.Forest or TerrainKind.Snow) ||
-                        occupied.Contains(position)) continue;
-                    var selection = random.NextUInt() % 4;
-                    var resourceKind = kind switch
+                    for (var attempt = 0; attempt < 12; attempt++)
                     {
-                        TerrainKind.Forest => "construction",
-                        TerrainKind.Sand => selection == 0 ? "fiber" : "stone",
-                        TerrainKind.Snow => selection == 0 ? "food" : "stone",
-                        _ => selection switch
+                        var x = left + (int)(random.NextUInt() % (uint)Math.Min(spacing, width - left));
+                        var y = top + (int)(random.NextUInt() % (uint)Math.Min(spacing, height - top));
+                        var position = new GridPoint(x, y);
+                        var kind = kinds[y * width + x];
+                        if (kind is not (TerrainKind.Meadow or TerrainKind.Sand or TerrainKind.Forest or TerrainKind.Snow) ||
+                            occupied.Contains(position)) continue;
+                        var selection = random.NextUInt() % 4;
+                        var resourceKind = kind switch
                         {
-                            0 => "fertile_land",
-                            1 => "food",
-                            2 => "fiber",
-                            _ => "seed",
-                        },
-                    };
-                    var renewable = resourceKind is "construction" or "food" or "fiber" or "seed";
-                    sites.Add(new MapResource($"wild-{left}-{top}", resourceKind, position, renewable));
-                    occupied.Add(position);
-                    break;
+                            TerrainKind.Forest => "construction",
+                            TerrainKind.Sand => selection == 0 ? "fiber" : "stone",
+                            TerrainKind.Snow => selection == 0 ? "food" : "stone",
+                            _ => selection switch
+                            {
+                                0 => "fertile_land",
+                                1 => "food",
+                                2 => "fiber",
+                                _ => "seed",
+                            },
+                        };
+                        var renewable = resourceKind is "construction" or "food" or "fiber" or "seed";
+                        var id = site == 0 ? $"wild-{left}-{top}" : $"wild-{left}-{top}-{site}";
+                        sites.Add(new MapResource(id, resourceKind, position, renewable));
+                        occupied.Add(position);
+                        break;
+                    }
                 }
             }
         return sites;

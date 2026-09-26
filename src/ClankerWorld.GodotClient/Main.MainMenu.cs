@@ -24,6 +24,7 @@ public partial class Main
     private readonly LineEdit worldSeedInput = new();
     private readonly OptionButton worldSizeChoice = new();
     private readonly OptionButton worldWaterChoice = new();
+    private readonly OptionButton worldResourceChoice = new();
     private readonly OptionButton worldClimateModeChoice = new();
     private readonly OptionButton worldClimateFamilyChoice = new();
     private readonly CheckBox worldWrapChoice = new();
@@ -253,6 +254,12 @@ public partial class Main
         worldWaterChoice.Select(1);
         worldWaterChoice.ItemSelected += _ => InvalidateWorldPreview();
         body.AddChild(worldWaterChoice);
+        worldResourceChoice.AddItem("Sparse resources", 0);
+        worldResourceChoice.AddItem("Normal resources", 1);
+        worldResourceChoice.AddItem("Abundant resources", 2);
+        worldResourceChoice.Select(1);
+        worldResourceChoice.ItemSelected += _ => InvalidateWorldPreview();
+        body.AddChild(worldResourceChoice);
         worldClimateModeChoice.AddItem("Balanced climates", 0);
         worldClimateModeChoice.AddItem("Uniform climate", 1);
         worldClimateModeChoice.AddItem("Dominant climate", 2);
@@ -327,6 +334,7 @@ public partial class Main
         worldSeedInput.GetParent<Control>().Visible = create;
         worldSizeChoice.Visible = create;
         worldWaterChoice.Visible = create;
+        worldResourceChoice.Visible = create;
         worldClimateModeChoice.Visible = create;
         worldClimateFamilyChoice.Visible = create && worldClimateModeChoice.GetSelectedId() != 0;
         worldLatitudeChoice.Visible = create;
@@ -383,13 +391,15 @@ public partial class Main
             4 => "Polar",
             _ => "Temperate",
         },
-        worldLatitudeChoice.ButtonPressed);
+        worldLatitudeChoice.ButtonPressed,
+        worldResourceChoice.GetSelectedId() switch { 0 => "Sparse", 2 => "Abundant", _ => "Normal" });
 
     private static bool SameGeneration(OwnerWorldCreationAction? first, OwnerWorldCreationAction second) =>
         first is not null && first.Seed == second.Seed && first.Size == second.Size &&
         first.WaterPercent == second.WaterPercent && first.WrapEastWest == second.WrapEastWest &&
         first.ClimateMode == second.ClimateMode && first.SelectedClimate == second.SelectedClimate &&
-        first.LatitudeCooling == second.LatitudeCooling;
+        first.LatitudeCooling == second.LatitudeCooling &&
+        first.ResourceAbundance == second.ResourceAbundance;
 
     private void InvalidateWorldPreview()
     {

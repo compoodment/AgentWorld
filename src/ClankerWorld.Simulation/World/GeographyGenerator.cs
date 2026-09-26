@@ -37,6 +37,13 @@ public enum ClimateZone : byte
     Polar,
 }
 
+public enum ResourceAbundance : byte
+{
+    Sparse,
+    Normal,
+    Abundant,
+}
+
 public sealed record GeographyOptions(
     string Seed,
     WorldSizePreset Size,
@@ -44,7 +51,8 @@ public sealed record GeographyOptions(
     int WaterPercent = 45,
     ClimateMode ClimateMode = ClimateMode.Balanced,
     ClimateZone SelectedClimate = ClimateZone.Temperate,
-    bool LatitudeCooling = true);
+    bool LatitudeCooling = true,
+    ResourceAbundance ResourceAbundance = ResourceAbundance.Normal);
 
 public readonly record struct GeographyTile(byte Elevation, byte Rainfall, WaterKind Water,
     byte Temperature, ClimateZone Climate);
@@ -127,7 +135,8 @@ public static class GeographyGenerator
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Seed);
         if (options.WaterPercent is < 10 or > 80)
             throw new ArgumentOutOfRangeException(nameof(options), "Water percentage must be between 10 and 80.");
-        if (!Enum.IsDefined(options.ClimateMode) || !Enum.IsDefined(options.SelectedClimate))
+        if (!Enum.IsDefined(options.ClimateMode) || !Enum.IsDefined(options.SelectedClimate) ||
+            !Enum.IsDefined(options.ResourceAbundance))
             throw new ArgumentOutOfRangeException(nameof(options), "The climate selection is invalid.");
 
         var (width, height) = Dimensions(options.Size);

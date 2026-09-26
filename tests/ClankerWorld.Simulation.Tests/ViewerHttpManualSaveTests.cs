@@ -46,7 +46,7 @@ public sealed partial class ViewerHttpTests
                 host.Services.GetRequiredService<WorldAutosaveStore>().Configure(false, 1, 0);
 
                 var create = new OwnerWorldCreationAction("Riverland", "riverland-test-seed",
-                    "Small", 45, true, "Uniform", "Dry", false);
+                    "Small", 45, true, "Uniform", "Dry", false, "Abundant");
                 const string createPath = "/api/v1/owner/worlds/create";
                 var signed = await CreateSignedRequestAsync(host, client, key, device.DeviceId,
                     createPath, create, OwnerHttpBinding.WorldCreationPayload(create));
@@ -60,6 +60,11 @@ public sealed partial class ViewerHttpTests
                     Action = create with { SelectedClimate = "Tropical" },
                 });
                 Assert.False(climateTampered.IsSuccessStatusCode);
+                using var abundanceTampered = await client.PostAsJsonAsync(createPath, signed with
+                {
+                    Action = create with { ResourceAbundance = "Sparse" },
+                });
+                Assert.False(abundanceTampered.IsSuccessStatusCode);
                 using var previewed = await SendSignedAsync(host, client, key, device.DeviceId,
                     "/api/v1/owner/worlds/preview", create,
                     OwnerHttpBinding.WorldCreationPayload(create));
@@ -84,6 +89,7 @@ public sealed partial class ViewerHttpTests
                 Assert.Equal(preview.ManifestDigest, runtime.ExportState().Map.ManifestDigest);
                 Assert.Equal(preview.ResourceSites, runtime.ExportState().Map.Resources.Count);
                 Assert.Equal(ClimateMode.Uniform, runtime.ExportState().Geography?.ClimateMode);
+                Assert.Equal(ResourceAbundance.Abundant, runtime.ExportState().Geography?.ResourceAbundance);
                 Assert.Equal(ClimateZone.Dry, runtime.ExportState().Map.ClimateAt(
                     runtime.ExportState().Map.GetObject("bedroll").Position));
                 var reconnect = new OwnerReconnectAction(0);

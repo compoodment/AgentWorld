@@ -39,7 +39,8 @@ public sealed record OwnerControlAction(string Operation);
 public sealed record OwnerManualSaveAction(string Operation, string Value);
 public sealed record OwnerWorldCreationAction(string Name, string Seed, string Size,
     int WaterPercent, bool WrapEastWest, string ClimateMode = "Balanced",
-    string SelectedClimate = "Temperate", bool LatitudeCooling = true);
+    string SelectedClimate = "Temperate", bool LatitudeCooling = true,
+    string ResourceAbundance = "Normal");
 public sealed record OwnerAutosaveConfigurationAction(bool Enabled, int IntervalMinutes, int RotationCount);
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
@@ -181,7 +182,8 @@ public static class OwnerHttpBinding
         $"wrap-east-west={action.WrapEastWest.ToString().ToLowerInvariant()}",
         $"climate-mode={EncodeRequired(action.ClimateMode, nameof(action.ClimateMode))}",
         $"selected-climate={EncodeRequired(action.SelectedClimate, nameof(action.SelectedClimate))}",
-        $"latitude-cooling={action.LatitudeCooling.ToString().ToLowerInvariant()}");
+        $"latitude-cooling={action.LatitudeCooling.ToString().ToLowerInvariant()}",
+        $"resource-abundance={EncodeRequired(action.ResourceAbundance, nameof(action.ResourceAbundance))}");
 
     public static string AutosaveConfigurationPayload(OwnerAutosaveConfigurationAction action) => string.Join(
         '\n',

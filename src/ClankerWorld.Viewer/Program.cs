@@ -1732,10 +1732,12 @@ static bool TryWorldOptions(OwnerWorldCreationAction action, out GeographyOption
         !Enum.IsDefined(climateMode) ||
         !Enum.TryParse<ClimateZone>(action.SelectedClimate, true, out var selectedClimate) ||
         !Enum.IsDefined(selectedClimate) ||
+        !Enum.TryParse<ResourceAbundance>(action.ResourceAbundance, true, out var abundance) ||
+        !Enum.IsDefined(abundance) ||
         action.WaterPercent is < 10 or > 80)
         return false;
     options = new GeographyOptions(action.Seed, size, action.WrapEastWest, action.WaterPercent,
-        climateMode, selectedClimate, action.LatitudeCooling);
+        climateMode, selectedClimate, action.LatitudeCooling, abundance);
     return true;
 }
 

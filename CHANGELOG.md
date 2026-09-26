@@ -10,6 +10,8 @@ release yet.
 
 - Generated Small/Medium worlds now place sparse food, fiber, seed, stone and
   regrowing wood sites beyond the starter camp according to local ground.
+  New World offers Sparse, Normal and Abundant resource settings that change
+  actual site placement and the signed preview count, not just a label.
   The preview reports the number of sites, and the same sites persist through
   world creation and reload. Agents can seek reachable food beyond the starter
   berry patch, while inaccessible islands do not count as immediately
@@ -37,7 +39,8 @@ release yet.
   The small development fixture keeps its original single local condition.
 
 - New World now shows a signed, read-only terrain preview before creation.
-  Changing the seed, size, water share or wrapping marks it stale; rerolling
+  Changing the seed, size, water share, climate, resource abundance or wrapping
+  marks it stale; rerolling
   the seed can regenerate it, and Create World only enables for the previewed
   options. The camp location is marked on the atlas. The preview and created
   world use the same deterministic map and do not alter the current world.

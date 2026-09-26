@@ -192,4 +192,22 @@ public sealed class GeographyGeneratorTests
         }
         Assert.True(tropicalWetDays > dryWetDays);
     }
+
+    [Fact]
+    public void ResourceAbundanceChangesRealSitesWithoutOverloadingChunks()
+    {
+        var options = new GeographyOptions("abundance-choice", WorldSizePreset.Small);
+        var sparse = GeneratedCampMapGenerator.Generate(options with { ResourceAbundance = ResourceAbundance.Sparse });
+        var normal = GeneratedCampMapGenerator.Generate(options);
+        var abundant = GeneratedCampMapGenerator.Generate(options with { ResourceAbundance = ResourceAbundance.Abundant });
+        Assert.True(sparse.Resources.Count < normal.Resources.Count);
+        Assert.True(normal.Resources.Count < abundant.Resources.Count);
+        Assert.NotEqual(sparse.ManifestDigest, abundant.ManifestDigest);
+        Assert.True(MapAcceptance.Validate(abundant, allowEmptyCamp: true).IsValid);
+        using var world = new PrivateWorldRuntime(options.Seed,
+            startPace: WorldStartPace.FounderSetup,
+            geographyOptions: options with { ResourceAbundance = ResourceAbundance.Abundant });
+        Assert.All(world.WorldSystems.Chunks,
+            chunk => Assert.True(chunk.Resources.Count <= world.WorldSystems.Config.MaxResourcesPerChunk));
+    }
 }
