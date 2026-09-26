@@ -8,6 +8,13 @@ release yet.
 
 ### Added
 
+- The world view now draws only camera-visible terrain instead of creating a
+  Godot button for every tile. The top-left overview uses a compact atlas of
+  the same terrain data; it remains the existing single zoomable view, not a
+  separate regional art set. A regional-size UI smoke map exercises this path.
+  The playable host still needs generated terrain and a compact map observation
+  protocol before New World can be enabled.
+
 - World Settings now controls per-world autosaves: on by default every five
   minutes with five rotating copies, with the agreed interval and rotation
   choices. Rotating snapshots appear in Load Save and can be restored like

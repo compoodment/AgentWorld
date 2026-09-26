@@ -8,7 +8,7 @@ namespace ClankerWorld.GodotClient.UI;
 /// </summary>
 public partial class WorldOverview : Control
 {
-    private IReadOnlyList<OwnerWorldTile> tiles = [];
+    private Texture2D? atlasTexture;
     private int mapWidth;
     private int mapHeight;
     private Rect2 visibleTiles;
@@ -22,16 +22,44 @@ public partial class WorldOverview : Control
     public WorldOverview()
     {
         MouseFilter = MouseFilterEnum.Stop;
+        TextureFilter = TextureFilterEnum.Nearest;
         CustomMinimumSize = new Vector2(230, 130);
         TooltipText = "Click to jump; drag the bright camera rectangle to move the world view.";
         Resized += QueueRedraw;
     }
 
-    public void SetWorld(IReadOnlyList<OwnerWorldTile> worldTiles, int width, int height)
+    public void SetWorld(WorldTerrainMap world)
     {
-        tiles = worldTiles;
-        mapWidth = width;
-        mapHeight = height;
+        mapWidth = world.Width;
+        mapHeight = world.Height;
+        // The overview is data art, not a second sprite set. Each atlas pixel
+        // summarizes its part of the world, so redraw cost is bounded by the
+        // atlas resolution instead of millions of canvas rectangles.
+        var atlasWidth = Math.Min(mapWidth, 256);
+        var atlasHeight = Math.Min(mapHeight, 128);
+        var votes = new int[checked(atlasWidth * atlasHeight * 11)];
+        for (var y = 0; y < mapHeight; y++)
+        {
+            var atlasY = y * atlasHeight / mapHeight;
+            for (var x = 0; x < mapWidth; x++)
+            {
+                var atlasX = x * atlasWidth / mapWidth;
+                votes[((atlasY * atlasWidth + atlasX) * 11) + world.At(x, y)]++;
+            }
+        }
+        var image = Image.CreateEmpty(atlasWidth, atlasHeight, false, Image.Format.Rgba8);
+        for (var y = 0; y < atlasHeight; y++)
+        {
+            for (var x = 0; x < atlasWidth; x++)
+            {
+                var offset = (y * atlasWidth + x) * 11;
+                var dominant = 0;
+                for (var kind = 1; kind < 11; kind++)
+                    if (votes[offset + kind] > votes[offset + dominant]) dominant = kind;
+                image.SetPixel(x, y, WorldTerrainMap.ColorFor((byte)dominant));
+            }
+        }
+        atlasTexture = ImageTexture.CreateFromImage(image);
         QueueRedraw();
     }
 
@@ -51,18 +79,7 @@ public partial class WorldOverview : Control
 
         var atlas = AtlasRect();
         DrawRect(atlas, new Color("273A3D"));
-        foreach (var tile in tiles)
-        {
-            if (tile.X < 0 || tile.X >= mapWidth || tile.Y < 0 || tile.Y >= mapHeight)
-            {
-                continue;
-            }
-
-            DrawRect(new Rect2(
-                atlas.Position + new Vector2(tile.X * atlas.Size.X / mapWidth, tile.Y * atlas.Size.Y / mapHeight),
-                new Vector2(atlas.Size.X / mapWidth + 0.5f, atlas.Size.Y / mapHeight + 0.5f)),
-                WorldMapPalette.TerrainColor(tile.Terrain));
-        }
+        if (atlasTexture is not null) DrawTextureRect(atlasTexture, atlas, tile: false);
 
         DrawRect(atlas, new Color("AFC4BA"), filled: false, width: 1);
         var view = new Rect2(

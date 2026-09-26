@@ -31,6 +31,12 @@ provider. The host remains reachable, but world ticks and hosted-model calls
 require an authenticated client presence lease. Closing the last client stops
 them after a short grace period; reconnecting does not simulate missed time.
 
+The Godot terrain layer draws only camera-visible tiles from a compact local
+terrain index. Its top-left overview samples that index into a small atlas;
+neither path creates a Control per tile or a separate regional art set. The
+host still sends the full tile list in each owner baseline, so map observation
+and the fixed playable map remain large-world blockers.
+
 The current host schedules one world tick per real second. Newly created
 private worlds start paused and save the accepted playtest pace: 360 ticks per day and a 40-day
 year with four 10-day seasons. The same world setup saves day-based lifecycle

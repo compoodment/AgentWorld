@@ -75,7 +75,10 @@ public partial class Main : Control
     private readonly Button eventsButton = new();
     private readonly Button settlementButton = new();
     private readonly Button menuButton = new();
-    private readonly GridContainer worldGrid = new();
+    private readonly WorldTerrainLayer terrainLayer = new();
+    private WorldTerrainMap? terrainMap;
+    private string? terrainWorldId;
+    private string? terrainManifestDigest;
     private readonly Control mapCanvas = new();
     private readonly Control mapStage = new();
     private readonly PanelContainer worldOverviewPanel = new();
@@ -403,6 +406,26 @@ public partial class Main : Control
             eventLog.EmitSignal(RichTextLabel.SignalName.MetaClicked, "100");
             if (cameraCenterTiles.DistanceTo(beforeEventJump) < 0.5f)
                 throw new InvalidOperationException("Clicking a located event did not move the world camera.");
+            var largeTiles = Enumerable.Range(0, 256 * 128)
+                .Select(index => new OwnerWorldTile(index % 256, index / 256,
+                    index % 37 == 0 ? "river" : "meadow")).ToArray();
+            RenderMap(sample with
+            {
+                WorldId = "ui-large-map",
+                MapManifestDigest = "ui-large-map-v1",
+                Tiles = largeTiles,
+                Resources = [],
+                PlacedBuildings = [],
+            });
+            for (var frame = 0; frame < 2; frame++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+            if (terrainLayer.GetChildCount() != 0 || terrainLayer.VisibleTileCount >= largeTiles.Length / 4 ||
+                worldOverview.VisibleTiles.Size.X >= 256)
+                throw new InvalidOperationException("A regional map must draw only the visible terrain without per-tile nodes.");
+            var beforeLargePan = worldOverview.VisibleTiles.Position;
+            CenterCameraAt(new Vector2(20, 20));
+            if (worldOverview.VisibleTiles.Position.DistanceTo(beforeLargePan) < 1 ||
+                terrainLayer.VisibleTileCount >= largeTiles.Length / 4)
+                throw new InvalidOperationException("Panning a large map must update the camera-bounded terrain view.");
             var formerPosition = new OwnerWorldPosition(2, 2);
             var deceased = new OwnerWorldInhabitant("archived-mira", "Mira", "dead", formerPosition,
                 5_000, 5_000, [], [new("age-band", "elder"), new("death-tick", "1")],
@@ -512,7 +535,7 @@ public partial class Main : Control
             if (!quitGameConfirmation.Visible)
                 throw new InvalidOperationException("Quit Game must ask for confirmation before exiting.");
             quitGameConfirmation.Hide();
-            GD.Print("UI checks passed: startup Main Menu and settings, in-world menus/workbench, confirmed quit, settlement panel, resource hover, building footprints, zoom, middle-drag, WASD, overview navigation, event jumps, event pop-ups, private thoughts, memories, deceased inspection and family tree.");
+            GD.Print("UI checks passed: startup Main Menu and settings, in-world menus/workbench, confirmed quit, settlement panel, resource hover, building footprints, camera-bounded large terrain, zoom, middle-drag, WASD, overview navigation, event jumps, event pop-ups, private thoughts, memories, deceased inspection and family tree.");
             GetTree().Quit();
         }
         catch (Exception exception)
@@ -1910,10 +1933,7 @@ public partial class Main : Control
         mapStage.MouseFilter = Control.MouseFilterEnum.Ignore;
         mapCanvas.AddChild(mapStage);
 
-        worldGrid.AddThemeConstantOverride("h_separation", TileGap);
-        worldGrid.AddThemeConstantOverride("v_separation", TileGap);
-        worldGrid.MouseFilter = Control.MouseFilterEnum.Ignore;
-        mapStage.AddChild(worldGrid);
+        mapStage.AddChild(terrainLayer);
 
         objectLayer.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         objectLayer.MouseFilter = Control.MouseFilterEnum.Ignore;
@@ -2815,10 +2835,6 @@ public partial class Main : Control
     private void RenderMap(OwnerWorldSnapshot snapshot)
     {
         renderedMapSnapshot = snapshot;
-        foreach (var child in worldGrid.GetChildren())
-        {
-            child.QueueFree();
-        }
         foreach (var child in entityLayer.GetChildren())
         {
             child.QueueFree();
@@ -2837,33 +2853,27 @@ public partial class Main : Control
             return;
         }
 
-        var mapWidth = snapshot.Tiles.Max(tile => tile.X) + 1;
-        var mapHeight = snapshot.Tiles.Max(tile => tile.Y) + 1;
+        var manifest = snapshot.Authoring?.CurrentMapManifestDigest ?? snapshot.MapManifestDigest;
+        if (terrainMap is null || !string.Equals(terrainWorldId, snapshot.WorldId, StringComparison.Ordinal) ||
+            !string.Equals(terrainManifestDigest, manifest, StringComparison.Ordinal))
+        {
+            var width = snapshot.Tiles.Max(tile => tile.X) + 1;
+            var height = snapshot.Tiles.Max(tile => tile.Y) + 1;
+            terrainMap = WorldTerrainMap.FromTiles(snapshot.Tiles, width, height);
+            terrainWorldId = snapshot.WorldId;
+            terrainManifestDigest = manifest;
+            terrainLayer.SetWorld(terrainMap);
+            worldOverview.SetWorld(terrainMap);
+        }
+        var mapWidth = terrainMap.Width;
+        var mapHeight = terrainMap.Height;
         if (!string.Equals(cameraWorldId, snapshot.WorldId, StringComparison.Ordinal))
         {
             cameraWorldId = snapshot.WorldId;
             cameraZoom = 1;
             cameraCenterTiles = new Vector2(mapWidth / 2f, mapHeight / 2f);
         }
-        worldOverview.SetWorld(snapshot.Tiles, mapWidth, mapHeight);
         UpdateMapGeometry(snapshot);
-        worldGrid.Columns = mapWidth;
-        foreach (var tile in snapshot.Tiles.OrderBy(tile => tile.Y).ThenBy(tile => tile.X))
-        {
-            var key = $"{tile.X},{tile.Y}";
-            var cell = new Button
-            {
-                Text = TerrainMarker(tile.Terrain),
-                CustomMinimumSize = new Vector2(currentTileSize, currentTileSize),
-                TooltipText = $"{tile.Terrain} at {key}",
-                MouseFilter = Control.MouseFilterEnum.Ignore,
-            };
-            cell.AddThemeFontSizeOverride("font_size", 13);
-            cell.AddThemeColorOverride("font_color", new Color("E6F0E8"));
-            cell.AddThemeStyleboxOverride("normal", TileStyle(WorldMapPalette.TerrainColor(tile.Terrain)));
-            cell.AddThemeStyleboxOverride("hover", TileStyle(WorldMapPalette.TerrainColor(tile.Terrain).Lightened(0.15f)));
-            worldGrid.AddChild(cell);
-        }
 
         foreach (var resource in snapshot.Resources)
         {
@@ -3523,8 +3533,8 @@ public partial class Main : Control
             return;
         }
 
-        var mapWidth = snapshot.Tiles.Max(tile => tile.X) + 1;
-        var mapHeight = snapshot.Tiles.Max(tile => tile.Y) + 1;
+        var mapWidth = terrainMap?.Width ?? snapshot.Tiles.Max(tile => tile.X) + 1;
+        var mapHeight = terrainMap?.Height ?? snapshot.Tiles.Max(tile => tile.Y) + 1;
         var availableWidth = Math.Max(1, mapCanvas.Size.X - 36 - ((mapWidth - 1) * TileGap));
         var availableHeight = Math.Max(1, mapCanvas.Size.Y - 36 - ((mapHeight - 1) * TileGap));
         var fittedTileSize = (int)Math.Floor(Math.Min(availableWidth / mapWidth, availableHeight / mapHeight));
@@ -3535,6 +3545,7 @@ public partial class Main : Control
             (mapWidth * currentTileSize) + ((mapWidth - 1) * TileGap),
             (mapHeight * currentTileSize) + ((mapHeight - 1) * TileGap));
         mapStage.Size = stageSize;
+        terrainLayer.Size = stageSize;
         var stride = currentTileSize + TileGap;
         mapStage.Position = new Vector2(
             CameraAxis(cameraCenterTiles.X, stageSize.X, mapCanvas.Size.X, stride),
@@ -3556,7 +3567,9 @@ public partial class Main : Control
         var top = Math.Clamp(-mapStage.Position.Y / stride, 0, mapHeight);
         var right = Math.Clamp((mapCanvas.Size.X - mapStage.Position.X) / stride, 0, mapWidth);
         var bottom = Math.Clamp((mapCanvas.Size.Y - mapStage.Position.Y) / stride, 0, mapHeight);
-        worldOverview.SetVisibleTiles(new Rect2(left, top, right - left, bottom - top));
+        var visible = new Rect2(left, top, right - left, bottom - top);
+        worldOverview.SetVisibleTiles(visible);
+        terrainLayer.SetCamera(visible, currentTileSize, TileGap);
     }
 
     private void CenterCameraAt(Vector2 tileCenter)
@@ -3791,20 +3804,6 @@ public partial class Main : Control
         CornerRadiusBottomRight = 6,
     };
 
-    private static StyleBoxFlat TileStyle(Color color) => new()
-    {
-        BgColor = color,
-        BorderWidthLeft = 1,
-        BorderWidthTop = 1,
-        BorderWidthRight = 1,
-        BorderWidthBottom = 1,
-        BorderColor = color.Darkened(0.3f),
-        CornerRadiusTopLeft = 8,
-        CornerRadiusTopRight = 8,
-        CornerRadiusBottomLeft = 8,
-        CornerRadiusBottomRight = 8,
-    };
-
     private static StyleBoxFlat PanelStyle() => new()
     {
         BgColor = new Color("192631"),
@@ -3971,13 +3970,6 @@ public partial class Main : Control
         not null when candidateId.StartsWith("build:", StringComparison.Ordinal) => "◆",
         "safe_idle" => "·",
         _ => "○",
-    };
-
-    private static string TerrainMarker(string terrain) => terrain switch
-    {
-        "water" => "≈",
-        "mountain" => "▲",
-        _ => string.Empty,
     };
 
     private static string ResourceMarker(string kind) => kind switch
