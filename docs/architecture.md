@@ -31,14 +31,18 @@ provider. The host remains reachable, but world ticks and hosted-model calls
 require an authenticated client presence lease. Closing the last client stops
 them after a short grace period; reconnecting does not simulate missed time.
 
-The current host schedules one world tick per real second, and a tick is one
-in-world minute. Its nominal 24-real-minute day is **prototype behavior**, not
-the chosen finished-game calendar or pace.
+The current host schedules one world tick per real second. Newly created
+private worlds start paused and save the accepted playtest pace: 360 ticks per day and a 40-day
+year with four 10-day seasons. The same world setup saves day-based lifecycle
+thresholds (3/15/45/60 days). A day is therefore nominally six real minutes,
+subject to provider/host load. The old development save still carries its
+1,440-tick day and 365-day year; it is not silently reinterpreted.
 Owner observations report the saved world-system ticks per day and days per
 year; the client uses those values for clock/date presentation rather than
-assuming one fixed tick length. The 365-day prototype and proposed 40-day
-calendar have display mappings. This does not change the current world's
-calendar or biological aging.
+assuming one fixed tick length. The 365-day prototype and new 40-day calendar
+have display mappings; profiles show age in years or days according to the
+saved lifecycle. Matching society/world-system calendar values are validated
+on restore.
 
 In the repository's private-host path, hosted cognition is dispatched after a
 committed tick and resolved at a later tick boundary. The saved scheduler queue

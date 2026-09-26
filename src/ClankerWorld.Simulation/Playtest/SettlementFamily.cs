@@ -49,7 +49,7 @@ public sealed partial class PrivateWorldRuntime
         society.Checkpoint.GetInhabitant(actor).HouseholdId is { } household &&
         society.Checkpoint.GetInhabitant(other).HouseholdId == household &&
         !Partnerships(actor).Any(item => (item.ProposerId == other || item.TargetId == other) &&
-            WorldTick - Math.Max(item.ProposedTick, item.EffectiveTick) < 1_440) &&
+            WorldTick - Math.Max(item.ProposedTick, item.EffectiveTick) < worldSystems.Config.TicksPerDay) &&
         TrustScore(actor, other) > 0;
 
     private void MaintainPartnerships()

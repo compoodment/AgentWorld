@@ -1,6 +1,7 @@
 using ClankerWorld.Simulation.Kernel;
 using ClankerWorld.Simulation.Playtest;
 using ClankerWorld.Simulation.Society;
+using ClankerWorld.Simulation.World;
 using ClankerWorld.Viewer.Control;
 using ClankerWorld.Viewer.Observation;
 
@@ -19,7 +20,71 @@ public sealed class SocietyLifePaceTests
     [Fact]
     public void UnknownFutureLifecycleContractIsRejected()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new SocietyConfig(ContractVersion: 3).Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SocietyConfig(ContractVersion: 4).Validate());
+    }
+
+    [Fact]
+    public void DecidedDayLifecycleAgesFromBirthAndCannotOutliveDaySixty()
+    {
+        var config = new SocietyConfig(
+            TicksPerWorldDay: 360,
+            DaysPerWorldYear: 40,
+            BaseNaturalMortalityBasisPoints: 0,
+            NaturalMortalitySlopeBasisPoints: 0,
+            ContractVersion: 3,
+            DayLifecycle: new SocietyDayLifecycle());
+        var child = new SocietyInhabitant("child", "Child", 0, SocietyInhabitantStatus.Active,
+            SocietyAgeBand.Infant, 10_000, null, null, SocietyWorkRole.Unassigned, 0);
+        var society = SocietyFixture.CreateGenesis("short-life", [child], config: config);
+        var founder = SocietyFixture.CreateFounder("founder", "Founder", config: config);
+        Assert.Equal(15, config.AgeAt(founder.BirthTick, 0));
+        Assert.Equal(SocietyAgeBand.Adult, founder.AgeBand);
+
+        society = SocietyFixture.AdvanceTo(society, 3 * 360 - 1).Checkpoint;
+        Assert.Equal(SocietyAgeBand.Infant, society.GetInhabitant("child").AgeBand);
+        society = SocietyFixture.AdvanceTo(society, 3 * 360).Checkpoint;
+        Assert.Equal(SocietyAgeBand.Child, society.GetInhabitant("child").AgeBand);
+        society = SocietyFixture.AdvanceTo(society, 15 * 360).Checkpoint;
+        society = SocietyCheckpointCodec.Decode(SocietyCheckpointCodec.Encode(society));
+        Assert.Equal(SocietyAgeBand.Adult, society.GetInhabitant("child").AgeBand);
+        society = SocietyFixture.AdvanceTo(society, 45 * 360).Checkpoint;
+        Assert.Equal(SocietyAgeBand.Elder, society.GetInhabitant("child").AgeBand);
+        society = SocietyFixture.AdvanceTo(society, 60 * 360).Checkpoint;
+        Assert.Equal(SocietyInhabitantStatus.Dead, society.GetInhabitant("child").Status);
+        Assert.Equal(SocietyDeathCause.NaturalAge, society.GetInhabitant("child").DeathCause);
+        Assert.Equal(60 * 360, society.GetInhabitant("child").DeathTick);
+    }
+
+    [Fact]
+    public void NewWorldPaceIsSavedAndRestored()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"clankerworld-pace-{Guid.NewGuid():N}");
+        try
+        {
+            var newFile = new PrivateWorldStateFile(Path.Combine(directory, "new.json"),
+                newWorldPace: WorldStartPace.DecidedPlaytest);
+            using var created = newFile.LoadOrCreate("new-pace");
+            Assert.True(created.Society.IsPaused);
+            Assert.Equal(360, created.WorldSystems.Config.TicksPerDay);
+            Assert.Equal(40, created.WorldSystems.Config.DaysPerYear);
+            Assert.Equal(10, created.WorldSystems.Config.SpringDays);
+            Assert.Equal(SeasonKind.Summer,
+                WorldCalendarRules.FromTick(10 * 360, created.WorldSystems.Config).Season);
+            Assert.Equal(360, created.Society.Config.TicksPerWorldDay);
+            Assert.Equal(60, created.Society.Config.DayLifecycle?.MaximumDay);
+            var scout = new OwnerWorldObservationStore(created).GetSnapshot().Inhabitants
+                .Single(person => person.Id == "founder-scout");
+            Assert.Equal("15", scout.DecisionFactors.Single(factor => factor.Key == "age-days").Detail);
+            Assert.DoesNotContain(scout.DecisionFactors, factor => factor.Key == "age-years");
+            using var reloaded = newFile.LoadOrCreate("new-pace");
+            Assert.Equal(PrivateWorldRuntimeCodec.Encode(created.ExportState()),
+                PrivateWorldRuntimeCodec.Encode(reloaded.ExportState()));
+
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]

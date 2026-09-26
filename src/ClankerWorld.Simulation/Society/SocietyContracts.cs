@@ -81,9 +81,26 @@ public enum NewbornProviderPolicy
     Hybrid,
 }
 
+/// <summary>Day-based lifecycle for newly created playtest worlds.</summary>
+public sealed record SocietyDayLifecycle(
+    int ChildStartDay = 3,
+    int AdultStartDay = 15,
+    int ElderStartDay = 45,
+    int MaximumDay = 60)
+{
+    public void Validate()
+    {
+        if (ChildStartDay <= 0 || AdultStartDay <= ChildStartDay ||
+            ElderStartDay <= AdultStartDay || MaximumDay <= ElderStartDay)
+        {
+            throw new ArgumentOutOfRangeException(nameof(SocietyDayLifecycle));
+        }
+    }
+}
+
 /// <summary>
-/// Versioned lifecycle tuning. There is deliberately no maximum age field:
-/// natural mortality is a rising probability, not a hidden hard cap.
+/// Versioned lifecycle tuning. Legacy worlds count age in years; worlds with
+/// DayLifecycle count age in days. The choice is saved with the world.
 /// </summary>
 public sealed record SocietyConfig(
     int TicksPerWorldDay = KernelClock.TicksPerDay,
@@ -95,20 +112,29 @@ public sealed record SocietyConfig(
     int EstateEscrowDays = 7,
     int BaseNaturalMortalityBasisPoints = 100,
     int NaturalMortalitySlopeBasisPoints = 25,
-    int ContractVersion = 1)
+    int ContractVersion = 1,
+    SocietyDayLifecycle? DayLifecycle = null)
 {
     public long TicksPerWorldYear => checked((long)TicksPerWorldDay * DaysPerWorldYear);
+
+    public long TicksPerLifecycleAge => DayLifecycle is null ? TicksPerWorldYear : TicksPerWorldDay;
+
+    public int FounderStartingAge => DayLifecycle?.AdultStartDay ?? AdultYears;
 
     public int AgeAt(long birthTick, long worldTick)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(worldTick, birthTick);
-        return checked((int)((worldTick - birthTick) / TicksPerWorldYear));
+        return checked((int)((worldTick - birthTick) / TicksPerLifecycleAge));
     }
 
     public SocietyAgeBand AgeBandAt(long birthTick, long worldTick) => AgeBandAt(AgeAt(birthTick, worldTick));
 
     public SocietyAgeBand AgeBandAt(int ageYears) => ageYears switch
     {
+        _ when DayLifecycle is { } days && ageYears < days.ChildStartDay => SocietyAgeBand.Infant,
+        _ when DayLifecycle is { } days && ageYears < days.AdultStartDay => SocietyAgeBand.Child,
+        _ when DayLifecycle is { } days && ageYears < days.ElderStartDay => SocietyAgeBand.Adult,
+        _ when DayLifecycle is not null => SocietyAgeBand.Elder,
         _ when ageYears < InfantYears => SocietyAgeBand.Infant,
         _ when ageYears < ChildYears => SocietyAgeBand.Child,
         _ when ageYears < AdultYears => SocietyAgeBand.Adolescent,
@@ -118,7 +144,12 @@ public sealed record SocietyConfig(
 
     public int NaturalMortalityRiskBasisPoints(int ageYears)
     {
-        if (ageYears < ElderYears)
+        if (DayLifecycle is { } days && ageYears >= days.MaximumDay)
+        {
+            return 10_000;
+        }
+
+        if (ageYears < (DayLifecycle?.ElderStartDay ?? ElderYears))
         {
             return 0;
         }
@@ -126,7 +157,7 @@ public sealed record SocietyConfig(
         return Math.Min(
             9_999,
             checked(BaseNaturalMortalityBasisPoints +
-                (ageYears - ElderYears) * NaturalMortalitySlopeBasisPoints));
+                (ageYears - (DayLifecycle?.ElderStartDay ?? ElderYears)) * NaturalMortalitySlopeBasisPoints));
     }
 
     public void Validate()
@@ -134,10 +165,14 @@ public sealed record SocietyConfig(
         if (TicksPerWorldDay <= 0 || DaysPerWorldYear <= 0 || InfantYears <= 0 ||
             ChildYears <= InfantYears || AdultYears <= ChildYears || ElderYears <= AdultYears ||
             EstateEscrowDays <= 0 || BaseNaturalMortalityBasisPoints < 0 ||
-            NaturalMortalitySlopeBasisPoints < 0 || ContractVersion is < 1 or > 2)
+            NaturalMortalitySlopeBasisPoints < 0 || ContractVersion is < 1 or > 3 ||
+            DayLifecycle is not null && ContractVersion < 3 ||
+            DayLifecycle is null && ContractVersion == 3)
         {
             throw new ArgumentOutOfRangeException(nameof(SocietyConfig));
         }
+
+        DayLifecycle?.Validate();
     }
 }
 

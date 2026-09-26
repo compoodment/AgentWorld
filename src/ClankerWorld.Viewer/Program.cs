@@ -103,7 +103,8 @@ builder.Services.AddSingleton<OwnerWorldRuntime>(services => services
     .LoadOrCreate(runtimeSeed));
 builder.Services.AddSingleton<PrivateWorldStateFile>(services => new PrivateWorldStateFile(
     privateRuntimeStatePath,
-    _ => services.GetRequiredService<IDecisionProvider>()));
+    _ => services.GetRequiredService<IDecisionProvider>(),
+    WorldStartPace.DecidedPlaytest));
 builder.Services.AddSingleton<PrivateWorldRuntime>(services =>
 {
     var runtime = services.GetRequiredService<PrivateWorldStateFile>().LoadOrCreate(runtimeSeed);

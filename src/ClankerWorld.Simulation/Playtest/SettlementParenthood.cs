@@ -69,7 +69,7 @@ public sealed partial class PrivateWorldRuntime
                 item.State == SocietyRelationshipState.Accepted && inhabitants.ContainsKey(item.TargetId) &&
                 society.Checkpoint.GetInhabitant(item.TargetId).AgeBand is SocietyAgeBand.Infant or SocietyAgeBand.Child) ||
             inhabitants.Values.Any(person => person.Parenthood is { } previous &&
-                (person.InhabitantId == actor || previous.PartnerId == actor) && WorldTick - previous.LastTransitionTick < 1_440))
+                (person.InhabitantId == actor || previous.PartnerId == actor) && WorldTick - previous.LastTransitionTick < worldSystems.Config.TicksPerDay))
         {
             return;
         }

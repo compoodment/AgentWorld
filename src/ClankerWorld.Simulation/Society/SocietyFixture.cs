@@ -24,14 +24,14 @@ public static partial class SocietyFixture
         return new(
             NormalizeRequiredText(id, nameof(id)),
             NormalizeRequiredText(name, nameof(name)),
-            checked(-effectiveConfig.AdultYears * effectiveConfig.TicksPerWorldYear),
+            checked(-effectiveConfig.FounderStartingAge * effectiveConfig.TicksPerLifecycleAge),
             SocietyInhabitantStatus.Active,
-            effectiveConfig.AgeBandAt(effectiveConfig.AdultYears),
+            effectiveConfig.AgeBandAt(effectiveConfig.FounderStartingAge),
             ValidateBasisPoints(healthBasisPoints, nameof(healthBasisPoints)),
             null,
             NormalizeOptionalText(providerBindingId),
             SocietyWorkRole.Unassigned,
-            effectiveConfig.AdultYears);
+            effectiveConfig.FounderStartingAge);
     }
 
     public static SocietyCheckpoint CreateGenesis(
@@ -579,8 +579,8 @@ public static partial class SocietyFixture
             for (var age = Math.Max(oldAge + 1, inhabitant.LastLifecycleYearChecked + 1); age <= newAge; age++)
             {
                 boundaryEvents.Add((
-                    checkpoint.LifeClock?.WorldTickFor(checked((inhabitant.BirthLifeTick ?? inhabitant.BirthTick) + age * checkpoint.Config.TicksPerWorldYear))
-                        ?? checked(inhabitant.BirthTick + age * checkpoint.Config.TicksPerWorldYear),
+                    checkpoint.LifeClock?.WorldTickFor(checked((inhabitant.BirthLifeTick ?? inhabitant.BirthTick) + age * checkpoint.Config.TicksPerLifecycleAge))
+                        ?? checked(inhabitant.BirthTick + age * checkpoint.Config.TicksPerLifecycleAge),
                     inhabitant.Id,
                     checked((int)age)));
             }
@@ -1189,7 +1189,7 @@ public static partial class SocietyFixture
             var expectedBand = config.AgeBandAt(birth, lifeTick);
             if (inhabitant.Status == SocietyInhabitantStatus.Active &&
                 inhabitant.AgeBand != expectedBand &&
-                birth + config.TicksPerWorldYear * inhabitant.LastLifecycleYearChecked <= lifeTick)
+                birth + config.TicksPerLifecycleAge * inhabitant.LastLifecycleYearChecked <= lifeTick)
             {
                 throw new InvalidDataException(
                     $"An active inhabitant has a stale age band: {inhabitant.Id}:{inhabitant.AgeBand}:{expectedBand}:" +

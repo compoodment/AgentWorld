@@ -278,8 +278,9 @@ The recent history should persist with the world save but remain bounded.
 ### Current prototype evidence (not a finished-game decision)
 
 The supported **integrated private-world host** schedules one world tick per
-real second, and each tick is one in-world minute. A 1,440-minute world day is
-therefore **nominally 24 real minutes**, subject to slowing under load. The
+real second. Newly created worlds now save the accepted 360-tick day and
+40-day year; the existing paused development save still carries its older
+1,440-tick/365-day calendar. Neither pace is guaranteed under load. The
 repository build dispatches hosted cognition outside the tick so a slow
 provider does not hold unrelated agents or the clock; the VPS server has been
 updated, but a resumed paired-client playtest remains. It gates ticks and provider calls on authenticated

@@ -135,7 +135,8 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         Func<string, IDecisionProvider>? providerFactory = null,
         int maxCognitionQueueLength = 64,
         int maxCognitionDispatchPerCycle = 4,
-        double minimumCognitionConfidence = 0.5)
+        double minimumCognitionConfidence = 0.5,
+        WorldStartPace startPace = WorldStartPace.Legacy)
     {
         this.worldSeed = NormalizeRequiredText(worldSeed, nameof(worldSeed));
         this.providerFactory = providerFactory;
@@ -158,13 +159,18 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         worldSimulation = WorldContentSimulationState.Empty;
         assetReservations = new WorldAssetReservationLedger();
         map = SeededMapGenerator.Generate(this.worldSeed);
-        worldSystems = CreateWorldSystems(this.worldSeed, map);
+        worldSystems = CreateWorldSystems(this.worldSeed, map, startPace);
         society = CreateSociety(
             this.worldSeed,
             providerFactory,
             maxCognitionQueueLength,
             maxCognitionDispatchPerCycle,
-            minimumCognitionConfidence);
+            minimumCognitionConfidence,
+            startPace);
+        if (startPace == WorldStartPace.DecidedPlaytest)
+        {
+            society.Pause();
+        }
         CreatePhysicalState();
         foreach (var resource in map.Resources)
         {
@@ -1717,9 +1723,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         return true;
     }
 
-    private static WorldSystemsState CreateWorldSystems(string worldSeed, SeededMap map)
+    private static WorldSystemsState CreateWorldSystems(string worldSeed, SeededMap map,
+        WorldStartPace startPace = WorldStartPace.Legacy)
     {
-        var config = WorldSystemsConfig.Default;
+        var config = WorldStartPaceRules.WorldSystems(startPace);
         var resources = map.Resources
             .Select(resource => resource.IsRenewable
                 ? new EcologyResource(
@@ -1816,9 +1823,10 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         Func<string, IDecisionProvider>? providerFactory,
         int maxCognitionQueueLength,
         int maxCognitionDispatchPerCycle,
-        double minimumCognitionConfidence)
+        double minimumCognitionConfidence,
+        WorldStartPace startPace)
     {
-        var config = new SocietyConfig();
+        var config = WorldStartPaceRules.Society(startPace);
         var founders = new[]
         {
             SocietyFixture.CreateFounder("founder-scout", "Scout", "model:scout", config: config),
@@ -2768,9 +2776,11 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         {
             WorldSystemsRules.Validate(state.WorldSystems);
             if (state.WorldSystems.WorldTick != state.Society.Society.WorldTick ||
-                !string.Equals(state.WorldSystems.WorldSeed, state.WorldSeed, StringComparison.Ordinal))
+                !string.Equals(state.WorldSystems.WorldSeed, state.WorldSeed, StringComparison.Ordinal) ||
+                state.WorldSystems.Config.TicksPerDay != state.Society.Society.Config.TicksPerWorldDay ||
+                state.WorldSystems.Config.DaysPerYear != state.Society.Society.Config.DaysPerWorldYear)
             {
-                throw new InvalidDataException("The saved richer-systems state does not match the saved society clock or seed.");
+                throw new InvalidDataException("The saved world systems do not match the society clock, calendar, or seed.");
             }
         }
         else if (state.SchemaVersion >= 3)

@@ -21,7 +21,7 @@ public sealed partial class PrivateWorldRuntime
     private bool CanOfferCare(string adult, string child) => EligibleCaregiver(adult, child) &&
         !CareProposals().Any(edge => edge.TargetId == child) &&
         !society.Checkpoint.Relationships.Any(edge => edge.Type == SocietyRelationshipType.Caregiver &&
-            edge.ProposerId == adult && edge.TargetId == child && WorldTick - Math.Max(edge.ProposedTick, edge.EffectiveTick) < 1_440);
+            edge.ProposerId == adult && edge.TargetId == child && WorldTick - Math.Max(edge.ProposedTick, edge.EffectiveTick) < worldSystems.Config.TicksPerDay);
 
     private bool HasDependentCareDecision(string actor) => ReadyForLesson(actor) &&
         (CareProposals().Any(edge => edge.TargetId == actor) ||

@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- Fresh private worlds now start paused with six-minute days, a 40-day year and four
+  10-day seasons. Agents born in those worlds become children at day 3, adults
+  at day 15, elders at day 45 and cannot survive past day 60 from birth.
+  Agent profiles show age in days. The existing development world is not
+  silently retimed; a fresh world is needed to playtest this pace.
+
 - World Settings now has a saved Jev assistance switch. Disabling it while
   paused keeps memories and credentials, invalidates older decisions, and
   routes work Jev would have handled to the agent's personal planning model,

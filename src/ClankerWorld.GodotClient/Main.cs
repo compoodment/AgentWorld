@@ -2870,12 +2870,14 @@ public partial class Main : Control
         selectedActorNameLabel.Text = inhabitant.DisplayName;
         var ageBand = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-band")?.Detail;
         var ageYears = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-years")?.Detail;
+        var ageDays = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "age-days")?.Detail;
         var deathTick = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "death-tick")?.Detail;
         var deathCause = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "death-cause")?.Detail;
         var isDeceased = string.Equals(inhabitant.Lifecycle, "dead", StringComparison.OrdinalIgnoreCase);
         var waitingForDecision = inhabitant.DecisionFactors.Any(factor => factor.Key == "decision-pending");
         selectedActorSummaryLabel.Text = Pretty(inhabitant.Lifecycle) + (ageBand is null ? "" : " · " + Pretty(ageBand)) +
             (ageYears is null ? "" : " · " + ageYears + " years") +
+            (ageDays is null ? "" : " · " + ageDays + " days") +
             (deathTick is not null && long.TryParse(deathTick, CultureInfo.InvariantCulture, out var finalTick)
                 ? $" · {DisplayWorldClock(finalTick)}" : "");
         var intention = isDeceased

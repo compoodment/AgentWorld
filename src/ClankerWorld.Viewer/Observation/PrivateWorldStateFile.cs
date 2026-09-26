@@ -14,12 +14,15 @@ public sealed class PrivateWorldStateFile
 {
     private readonly object gate = new();
     private readonly Func<string, IDecisionProvider>? providerFactory;
+    private readonly WorldStartPace newWorldPace;
 
-    public PrivateWorldStateFile(string path, Func<string, IDecisionProvider>? providerFactory = null)
+    public PrivateWorldStateFile(string path, Func<string, IDecisionProvider>? providerFactory = null,
+        WorldStartPace newWorldPace = WorldStartPace.Legacy)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         Path = System.IO.Path.GetFullPath(path);
         this.providerFactory = providerFactory;
+        this.newWorldPace = newWorldPace;
     }
 
     public string Path { get; }
@@ -31,7 +34,7 @@ public sealed class PrivateWorldStateFile
         {
             if (!File.Exists(Path))
             {
-                var created = new PrivateWorldRuntime(worldSeed, providerFactory);
+                var created = new PrivateWorldRuntime(worldSeed, providerFactory, startPace: newWorldPace);
                 SaveUnsafe(created.ExportState());
                 return created;
             }

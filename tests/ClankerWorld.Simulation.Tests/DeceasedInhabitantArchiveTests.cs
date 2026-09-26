@@ -16,7 +16,7 @@ public sealed class DeceasedInhabitantArchiveTests
         var config = society.Config with
         {
             TicksPerWorldDay = 1,
-            DaysPerWorldYear = 1,
+            DaysPerWorldYear = 4,
             AdultYears = 17,
             ElderYears = 18,
             BaseNaturalMortalityBasisPoints = 9_999,
@@ -30,7 +30,7 @@ public sealed class DeceasedInhabitantArchiveTests
                 "I remember the first campfire.", "private", 0)).ToArray(),
             Inhabitants = society.Inhabitants.Select(person => person with
             {
-                BirthTick = -18,
+                BirthTick = -75,
                 BirthLifeTick = null,
                 AgeBand = SocietyAgeBand.Elder,
                 LastLifecycleYearChecked = 18,
@@ -39,6 +39,18 @@ public sealed class DeceasedInhabitantArchiveTests
         state = state with
         {
             Society = state.Society with { Society = society },
+            WorldSystems = state.WorldSystems! with
+            {
+                Config = state.WorldSystems!.Config with
+                {
+                    TicksPerDay = 1,
+                    DaysPerYear = 4,
+                    SpringDays = 1,
+                    SummerDays = 1,
+                    AutumnDays = 1,
+                    WinterDays = 1,
+                },
+            },
             Inhabitants = state.Inhabitants.Select(person => person with
             {
                 RecentThoughts = [new PlaytestPrivateThought(0, "I hope the camp lasts.")],
