@@ -49,8 +49,10 @@ public partial class Main : Control
     private readonly OptionButton cognitionRoleChoice = new();
     private readonly OptionButton cognitionTargetChoice = new();
     private readonly OptionButton cognitionProviderChoice = new();
+    private readonly OptionButton cognitionCredentialChoice = new();
     private readonly LineEdit cognitionModelInput = new();
     private readonly LineEdit cognitionApiKeyInput = new();
+    private readonly LineEdit cognitionCredentialLabelInput = new();
     private readonly Label cognitionConfigurationStatus = new();
     private readonly Label cognitionCredentialHint = new();
     private readonly Button saveCognitionProviderButton = new();
@@ -82,6 +84,10 @@ public partial class Main : Control
     private readonly Control entityLayer = new();
     private readonly Label rosterSummaryLabel = new();
     private readonly PanelContainer selectedInhabitantCard = new();
+    private readonly VBoxContainer selectedAgentOverview = new();
+    private readonly ScrollContainer selectedAgentModelScroll = new();
+    private readonly VBoxContainer selectedAgentModelContent = new();
+    private readonly Button modelSettingsButton = new();
     private readonly Label selectedActorNameLabel = new();
     private readonly Label selectedActorSummaryLabel = new();
     private readonly Button clearSelectionButton = new();
@@ -1008,6 +1014,7 @@ public partial class Main : Control
                 ResolveWorldUri(), authority, deviceId, signer, CancellationToken.None);
             PopulateCognitionTargets();
             PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
             RenderProviderConfiguration();
             return "loaded inhabitant cognition settings";
         });
@@ -1023,25 +1030,40 @@ public partial class Main : Control
 
         var role = SelectedRoleId();
         var provider = SelectedProviderId();
+        var target = SelectedCognitionTarget();
+        var hostedAgent = target is not null && provider is ("openai" or "ollama-cloud");
+        var credentialChoice = hostedAgent ? SelectedCredentialChoice() : null;
+        var creatingSlot = credentialChoice == "new";
+        if (creatingSlot && (string.IsNullOrWhiteSpace(cognitionCredentialLabelInput.Text) ||
+            string.IsNullOrWhiteSpace(cognitionApiKeyInput.Text)))
+        {
+            SetStatus("Give the new key a label and paste its API key", good: false);
+            return;
+        }
         var action = new OwnerProviderConfigurationAction(
             role,
             provider,
             provider is "deterministic" or "inherit" ? null : EmptyToNull(cognitionModelInput.Text),
-            provider is "deterministic" or "inherit" ? null : EmptyToNull(cognitionApiKeyInput.Text),
+            provider is "deterministic" or "inherit" || hostedAgent && !creatingSlot
+                ? null : EmptyToNull(cognitionApiKeyInput.Text),
             ForgetCredential: false,
-            InhabitantId: SelectedCognitionTarget());
+            InhabitantId: target,
+            CredentialSlotId: creatingSlot ? Guid.NewGuid().ToString("N") : credentialChoice is null or "default" ? null : credentialChoice,
+            NewCredentialLabel: creatingSlot ? EmptyToNull(cognitionCredentialLabelInput.Text) : null);
         try
         {
             await RunOwnerActionAsync(async () =>
             {
                 providerConfiguration = await ownerApi.ConfigureProviderAsync(
                     ResolveWorldUri(), authority, deviceId, action, signer, CancellationToken.None);
+                PopulateCredentialChoices();
                 return $"{ProviderDisplayName(provider)} will handle {RoleDisplayName(role).ToLowerInvariant()} at the next cognition boundary";
             });
         }
         finally
         {
             cognitionApiKeyInput.Text = string.Empty;
+            cognitionCredentialLabelInput.Text = string.Empty;
             RenderProviderConfiguration();
         }
     }
@@ -1078,7 +1100,8 @@ public partial class Main : Control
         RenderProviderConfiguration();
     }
 
-    private string SelectedRoleId() => cognitionRoleChoice.Selected == 1 ? "planning" : "routine";
+    private string SelectedRoleId() => SelectedCognitionTarget() is not null
+        ? "personal" : cognitionRoleChoice.Selected == 1 ? "planning" : "routine";
 
     private string? SelectedCognitionTarget() => cognitionTargetChoice.Selected <= 0
         ? null : cognitionTargetChoice.GetItemMetadata(cognitionTargetChoice.Selected).AsString();
@@ -1101,7 +1124,8 @@ public partial class Main : Control
     }
 
     private InhabitantProviderAssignment? SelectedAssignment() => providerConfiguration?.Assignments?
-        .FirstOrDefault(item => item.InhabitantId == SelectedCognitionTarget() && item.Role == SelectedRoleId());
+        .FirstOrDefault(item => item.InhabitantId == SelectedCognitionTarget() &&
+            item.Role == (SelectedRoleId() == "personal" ? "planning" : SelectedRoleId()));
 
     private string ActiveProviderForSelectedRole() => SelectedCognitionTarget() is not null
         ? SelectedAssignment()?.Provider ?? "inherit"
@@ -1156,14 +1180,46 @@ public partial class Main : Control
     private string SelectedProviderId() => cognitionProviderChoice.Selected < 0
         ? "deterministic" : cognitionProviderChoice.GetItemMetadata(cognitionProviderChoice.Selected).AsString();
 
+    private string SelectedCredentialChoice() => cognitionCredentialChoice.Selected < 0
+        ? "default" : cognitionCredentialChoice.GetItemMetadata(cognitionCredentialChoice.Selected).AsString();
+
+    private void PopulateCredentialChoices()
+    {
+        cognitionCredentialChoice.Clear();
+        cognitionCredentialChoice.AddItem("Provider default key");
+        cognitionCredentialChoice.SetItemMetadata(0, "default");
+        var provider = SelectedProviderId();
+        foreach (var slot in providerConfiguration?.CredentialSlots ?? [])
+        {
+            if (slot.Provider != provider) continue;
+            cognitionCredentialChoice.AddItem(slot.Label);
+            cognitionCredentialChoice.SetItemMetadata(cognitionCredentialChoice.ItemCount - 1, slot.Id);
+        }
+        cognitionCredentialChoice.AddItem("Add another API key…");
+        cognitionCredentialChoice.SetItemMetadata(cognitionCredentialChoice.ItemCount - 1, "new");
+        var assignedSlot = SelectedAssignment()?.Provider == provider ? SelectedAssignment()?.CredentialSlotId : null;
+        for (var index = 0; index < cognitionCredentialChoice.ItemCount; index++)
+        {
+            if (cognitionCredentialChoice.GetItemMetadata(index).AsString() != assignedSlot) continue;
+            cognitionCredentialChoice.Select(index);
+            return;
+        }
+        cognitionCredentialChoice.Select(0);
+    }
+
     private void RenderProviderConfiguration()
     {
         var provider = SelectedProviderId();
         var option = providerConfiguration?.Providers.FirstOrDefault(item =>
             string.Equals(item.Provider, provider, StringComparison.Ordinal));
         var hosted = provider is not ("deterministic" or "inherit");
+        cognitionRoleChoice.Visible = SelectedCognitionTarget() is null;
+        var agentCredential = hosted && SelectedCognitionTarget() is not null && provider is ("openai" or "ollama-cloud");
+        var newCredential = agentCredential && SelectedCredentialChoice() == "new";
         cognitionModelInput.Visible = hosted;
-        cognitionApiKeyInput.Visible = hosted;
+        cognitionCredentialChoice.Visible = agentCredential;
+        cognitionCredentialLabelInput.Visible = newCredential;
+        cognitionApiKeyInput.Visible = hosted && (!agentCredential || newCredential);
         cognitionCredentialHint.Visible = hosted;
         forgetCognitionCredentialButton.Visible = hosted && SelectedCognitionTarget() is null;
         if (hosted && option is not null && !cognitionModelInput.HasFocus())
@@ -1172,10 +1228,16 @@ public partial class Main : Control
                 ? assignment.Model ?? option.Model : option.Model;
         }
 
-        cognitionApiKeyInput.PlaceholderText = option?.HasCredential == true
+        cognitionApiKeyInput.PlaceholderText = newCredential ? "New API key" : option?.HasCredential == true
             ? "Leave blank to keep saved key"
             : "API key";
-        cognitionCredentialHint.Text = option?.HasCredential == true
+        cognitionCredentialHint.Text = newCredential
+            ? "A new key is stored privately on the host and can be reused for other agents."
+            : agentCredential && SelectedCredentialChoice() != "default"
+            ? "Named key saved on host"
+            : agentCredential && option?.HasCredential != true
+            ? "No provider default key. Select Add another API key to give this agent one."
+            : option?.HasCredential == true
             ? "Key saved on host"
             : "No saved key";
         cognitionConfigurationStatus.Text = providerConfiguration is null
@@ -1186,6 +1248,7 @@ public partial class Main : Control
 
     private static string RoleDisplayName(string role) => role == "planning"
         ? "Planning and work decisions"
+        : role == "personal" ? "this agent's decisions"
         : "Routine survival decisions";
 
     private static string ProviderDisplayName(string provider) => provider switch
@@ -1567,6 +1630,7 @@ public partial class Main : Control
         {
             cognitionApiKeyInput.Text = string.Empty;
             PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
             RenderProviderConfiguration();
         };
         body.AddChild(cognitionTargetChoice);
@@ -1581,6 +1645,7 @@ public partial class Main : Control
             var selected = SelectedProviderId();
             var option = providerConfiguration?.Providers.FirstOrDefault(item => item.Provider == selected);
             cognitionModelInput.Text = option?.Model ?? DefaultProviderModel(selected);
+            PopulateCredentialChoices();
             RenderProviderConfiguration();
         };
         var providerRow = new HBoxContainer();
@@ -1595,10 +1660,22 @@ public partial class Main : Control
             var selected = SelectedProviderId();
             var option = providerConfiguration?.Providers.FirstOrDefault(item => item.Provider == selected);
             cognitionModelInput.Text = option?.Model ?? DefaultProviderModel(selected);
+            PopulateCredentialChoices();
             RenderProviderConfiguration();
         };
         providerRow.AddChild(cognitionProviderChoice);
         body.AddChild(providerRow);
+
+        cognitionCredentialChoice.TooltipText = "Pick a saved key for this agent, or save another key for the same provider.";
+        cognitionCredentialChoice.ItemSelected += _ =>
+        {
+            cognitionApiKeyInput.Text = string.Empty;
+            RenderProviderConfiguration();
+        };
+        body.AddChild(cognitionCredentialChoice);
+
+        cognitionCredentialLabelInput.PlaceholderText = "Name this key (for example, Personal account)";
+        body.AddChild(cognitionCredentialLabelInput);
 
         cognitionModelInput.PlaceholderText = "Model ID";
         body.AddChild(cognitionModelInput);
@@ -1651,6 +1728,7 @@ public partial class Main : Control
 
     private void ShowSettingsSection(bool worldSpecific)
     {
+        CloseAgentModelEditor();
         settingsPanel.Show();
         gameSettingsContent.Visible = !worldSpecific;
         worldSettingsContent.Visible = worldSpecific;
@@ -2162,19 +2240,29 @@ public partial class Main : Control
         heading.AddChild(clearSelectionButton);
         body.AddChild(heading);
 
+        body.AddChild(selectedAgentOverview);
+        selectedAgentModelScroll.CustomMinimumSize = new Vector2(0, 300);
+        selectedAgentModelScroll.AddChild(selectedAgentModelContent);
+        var backToProfile = new Button { Text = "← Agent profile" };
+        StyleButton(backToProfile);
+        backToProfile.Pressed += CloseAgentModelEditor;
+        selectedAgentModelContent.AddChild(backToProfile);
+        body.AddChild(selectedAgentModelScroll);
+        selectedAgentModelScroll.Hide();
+
         selectedActorSummaryLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         selectedActorSummaryLabel.Modulate = new Color("A7B9B7");
-        body.AddChild(selectedActorSummaryLabel);
+        selectedAgentOverview.AddChild(selectedActorSummaryLabel);
 
         ConfigureTextPanel(inhabitantDetails, 96);
-        body.AddChild(inhabitantDetails);
+        selectedAgentOverview.AddChild(inhabitantDetails);
 
         ConfigureTextPanel(inhabitantSocialDetails, 104);
-        body.AddChild(inhabitantSocialDetails);
+        selectedAgentOverview.AddChild(inhabitantSocialDetails);
 
         ConfigureTextPanel(privateThoughtHistory, 86);
         privateThoughtHistory.TooltipText = "Only you can inspect these in-character thoughts. Other agents do not learn them automatically.";
-        body.AddChild(privateThoughtHistory);
+        selectedAgentOverview.AddChild(privateThoughtHistory);
 
         memoriesButton.Text = "Memories";
         memoriesButton.TooltipText = "Inspect this agent's saved memories, including private memories and historical records after death.";
@@ -2188,28 +2276,66 @@ public partial class Main : Control
         StyleButton(familyTreeButton);
         familyTreeButton.Pressed += OpenFamilyTree;
         historyActions.AddChild(familyTreeButton);
-        body.AddChild(historyActions);
+        modelSettingsButton.Text = "Model and key";
+        modelSettingsButton.TooltipText = "Choose this agent's personal model and saved or new API key.";
+        StyleButton(modelSettingsButton);
+        modelSettingsButton.Pressed += OpenAgentModelEditor;
+        historyActions.AddChild(modelSettingsButton);
+        selectedAgentOverview.AddChild(historyActions);
 
         var instructionHeading = new Label { Text = "Speak to them" };
         instructionHeading.AddThemeFontSizeOverride("font_size", 13);
         instructionHeading.AddThemeColorOverride("font_color", new Color("D8C6A5"));
-        body.AddChild(instructionHeading);
+        selectedAgentOverview.AddChild(instructionHeading);
         instructionKind.AddItem("Suggestion", 0);
         instructionKind.AddItem("Direct order", 1);
         instructionKind.CustomMinimumSize = new Vector2(0, 32);
-        body.AddChild(instructionKind);
+        selectedAgentOverview.AddChild(instructionKind);
         instructionText.PlaceholderText = "Say something…";
         instructionText.CustomMinimumSize = new Vector2(0, 34);
-        body.AddChild(instructionText);
+        selectedAgentOverview.AddChild(instructionText);
         submitInstructionButton.Text = "Send";
         StyleButton(submitInstructionButton, primary: true);
         submitInstructionButton.Pressed += () => _ = SubmitInstructionAsync();
-        body.AddChild(submitInstructionButton);
+        selectedAgentOverview.AddChild(submitInstructionButton);
 
         AddPanelContents(selectedInhabitantCard, body);
         selectedInhabitantCard.CustomMinimumSize = new Vector2(350, 0);
         selectedInhabitantCard.ZIndex = 70;
         selectedInhabitantCard.Hide();
+    }
+
+    private void OpenAgentModelEditor()
+    {
+        if (selectedInhabitantId is null || registration is null || observationSession.Current is not { } current) return;
+        PopulateCognitionTargets();
+        for (var index = 1; index < cognitionTargetChoice.ItemCount; index++)
+        {
+            if (cognitionTargetChoice.GetItemMetadata(index).AsString() != selectedInhabitantId) continue;
+            cognitionTargetChoice.Select(index);
+            PopulateProviderChoices(ActiveProviderForSelectedRole());
+            PopulateCredentialChoices();
+            cognitionTargetChoice.Hide();
+            cognitionSettingsPanel.Reparent(selectedAgentModelContent, keepGlobalTransform: false);
+            selectedAgentOverview.Hide();
+            selectedAgentModelScroll.Show();
+            RenderProviderConfiguration();
+            PositionSelectedInhabitantCard(current.Baseline.Snapshot);
+            _ = RefreshProviderConfigurationAsync();
+            return;
+        }
+        SetStatus("This agent is not available for model configuration", good: false);
+    }
+
+    private void CloseAgentModelEditor()
+    {
+        if (!selectedAgentModelScroll.Visible) return;
+        selectedAgentModelScroll.Hide();
+        cognitionSettingsPanel.Reparent(worldSettingsContent, keepGlobalTransform: false);
+        cognitionTargetChoice.Show();
+        selectedAgentOverview.Show();
+        cognitionApiKeyInput.Text = string.Empty;
+        cognitionCredentialLabelInput.Text = string.Empty;
     }
 
     private void BuildStatusToast(Control content)
@@ -2857,6 +2983,7 @@ public partial class Main : Control
             string.Equals(item.Id, selectedInhabitantId, StringComparison.Ordinal));
         if (inhabitant is null)
         {
+            CloseAgentModelEditor();
             selectedActorNameLabel.Text = string.Empty;
             selectedActorSummaryLabel.Text = string.Empty;
             inhabitantSocialDetails.Clear();
@@ -2874,6 +3001,9 @@ public partial class Main : Control
         var deathTick = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "death-tick")?.Detail;
         var deathCause = inhabitant.DecisionFactors.FirstOrDefault(factor => factor.Key == "death-cause")?.Detail;
         var isDeceased = string.Equals(inhabitant.Lifecycle, "dead", StringComparison.OrdinalIgnoreCase);
+        modelSettingsButton.Disabled = isDeceased || registration is null;
+        if (selectedAgentModelScroll.Visible && SelectedCognitionTarget() != inhabitant.Id)
+            CloseAgentModelEditor();
         var waitingForDecision = inhabitant.DecisionFactors.Any(factor => factor.Key == "decision-pending");
         selectedActorSummaryLabel.Text = Pretty(inhabitant.Lifecycle) + (ageBand is null ? "" : " · " + Pretty(ageBand)) +
             (ageYears is null ? "" : " · " + ageYears + " years") +
@@ -3086,6 +3216,7 @@ public partial class Main : Control
 
     private void ClearInhabitantSelection()
     {
+        CloseAgentModelEditor();
         familyTreePanel.Hide();
         memoriesPanel.Hide();
         selectedInhabitantId = null;
@@ -3152,14 +3283,18 @@ public partial class Main : Control
         revokeDeviceButton.Disabled = actionDisabled;
         cognitionRoleChoice.Disabled = actionDisabled;
         cognitionProviderChoice.Disabled = actionDisabled;
+        cognitionCredentialChoice.Disabled = actionDisabled;
         cognitionModelInput.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
         cognitionApiKeyInput.Editable = !actionDisabled && SelectedProviderId() != "deterministic";
-        saveCognitionProviderButton.Disabled = actionDisabled ||
-            SelectedCognitionTarget() is not null && SelectedProviderId() == "jev";
+        cognitionCredentialLabelInput.Editable = !actionDisabled;
         refreshCognitionProviderButton.Disabled = actionDisabled;
         var selectedProvider = SelectedProviderId();
         var selectedProviderStatus = providerConfiguration?.Providers.FirstOrDefault(item =>
             string.Equals(item.Provider, selectedProvider, StringComparison.Ordinal));
+        saveCognitionProviderButton.Disabled = actionDisabled ||
+            SelectedCognitionTarget() is not null && selectedProvider == "jev" ||
+            SelectedCognitionTarget() is not null && selectedProviderStatus?.HasCredential != true &&
+                selectedProvider is ("openai" or "ollama-cloud") && SelectedCredentialChoice() == "default";
         forgetCognitionCredentialButton.Disabled = actionDisabled || selectedProvider == "deterministic" ||
             selectedProviderStatus?.HasCredential != true;
         // A public key can have only one pending server pairing. Keep the

@@ -8,11 +8,18 @@ release yet.
 
 ### Added
 
+- In World Settings, an inhabitant can now use one personal provider/model for
+  both daily and project decisions. Players can save multiple named API keys
+  for the same provider and choose which one an agent uses. Keys remain in
+  private host storage, never in the world save or owner status. Existing
+  provider settings migrate without dropping their saved credentials. The
+  selected agent's card also opens those model/key controls directly.
+
 - Fresh private worlds now start paused with six-minute days, a 40-day year and four
   10-day seasons. Agents born in those worlds become children at day 3, adults
   at day 15, elders at day 45 and cannot survive past day 60 from birth.
-  Agent profiles show age in days. The existing development world is not
-  silently retimed; a fresh world is needed to playtest this pace.
+  Agent profiles show age in days. The prior development save was archived,
+  and a fresh paused world was created to playtest this pace.
 
 - World Settings now has a saved Jev assistance switch. Disabling it while
   paused keeps memories and credentials, invalidates older decisions, and

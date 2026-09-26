@@ -62,9 +62,13 @@ public sealed record OwnerProviderConfigurationAction(
     string? Model,
     string? ApiKey,
     bool ForgetCredential,
-    string? InhabitantId = null);
+    string? InhabitantId = null,
+    string? CredentialSlotId = null,
+    string? NewCredentialLabel = null);
 
-public sealed record InhabitantProviderAssignment(string InhabitantId, string Role, string Provider, string? Model = null);
+public sealed record InhabitantProviderAssignment(string InhabitantId, string Role, string Provider, string? Model = null, string? CredentialSlotId = null);
+
+public sealed record OwnerProviderCredentialStatus(string Id, string Provider, string Label);
 
 public sealed record OwnerProviderOptionStatus(
     string Provider,
@@ -76,7 +80,8 @@ public sealed record OwnerProviderConfigurationStatus(
     string PlanningProvider,
     long Revision,
     IReadOnlyList<OwnerProviderOptionStatus> Providers,
-    IReadOnlyList<InhabitantProviderAssignment>? Assignments = null);
+    IReadOnlyList<InhabitantProviderAssignment>? Assignments = null,
+    IReadOnlyList<OwnerProviderCredentialStatus>? CredentialSlots = null);
 
 public sealed record OwnerInstructionAction(
     string IdempotencyKey,
@@ -176,7 +181,13 @@ public static class OwnerHttpBinding
             $"model={EncodeOptional(action.Model)}",
             $"api-key-sha256={apiKeyDigest}",
             $"forget-credential={action.ForgetCredential.ToString().ToLowerInvariant()}");
-        return action.InhabitantId is null ? payload : payload + "\ninhabitant=" + EncodeRequired(action.InhabitantId, nameof(action.InhabitantId));
+        if (action.InhabitantId is not null)
+            payload += "\ninhabitant=" + EncodeRequired(action.InhabitantId, nameof(action.InhabitantId));
+        if (action.CredentialSlotId is not null)
+            payload += "\ncredential-slot=" + EncodeRequired(action.CredentialSlotId, nameof(action.CredentialSlotId));
+        if (action.NewCredentialLabel is not null)
+            payload += "\ncredential-label=" + EncodeRequired(action.NewCredentialLabel, nameof(action.NewCredentialLabel));
+        return payload;
     }
 
     public static string InstructionPayload(OwnerInstructionAction action) => string.Join(

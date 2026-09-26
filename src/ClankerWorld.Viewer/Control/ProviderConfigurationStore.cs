@@ -9,6 +9,7 @@ public static class PlayerDecisionProviders
 {
     public const string RoutineRole = "routine";
     public const string PlanningRole = "planning";
+    public const string PersonalRole = "personal";
     public const string Deterministic = "deterministic";
     public const string Jev = "jev";
     public const string OpenAi = "openai";
@@ -81,6 +82,8 @@ public sealed record ProviderConfigurationSeed(
 
 public sealed record StoredProviderCredential(string Model, string? ApiKey);
 
+public sealed record ProviderCredentialSlot(string Id, string Provider, string Label, string ApiKey);
+
 public sealed record ProviderConfigurationState(
     int SchemaVersion,
     long Revision,
@@ -89,7 +92,8 @@ public sealed record ProviderConfigurationState(
     StoredProviderCredential Jev,
     StoredProviderCredential OpenAi,
     StoredProviderCredential OllamaCloud,
-    IReadOnlyList<InhabitantProviderAssignment>? Assignments = null);
+    IReadOnlyList<InhabitantProviderAssignment>? Assignments = null,
+    IReadOnlyList<ProviderCredentialSlot>? CredentialSlots = null);
 
 public sealed record RuntimeProviderConfiguration(
     string RoutineProvider,
@@ -98,7 +102,8 @@ public sealed record RuntimeProviderConfiguration(
     StoredProviderCredential OpenAi,
     StoredProviderCredential OllamaCloud,
     long Revision,
-    IReadOnlyList<InhabitantProviderAssignment>? Assignments = null);
+    IReadOnlyList<InhabitantProviderAssignment>? Assignments = null,
+    IReadOnlyList<ProviderCredentialSlot>? CredentialSlots = null);
 
 /// <summary>
 /// Keeps player-supplied hosted-provider credentials outside world saves and
@@ -107,7 +112,7 @@ public sealed record RuntimeProviderConfiguration(
 /// </summary>
 public sealed class ProviderConfigurationStore
 {
-    public const int StateSchemaVersion = 2;
+    public const int StateSchemaVersion = 3;
     private const int MaximumApiKeyLength = 4096;
     private const int MaximumModelLength = 200;
 
@@ -140,7 +145,8 @@ public sealed class ProviderConfigurationStore
                 state.OpenAi,
                 state.OllamaCloud,
                 state.Revision,
-                state.Assignments);
+                state.Assignments,
+                state.CredentialSlots);
         }
     }
 
@@ -157,11 +163,15 @@ public sealed class ProviderConfigurationStore
         ArgumentNullException.ThrowIfNull(action);
         lock (gate)
         {
-            var role = PlayerDecisionProviders.NormalizeRole(action.Role);
+            var role = action.InhabitantId is not null && action.Role == PlayerDecisionProviders.PersonalRole
+                ? PlayerDecisionProviders.PersonalRole
+                : PlayerDecisionProviders.NormalizeRole(action.Role);
             if (action.InhabitantId is not null)
             {
                 return ConfigureInhabitant(action, role);
             }
+            if (action.CredentialSlotId is not null || action.NewCredentialLabel is not null)
+                throw new ArgumentException("Credential slots belong to individual inhabitants.", nameof(action));
             var provider = PlayerDecisionProviders.Normalize(action.Provider);
             PlayerDecisionProviders.ValidateRoleProvider(role, provider);
             var current = state;
@@ -193,12 +203,16 @@ public sealed class ProviderConfigurationStore
             throw new ArgumentException("Remove shared keys from world settings, not an individual assignment.", nameof(action));
         }
 
+        var roles = role == PlayerDecisionProviders.PersonalRole
+            ? new[] { PlayerDecisionProviders.RoutineRole, PlayerDecisionProviders.PlanningRole }
+            : [role];
         var assignments = (state.Assignments ?? [])
-            .Where(item => item.InhabitantId != id || item.Role != role).ToList();
+            .Where(item => item.InhabitantId != id || !roles.Contains(item.Role, StringComparer.Ordinal)).ToList();
         var next = state;
         if (action.Provider == "inherit")
         {
-            if (action.Model is not null || action.ApiKey is not null)
+            if (action.Model is not null || action.ApiKey is not null ||
+                action.CredentialSlotId is not null || action.NewCredentialLabel is not null)
             {
                 throw new ArgumentException("Inheritance does not accept a model or key.", nameof(action));
             }
@@ -208,15 +222,43 @@ public sealed class ProviderConfigurationStore
             var provider = PlayerDecisionProviders.Normalize(action.Provider);
             if (provider == PlayerDecisionProviders.Jev)
                 throw new ArgumentException("Jev is world-level assistance, not an individual agent's model.", nameof(action));
-            PlayerDecisionProviders.ValidateRoleProvider(role, provider);
-            next = SelectProvider(state, role, provider, action);
-            var model = provider == PlayerDecisionProviders.Deterministic ? null : CredentialFor(next, provider)!.Model;
-            // Selection validates credentials, but a personal model must not change the world model.
-            if (provider != PlayerDecisionProviders.Deterministic)
+            PlayerDecisionProviders.ValidateRoleProvider(
+                role == PlayerDecisionProviders.PersonalRole ? PlayerDecisionProviders.PlanningRole : role, provider);
+            string? slotId = null;
+            string? model;
+            if (action.CredentialSlotId is not null)
             {
-                next = WithCredential(next, provider, CredentialFor(next, provider)! with { Model = CredentialFor(state, provider)!.Model });
+                if (provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud) ||
+                    !Guid.TryParseExact(action.CredentialSlotId, "N", out _))
+                    throw new ArgumentException("A hosted agent credential needs a valid slot ID.", nameof(action));
+                slotId = action.CredentialSlotId;
+                var slots = state.CredentialSlots ?? [];
+                if (action.NewCredentialLabel is not null)
+                {
+                    if (slots.Any(item => item.Id == slotId))
+                        throw new ArgumentException("That credential slot already exists.", nameof(action));
+                    var label = NormalizeSlotLabel(action.NewCredentialLabel);
+                    var key = NormalizeRequiredApiKey(action.ApiKey);
+                    next = next with { CredentialSlots = [.. slots, new ProviderCredentialSlot(slotId, provider, label, key)] };
+                }
+                else if (action.ApiKey is not null || !slots.Any(item => item.Id == slotId && item.Provider == provider))
+                    throw new ArgumentException("Select an existing credential slot or create a new one.", nameof(action));
+                model = NormalizeModel(action.Model, CredentialFor(state, provider)!.Model);
             }
-            assignments.Add(new InhabitantProviderAssignment(id, role, provider, model));
+            else
+            {
+                if (action.NewCredentialLabel is not null)
+                    throw new ArgumentException("A new credential requires a slot ID.", nameof(action));
+                next = SelectProvider(state,
+                    role == PlayerDecisionProviders.PersonalRole ? PlayerDecisionProviders.PlanningRole : role,
+                    provider, action);
+                model = provider == PlayerDecisionProviders.Deterministic ? null : CredentialFor(next, provider)!.Model;
+                // Personal model selection must not change the world model.
+                if (provider != PlayerDecisionProviders.Deterministic)
+                    next = WithCredential(next, provider, CredentialFor(next, provider)! with { Model = CredentialFor(state, provider)!.Model });
+            }
+            foreach (var assignedRole in roles)
+                assignments.Add(new InhabitantProviderAssignment(id, assignedRole, provider, model, slotId));
         }
 
         next = next with
@@ -246,6 +288,12 @@ public sealed class ProviderConfigurationStore
             var json = File.ReadAllText(Path);
             var loaded = JsonSerializer.Deserialize<ProviderConfigurationState>(json, JsonOptions) ??
                 throw new InvalidDataException("The provider-configuration state file is empty.");
+            if (loaded.SchemaVersion == 2)
+            {
+                loaded = loaded with { SchemaVersion = StateSchemaVersion, CredentialSlots = [] };
+                ValidateState(loaded);
+                SaveUnsafe(loaded);
+            }
             ValidateState(loaded);
             RestrictPermissions(Path);
             return loaded;
@@ -339,10 +387,16 @@ public sealed class ProviderConfigurationStore
         var oldCredential = CredentialFor(current, provider)!;
         var model = NormalizeModel(action.Model, oldCredential.Model);
         var next = WithCredential(current, provider, new StoredProviderCredential(model, null));
-        next = next with { Assignments = (next.Assignments ?? []).Where(item => item.Provider != provider).ToArray() };
-        return string.Equals(ActiveProviderFor(current, role), provider, StringComparison.Ordinal)
-            ? WithActiveProvider(next, role, PlayerDecisionProviders.Deterministic)
-            : next;
+        next = next with
+        {
+            Assignments = (next.Assignments ?? [])
+                .Where(item => item.Provider != provider || item.CredentialSlotId is not null).ToArray(),
+        };
+        if (next.RoutineProvider == provider)
+            next = next with { RoutineProvider = PlayerDecisionProviders.Deterministic };
+        if (next.PlanningProvider == provider)
+            next = next with { PlanningProvider = PlayerDecisionProviders.Deterministic };
+        return next;
     }
 
     private static string ActiveProviderFor(ProviderConfigurationState state, string role) => role switch
@@ -399,7 +453,8 @@ public sealed class ProviderConfigurationStore
             new(PlayerDecisionProviders.Jev, state.Jev.Model, !string.IsNullOrWhiteSpace(state.Jev.ApiKey)),
             new(PlayerDecisionProviders.OpenAi, state.OpenAi.Model, !string.IsNullOrWhiteSpace(state.OpenAi.ApiKey)),
             new(PlayerDecisionProviders.OllamaCloud, state.OllamaCloud.Model, !string.IsNullOrWhiteSpace(state.OllamaCloud.ApiKey)),
-        ]), state.Assignments ?? []);
+        ]), state.Assignments ?? [], (state.CredentialSlots ?? [])
+            .Select(item => new OwnerProviderCredentialStatus(item.Id, item.Provider, item.Label)).ToArray());
 
     private static void ValidateState(ProviderConfigurationState state)
     {
@@ -415,6 +470,15 @@ public sealed class ProviderConfigurationStore
         ValidateCredential(state.Jev, PlayerDecisionProviders.DefaultJevModel);
         ValidateCredential(state.OpenAi, PlayerDecisionProviders.DefaultOpenAiModel);
         ValidateCredential(state.OllamaCloud, PlayerDecisionProviders.DefaultOllamaCloudModel);
+        var slotIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var slot in state.CredentialSlots ?? [])
+        {
+            if (!Guid.TryParseExact(slot.Id, "N", out _) || !slotIds.Add(slot.Id) ||
+                slot.Provider is not (PlayerDecisionProviders.OpenAi or PlayerDecisionProviders.OllamaCloud))
+                throw new InvalidDataException("A credential slot has an invalid or duplicate identity.");
+            _ = NormalizeSlotLabel(slot.Label);
+            _ = NormalizeRequiredApiKey(slot.ApiKey);
+        }
         var assignmentKeys = new HashSet<(string, string)>();
         foreach (var assignment in state.Assignments ?? [])
         {
@@ -424,7 +488,11 @@ public sealed class ProviderConfigurationStore
                 throw new InvalidDataException("Provider assignments must have unique inhabitant/role identities.");
             }
             PlayerDecisionProviders.ValidateRoleProvider(assignment.Role, assignment.Provider);
+            if (assignment.CredentialSlotId is not null &&
+                !(state.CredentialSlots ?? []).Any(item => item.Id == assignment.CredentialSlotId && item.Provider == assignment.Provider))
+                throw new InvalidDataException("An agent assignment references a missing provider credential slot.");
             if (assignment.Provider != PlayerDecisionProviders.Deterministic &&
+                assignment.CredentialSlotId is null &&
                 string.IsNullOrWhiteSpace(CredentialFor(state, assignment.Provider)?.ApiKey))
             {
                 throw new InvalidDataException("An assigned provider has no stored credential.");
@@ -488,6 +556,14 @@ public sealed class ProviderConfigurationStore
             throw new ArgumentException($"A provider model must contain 1 to {MaximumModelLength} printable characters.", nameof(model));
         }
 
+        return normalized;
+    }
+
+    private static string NormalizeSlotLabel(string? label)
+    {
+        var normalized = label?.Trim() ?? string.Empty;
+        if (normalized.Length is < 1 or > 64 || normalized.Any(char.IsControl))
+            throw new ArgumentException("A credential label must contain 1 to 64 printable characters.", nameof(label));
         return normalized;
     }
 
@@ -622,6 +698,12 @@ public sealed partial class ConfigurableDecisionProvider(
         var routing = ProviderFor(selected, request.Observation, worldJev.Enabled);
         var providerId = routing.Provider;
         var credential = CredentialFor(selected, providerId);
+        if (routing.Assignment?.CredentialSlotId is { } slotId)
+        {
+            var slot = selected.CredentialSlots?.FirstOrDefault(item => item.Id == slotId && item.Provider == providerId)
+                ?? throw new InvalidOperationException("The assigned credential slot is unavailable.");
+            credential = credential with { ApiKey = slot.ApiKey };
+        }
         if (routing.Assignment?.Model is { } model)
         {
             credential = credential with { Model = model };

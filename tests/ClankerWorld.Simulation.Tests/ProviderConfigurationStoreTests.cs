@@ -159,6 +159,100 @@ public sealed class ProviderConfigurationStoreTests
     }
 
     [Fact]
+    public async Task AgentsCanUseSeparateKeysForOneProviderWithoutExposingKeysOrDependingOnTheDefault()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-key-slots-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "providers.json");
+            var store = new ProviderConfigurationStore(path, EmptySeed());
+            var firstSlot = Guid.NewGuid().ToString("N");
+            var secondSlot = Guid.NewGuid().ToString("N");
+            _ = store.Configure(new("planning", "openai", "model-one", "first-agent-secret", false,
+                "inhabitant-test", firstSlot, "First account"));
+            _ = store.Configure(new("planning", "openai", "model-two", "second-agent-secret", false,
+                "other", secondSlot, "Second account"));
+            Assert.Equal("deterministic", store.CaptureStatus().PlanningProvider);
+            Assert.False(store.CaptureStatus().Providers.Single(item => item.Provider == "openai").HasCredential);
+            Assert.Equal(2, store.CaptureStatus().CredentialSlots!.Count);
+            Assert.DoesNotContain("first-agent-secret", System.Text.Json.JsonSerializer.Serialize(store.CaptureStatus()), StringComparison.Ordinal);
+            Assert.DoesNotContain("second-agent-secret", System.Text.Json.JsonSerializer.Serialize(store.CaptureStatus()), StringComparison.Ordinal);
+
+            store = new ProviderConfigurationStore(path, EmptySeed());
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            _ = await router.DecideAsync(Request(router.ProviderEpoch, strategic: true));
+            Assert.Equal("Bearer first-agent-secret", handler.LastAuthorization);
+            Assert.Equal("model-one", handler.LastModel);
+            var other = Request(router.ProviderEpoch, strategic: true);
+            _ = await router.DecideAsync(other with { Observation = other.Observation with { InhabitantId = "other" } });
+            Assert.Equal("Bearer second-agent-secret", handler.LastAuthorization);
+            Assert.Equal("model-two", handler.LastModel);
+
+            _ = store.Configure(new("planning", "openai", "shared-model", "default-secret", false));
+            _ = store.Configure(new("planning", "openai", null, null, true));
+            Assert.Equal(2, store.CaptureStatus().Assignments!.Count);
+            _ = await router.DecideAsync(Request(router.ProviderEpoch, strategic: true));
+            Assert.Equal("Bearer first-agent-secret", handler.LastAuthorization);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task PersonalModelSelectionRoutesRoutineAndPlanningToTheSameAgentCredential()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-personal-model-");
+        try
+        {
+            var store = new ProviderConfigurationStore(Path.Combine(directory.FullName, "providers.json"), EmptySeed());
+            var slot = Guid.NewGuid().ToString("N");
+            _ = store.Configure(new("personal", "openai", "chosen-model", "chosen-secret", false,
+                "inhabitant-test", slot, "Personal"));
+            Assert.Equal(2, store.CaptureStatus().Assignments!.Count);
+            var handler = new ProviderResponseHandler();
+            var router = new ConfigurableDecisionProvider(store, new FixedHttpClientFactory(handler));
+            _ = await router.DecideAsync(Request(router.ProviderEpoch, strategic: false));
+            Assert.Equal("Bearer chosen-secret", handler.LastAuthorization);
+            Assert.Equal("chosen-model", handler.LastModel);
+            _ = await router.DecideAsync(Request(router.ProviderEpoch, strategic: true));
+            Assert.Equal("Bearer chosen-secret", handler.LastAuthorization);
+            Assert.Equal("chosen-model", handler.LastModel);
+
+            _ = store.Configure(new("personal", "inherit", null, null, false, "inhabitant-test"));
+            Assert.Empty(store.CaptureStatus().Assignments!);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void PriorProviderConfigurationMigratesWithoutChangingItsSavedKey()
+    {
+        var directory = Directory.CreateTempSubdirectory("clankerworld-key-migration-");
+        try
+        {
+            var path = Path.Combine(directory.FullName, "providers.json");
+            var store = new ProviderConfigurationStore(path, EmptySeed());
+            _ = store.Configure(new("planning", "openai", "prior-model", "prior-secret", false));
+            var prior = File.ReadAllText(path).Replace("\"SchemaVersion\":3", "\"SchemaVersion\":2", StringComparison.Ordinal);
+            File.WriteAllText(path, prior);
+            var migrated = new ProviderConfigurationStore(path, EmptySeed());
+            Assert.Equal("prior-secret", migrated.CaptureRuntimeConfiguration().OpenAi.ApiKey);
+            Assert.Equal("openai", migrated.CaptureStatus().PlanningProvider);
+            Assert.Contains("\"SchemaVersion\":3", File.ReadAllText(path), StringComparison.Ordinal);
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void AssignmentTargetIsBoundByBothClientAndServerSignatures()
     {
         var action = new OwnerProviderConfigurationAction("planning", "deterministic", null, null, false, "mira");
@@ -169,6 +263,16 @@ public sealed class ProviderConfigurationStoreTests
             OwnerHttpBinding.ProviderConfigurationPayload(action with { InhabitantId = "rowan" }));
         Assert.NotEqual(OwnerHttpBinding.ProviderConfigurationPayload(action),
             OwnerHttpBinding.ProviderConfigurationPayload(action with { InhabitantId = null }));
+        var slotAction = action with { Provider = "openai", CredentialSlotId = Guid.NewGuid().ToString("N"), NewCredentialLabel = "Personal" };
+        var clientSlotAction = new ClankerWorld.GodotClient.UI.OwnerProviderConfigurationAction(
+            slotAction.Role, slotAction.Provider, slotAction.Model, slotAction.ApiKey,
+            slotAction.ForgetCredential, slotAction.InhabitantId, slotAction.CredentialSlotId, slotAction.NewCredentialLabel);
+        Assert.Equal(OwnerHttpBinding.ProviderConfigurationPayload(slotAction),
+            ClankerWorld.GodotClient.UI.OwnerWorldActionPayload.ProviderConfiguration(clientSlotAction));
+        Assert.NotEqual(OwnerHttpBinding.ProviderConfigurationPayload(slotAction),
+            OwnerHttpBinding.ProviderConfigurationPayload(slotAction with { CredentialSlotId = Guid.NewGuid().ToString("N") }));
+        Assert.NotEqual(OwnerHttpBinding.ProviderConfigurationPayload(slotAction),
+            OwnerHttpBinding.ProviderConfigurationPayload(slotAction with { NewCredentialLabel = "Imposter" }));
     }
 
     [Fact]

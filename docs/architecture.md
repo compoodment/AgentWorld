@@ -35,8 +35,8 @@ The current host schedules one world tick per real second. Newly created
 private worlds start paused and save the accepted playtest pace: 360 ticks per day and a 40-day
 year with four 10-day seasons. The same world setup saves day-based lifecycle
 thresholds (3/15/45/60 days). A day is therefore nominally six real minutes,
-subject to provider/host load. The old development save still carries its
-1,440-tick day and 365-day year; it is not silently reinterpreted.
+subject to provider/host load. The former 1,440-tick/365-day development save
+is archived, not silently reinterpreted as a new-world save.
 Owner observations report the saved world-system ticks per day and days per
 year; the client uses those values for clock/date presentation rather than
 assuming one fixed tick length. The 365-day prototype and new 40-day calendar
@@ -78,6 +78,10 @@ Jev-assisted memory compaction is not implemented yet.
   returned in observations or written to telemetry. Operational logs are
   bounded, structured outcome records, not raw prompts or secret-bearing
   responses.
+  The installation-local provider store also owns named key slots for agent
+  assignments. Signed owner actions bind the selected slot ID and new-key
+  label; owner status returns only non-secret IDs and labels. One personal
+  provider/model selection produces routine and planning assignments together.
 - Agents have bounded personal knowledge. A fact in the world or visible to
   the player is not automatically known to every agent. Accepted personal-model
   decisions can include a short in-character private thought; the last eight
