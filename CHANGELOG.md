@@ -8,6 +8,12 @@ release yet.
 
 ### Added
 
+- Pause Menu → **Save World** now creates an unlimited named checkpoint of the
+  paused world. Main Menu → **Load Save** lists those checkpoints, confirms a
+  rewind, preserves the current state as a new checkpoint first, and opens the
+  loaded world paused. Saves survive restart and retain per-agent model/key-slot
+  choices without copying API-key secrets into world files.
+
 - Freshly placed founders and later added adults can choose their own names in
   an accepted ordinary personal-model decision, without a separate naming
   request. If the player renames one first, a delayed model answer cannot
@@ -25,8 +31,8 @@ release yet.
 
 - The Windows client now starts at a Main Menu with Continue, Settings,
   connection/pairing and Quit Game. Quit to Menu pauses the host world; Continue
-  returns to it. New World and Load World are shown as unavailable until those
-  flows actually work.
+  returns to it. New World remains unavailable until generated worlds can be
+  played; Load Save handles named checkpoints of the current development world.
 
 - Building placement now has an explicit buildable-ground rule. The existing
   mountain tiles reject construction, including owner-authored placement;

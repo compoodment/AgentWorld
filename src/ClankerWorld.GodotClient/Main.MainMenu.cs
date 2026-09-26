@@ -9,8 +9,10 @@ public partial class Main
     private readonly Label mainMenuStatus = new();
     private readonly Button mainMenuContinueButton = new();
     private readonly Button mainMenuConnectButton = new();
+    private readonly Button mainMenuLoadButton = new();
     private readonly Button menuQuitToMainButton = new();
     private readonly Button menuCreationButton = new();
+    private readonly Button menuSaveWorldButton = new();
     private readonly ConfirmationDialog quitToMenuConfirmation = new();
     private bool isInWorld;
     private bool returnToMainMenu;
@@ -63,10 +65,11 @@ public partial class Main
         StyleButton(newWorld);
         body.AddChild(newWorld);
 
-        var loadWorld = new Button { Text = "Load World", Disabled = true };
-        loadWorld.TooltipText = "The current development host supports one active world; world selection is under construction.";
-        StyleButton(loadWorld);
-        body.AddChild(loadWorld);
+        mainMenuLoadButton.Text = "Load Save";
+        mainMenuLoadButton.TooltipText = "Load a named checkpoint of the current world. The current state is preserved first.";
+        StyleButton(mainMenuLoadButton);
+        mainMenuLoadButton.Pressed += () => _ = OpenManualSavesAsync(loadMode: true);
+        body.AddChild(mainMenuLoadButton);
 
         var settings = new Button { Text = "Settings" };
         StyleButton(settings);
@@ -104,6 +107,7 @@ public partial class Main
     {
         var paired = !registeredEndpointInvalid && registration is not null && deviceKey is not null;
         mainMenuContinueButton.Disabled = !paired;
+        mainMenuLoadButton.Disabled = !paired;
         mainMenuConnectButton.Visible = !paired;
         mainMenuStatus.Text = paired
             ? "Continue the current development world. World generation and multiple saves are being built."
@@ -168,6 +172,7 @@ public partial class Main
 
     private void SetWorldMenuActionsVisible(bool visible)
     {
+        menuSaveWorldButton.Visible = visible;
         worldSettingsButton.Visible = visible;
         menuCreationButton.Visible = visible;
         developerToggleButton.Visible = visible;

@@ -1,0 +1,16 @@
+namespace ClankerWorld.Viewer.Observation;
+
+public static partial class ManualWorldSaveTelemetry
+{
+    [LoggerMessage(EventId = 2250, Level = LogLevel.Information,
+        Message = "manual_save outcome=created save={SaveId} tick={WorldTick}")]
+    public static partial void Created(ILogger logger, string saveId, long worldTick);
+
+    [LoggerMessage(EventId = 2251, Level = LogLevel.Information,
+        Message = "manual_save outcome=loaded save={SaveId} backup={BackupId} tick={WorldTick}")]
+    public static partial void Loaded(ILogger logger, string saveId, string backupId, long worldTick);
+
+    [LoggerMessage(EventId = 2252, Level = LogLevel.Warning,
+        Message = "manual_save outcome=rejected operation={Operation} reason={Reason}")]
+    public static partial void Rejected(ILogger logger, string operation, string reason);
+}

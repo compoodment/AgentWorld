@@ -105,6 +105,7 @@ builder.Services.AddSingleton<PrivateWorldStateFile>(services => new PrivateWorl
     privateRuntimeStatePath,
     _ => services.GetRequiredService<IDecisionProvider>(),
     WorldStartPace.FounderSetup));
+builder.Services.AddSingleton(new ManualWorldSaveStore(privateRuntimeStatePath));
 builder.Services.AddSingleton<PrivateWorldRuntime>(services =>
 {
     var runtime = services.GetRequiredService<PrivateWorldStateFile>().LoadOrCreate(runtimeSeed);
@@ -470,6 +471,131 @@ app.MapPost("/api/v1/owner/control/resume", (
     }
 
     return Results.Ok(OwnerControlReceipt.From("resume", legacyChanged, runtime.Capture().Snapshot));
+});
+
+app.MapPost("/api/v1/owner/saves/list", (
+    OwnerSignedHttpRequest<OwnerControlAction> request,
+    OwnerRequestAuthorizer authorizer,
+    ManualWorldSaveStore saves) =>
+{
+    if (!IsControl(request, "list-saves"))
+        return Results.BadRequest(new { error = "A save-list action is required." });
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/list",
+        OwnerHttpBinding.EmptyPayload("list-saves"));
+    if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (!isPrivateWorld) return Results.Conflict(new { error = "Manual saves require a private world." });
+    return Results.Ok(saves.List());
+});
+
+app.MapPost("/api/v1/owner/saves/create", (
+    OwnerSignedHttpRequest<OwnerManualSaveAction> request,
+    OwnerRequestAuthorizer authorizer,
+    ManualWorldSaveStore saves,
+    PrivateWorldRuntime runtime,
+    ProviderConfigurationStore providers,
+    ILogger<PrivateWorldRuntimeService> logger) =>
+{
+    if (request?.Action is not { Operation: "create" } action)
+        return Results.BadRequest(new { error = "A named save action is required." });
+    string payload;
+    try { payload = OwnerHttpBinding.ManualSavePayload(action); }
+    catch (ArgumentException) { return Results.BadRequest(new { error = "A save name is required." }); }
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/create", payload);
+    if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (!isPrivateWorld) return Results.Conflict(new { error = "Manual saves require a private world." });
+    try
+    {
+        var saved = saves.Create(action.Value, runtime,
+            providers.CaptureRuntimeConfiguration().Assignments ?? []);
+        ManualWorldSaveTelemetry.Created(logger, saved.Id, saved.WorldTick);
+        return Results.Ok(saved);
+    }
+    catch (ArgumentException)
+    {
+        ManualWorldSaveTelemetry.Rejected(logger, "create", "invalid_name");
+        return Results.BadRequest(new { error = "Save name must be 1–80 printable characters." });
+    }
+    catch (InvalidOperationException)
+    {
+        ManualWorldSaveTelemetry.Rejected(logger, "create", "not_paused");
+        return Results.Conflict(new { error = "Pause the world before saving." });
+    }
+});
+
+app.MapPost("/api/v1/owner/saves/load", (
+    OwnerSignedHttpRequest<OwnerManualSaveAction> request,
+    OwnerRequestAuthorizer authorizer,
+    ManualWorldSaveStore saves,
+    PrivateWorldRuntime runtime,
+    PrivateWorldStateFile stateFile,
+    ProviderConfigurationStore providers,
+    WorldJevPolicy jevPolicy,
+    ILogger<PrivateWorldRuntimeService> logger) =>
+{
+    if (request?.Action is not { Operation: "load" } action)
+        return Results.BadRequest(new { error = "A save-load action is required." });
+    string payload;
+    try { payload = OwnerHttpBinding.ManualSavePayload(action); }
+    catch (ArgumentException) { return Results.BadRequest(new { error = "A save ID is required." }); }
+    var authorization = authorizer.Authorize(request, "POST", "/api/v1/owner/saves/load", payload);
+    if (!authorization.IsSuccess) return OwnerFailures.ToHttpResult(authorization.Failure);
+    if (!isPrivateWorld) return Results.Conflict(new { error = "Manual saves require a private world." });
+    if (!runtime.Society.IsPaused)
+    {
+        ManualWorldSaveTelemetry.Rejected(logger, "load", "not_paused");
+        return Results.Conflict(new { error = "Pause the world before loading." });
+    }
+    try
+    {
+        var checkpoint = saves.Read(action.Value);
+        var assignments = saves.ReadAssignments(action.Value);
+        if (!string.Equals(checkpoint.WorldSeed, runtime.ExportState().WorldSeed, StringComparison.Ordinal))
+        {
+            ManualWorldSaveTelemetry.Rejected(logger, "load", "different_world");
+            return Results.Conflict(new { error = "This save belongs to a different world." });
+        }
+        // A rewind must never destroy the current timeline. The backup is a
+        // normal named checkpoint, visible in Load Saves immediately.
+        var backup = saves.Create("Before loading", runtime,
+            providers.CaptureRuntimeConfiguration().Assignments ?? []);
+        try
+        {
+            runtime.LoadPausedCheckpoint(checkpoint);
+            stateFile.Save(runtime);
+            providers.RestoreWorldAssignments(assignments);
+            jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+        }
+        catch
+        {
+            runtime.LoadPausedCheckpoint(saves.Read(backup.Id));
+            stateFile.Save(runtime);
+            providers.RestoreWorldAssignments(saves.ReadAssignments(backup.Id));
+            jevPolicy.Initialize(runtime.JevEnabled, runtime.JevPolicyRevision);
+            throw;
+        }
+        ManualWorldSaveTelemetry.Loaded(logger, action.Value, backup.Id, runtime.WorldTick);
+        return Results.Ok(new { loadedId = action.Value, backupId = backup.Id, worldTick = runtime.WorldTick });
+    }
+    catch (FileNotFoundException)
+    {
+        ManualWorldSaveTelemetry.Rejected(logger, "load", "missing");
+        return Results.NotFound(new { error = "The manual save no longer exists." });
+    }
+    catch (ArgumentException)
+    {
+        ManualWorldSaveTelemetry.Rejected(logger, "load", "invalid_id");
+        return Results.BadRequest(new { error = "Invalid save ID." });
+    }
+    catch (InvalidDataException)
+    {
+        ManualWorldSaveTelemetry.Rejected(logger, "load", "invalid_checkpoint_or_credential");
+        return Results.Conflict(new { error = "The save is invalid or its credential slot is unavailable." });
+    }
+    catch (InvalidOperationException)
+    {
+        ManualWorldSaveTelemetry.Rejected(logger, "load", "not_paused");
+        return Results.Conflict(new { error = "Pause the world before loading." });
+    }
 });
 
 app.MapPost("/api/v1/owner/founders/place", (

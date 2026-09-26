@@ -158,6 +158,21 @@ public sealed class ProviderConfigurationStore
         }
     }
 
+    /// <summary>Restore per-agent routing from a world checkpoint, leaving installation keys and defaults alone.</summary>
+    public void RestoreWorldAssignments(IReadOnlyList<InhabitantProviderAssignment> assignments)
+    {
+        ArgumentNullException.ThrowIfNull(assignments);
+        lock (gate)
+        {
+            var ordered = assignments.OrderBy(item => item.InhabitantId, StringComparer.Ordinal)
+                .ThenBy(item => item.Role, StringComparer.Ordinal).ToArray();
+            var next = state with { Assignments = ordered, Revision = checked(state.Revision + 1) };
+            ValidateState(next);
+            SaveUnsafe(next);
+            state = next;
+        }
+    }
+
     public OwnerProviderConfigurationStatus Configure(OwnerProviderConfigurationAction action)
     {
         ArgumentNullException.ThrowIfNull(action);

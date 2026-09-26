@@ -263,6 +263,9 @@ public sealed record OwnerWorldReconnect(OwnerWorldHandshake Handshake, OwnerWor
 public sealed record OwnerReconnectAction(long AfterEventId);
 
 public sealed record OwnerControlAction(string Operation);
+public sealed record OwnerManualSaveAction(string Operation, string Value);
+public sealed record ManualWorldSave(string Id, string Name, DateTimeOffset CreatedUtc, long WorldTick);
+public sealed record ManualSaveLoadReceipt(string LoadedId, string BackupId, long WorldTick);
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
 
@@ -461,6 +464,9 @@ public sealed class OwnerWorldObservationSession
 
     public long EventCursor => Current?.Baseline.Snapshot.LatestEventId ?? 0;
 
+    /// <summary>A confirmed manual rewind starts a new observation timeline.</summary>
+    public void ResetAfterLoad() => Current = null;
+
     public bool TryAccept(OwnerWorldReconnect response, long requestedAfterEventId, out string failure)
     {
         ArgumentNullException.ThrowIfNull(response);
@@ -540,6 +546,12 @@ public static class OwnerWorldActionPayload
         '\n',
         "clankerworld.owner-control.v1",
         $"operation={EncodeRequired(operation, nameof(operation))}");
+
+    public static string ManualSave(OwnerManualSaveAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-manual-save.v1",
+        $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
+        $"value={EncodeRequired(action.Value, nameof(action.Value))}");
 
     public static string LifePace(OwnerLifePaceAction action) =>
         "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);
@@ -868,6 +880,39 @@ public sealed class OwnerWorldApi
         return pairing.SendSignedActionAsync<OwnerControlAction, OwnerControlReceipt>(
             serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerStartWorld,
             OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("start-world"),
+            action, deviceKey, cancellationToken);
+    }
+
+    public Task<ManualWorldSave[]> ListManualSavesAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerControlAction("list-saves");
+        return pairing.SendSignedActionAsync<OwnerControlAction, ManualWorldSave[]>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerSaveList,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.Control("list-saves"),
+            action, deviceKey, cancellationToken);
+    }
+
+    public Task<ManualWorldSave> CreateManualSaveAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        string name, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerManualSaveAction("create", name);
+        return pairing.SendSignedActionAsync<OwnerManualSaveAction, ManualWorldSave>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerSaveCreate,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.ManualSave(action),
+            action, deviceKey, cancellationToken);
+    }
+
+    public Task<ManualSaveLoadReceipt> LoadManualSaveAsync(
+        Uri serverUri, OwnerAuthorityIdentity authority, string deviceId,
+        string id, IOwnerDeviceSigner deviceKey, CancellationToken cancellationToken)
+    {
+        var action = new OwnerManualSaveAction("load", id);
+        return pairing.SendSignedActionAsync<OwnerManualSaveAction, ManualSaveLoadReceipt>(
+            serverUri, authority, deviceId, OwnerPairingEndpoints.OwnerSaveLoad,
+            OwnerPairingProtocol.CreateRequestId(), OwnerWorldActionPayload.ManualSave(action),
             action, deviceKey, cancellationToken);
     }
 

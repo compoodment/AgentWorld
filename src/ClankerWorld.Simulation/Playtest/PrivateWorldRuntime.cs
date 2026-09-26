@@ -494,7 +494,35 @@ public sealed partial class PrivateWorldRuntime : IDisposable
         checkpointSchemaVersion = proposed.checkpointSchemaVersion;
         jevEnabled = proposed.jevEnabled;
         jevPolicyRevision = proposed.jevPolicyRevision;
+        founderSetup = proposed.founderSetup;
         nextInstructionSequence = proposed.nextInstructionSequence;
+    }
+
+    /// <summary>Rewind this paused world to a validated checkpoint of the same world.</summary>
+    public void LoadPausedCheckpoint(PrivateWorldRuntimeState checkpoint)
+    {
+        ArgumentNullException.ThrowIfNull(checkpoint);
+        if (!string.Equals(checkpoint.WorldSeed, worldSeed, StringComparison.Ordinal))
+            throw new InvalidDataException("A checkpoint belongs to a different world.");
+        tickGate.Wait();
+        try
+        {
+            gate.Wait();
+            try
+            {
+                if (!society.Checkpoint.IsPaused)
+                    throw new InvalidOperationException("Pause the world before loading a checkpoint.");
+                using var restored = Restore(checkpoint, providerFactory,
+                    maxCognitionDispatchPerCycle, minimumCognitionConfidence);
+                // Loading never resumes a world implicitly, even if the saved
+                // checkpoint was taken while it was running.
+                restored.Pause();
+                foreach (var id in pendingHosted.Keys.ToArray()) CancelPendingHosted(id);
+                CommitPreparedTick(restored);
+            }
+            finally { gate.Release(); }
+        }
+        finally { tickGate.Release(); }
     }
 
     private async ValueTask<PrivateWorldStepResult> AdvancePreparedTickAsync(

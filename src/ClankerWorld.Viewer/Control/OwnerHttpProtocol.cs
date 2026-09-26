@@ -36,6 +36,7 @@ public sealed record OwnerSignedHttpRequest<TAction>(
 public sealed record OwnerReconnectAction(long AfterEventId);
 
 public sealed record OwnerControlAction(string Operation);
+public sealed record OwnerManualSaveAction(string Operation, string Value);
 public sealed record OwnerLifePaceAction(int Rate);
 public sealed record OwnerJevAssistanceAction(bool Enabled);
 
@@ -159,6 +160,12 @@ public static class OwnerHttpBinding
         '\n',
         "clankerworld.owner-control.v1",
         $"operation={EncodeRequired(operation, nameof(operation))}");
+
+    public static string ManualSavePayload(OwnerManualSaveAction action) => string.Join(
+        '\n',
+        "clankerworld.owner-manual-save.v1",
+        $"operation={EncodeRequired(action.Operation, nameof(action.Operation))}",
+        $"value={EncodeRequired(action.Value, nameof(action.Value))}");
 
     public static string LifePacePayload(OwnerLifePaceAction action) =>
         "clankerworld.owner-life-pace.v1\nrate=" + action.Rate.ToString(CultureInfo.InvariantCulture);

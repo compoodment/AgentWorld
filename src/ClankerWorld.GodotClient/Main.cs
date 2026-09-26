@@ -222,6 +222,12 @@ public partial class Main : Control
                 if (!mainMenuOverlay.GetGlobalRect().Encloses(mainMenuCard.GetGlobalRect()) ||
                     mainMenuOverlay.GetGlobalRect().GetCenter().DistanceTo(mainMenuCard.GetGlobalRect().GetCenter()) > 2)
                     throw new InvalidOperationException($"Main Menu escaped its centered bounds at {size}.");
+                manualSaveOverlay.Show();
+                await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+                if (!manualSaveOverlay.GetGlobalRect().Encloses(manualSaveCard.GetGlobalRect()) ||
+                    manualSaveOverlay.GetGlobalRect().GetCenter().DistanceTo(manualSaveCard.GetGlobalRect().GetCenter()) > 2)
+                    throw new InvalidOperationException($"Save/load panel escaped its centered bounds at {size}.");
+                manualSaveOverlay.Hide();
             }
             OpenMainMenuSettings();
             if (mainMenuOverlay.Visible || !gameMenuPanel.Visible || !gameSettingsContent.Visible)
@@ -1571,6 +1577,7 @@ public partial class Main : Control
         BuildStatusToast(mapCanvas);
         BuildCreationWorkbench();
         BuildMainMenu();
+        BuildManualSavesPanel();
 
         Resized += ApplyResponsiveLayout;
         ApplyResponsiveLayout();
@@ -2049,6 +2056,11 @@ public partial class Main : Control
         StyleButton(menuResumeButton, primary: true);
         menuResumeButton.Pressed += () => _ = CloseGameMenuAsync();
         menuActions.AddChild(menuResumeButton);
+
+        menuSaveWorldButton.Text = "Save World";
+        StyleButton(menuSaveWorldButton);
+        menuSaveWorldButton.Pressed += () => _ = OpenManualSavesAsync(loadMode: false);
+        menuActions.AddChild(menuSaveWorldButton);
 
         gameSettingsButton.Text = "Game Settings";
         StyleButton(gameSettingsButton);

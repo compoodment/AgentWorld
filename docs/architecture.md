@@ -102,7 +102,12 @@ Jev-assisted memory compaction is not implemented yet.
   Restores must fail visibly on unsupported or mismatched state rather than
   silently substitute content or credentials. The current host keeps bounded
   hot history and hashed older event segments; backups must include the save
-  and its referenced history.
+  and its referenced history. Named manual checkpoints live beside the active
+  save in a private `.manual` directory; their snapshots reference the same
+  history archive. Checkpoint metadata records per-agent provider/model and
+  credential-slot IDs, never API-key bytes. A full backup must retain the
+  active save, `.history`, `.manual`, pairing authority and global provider
+  configuration together.
 - The current content path accepts bounded, validated data-only designs.
   Arbitrary executable agent code is disabled. The vision includes a
   restricted script sandbox and explicit human-mod import; neither is a

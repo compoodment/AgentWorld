@@ -20,6 +20,9 @@ public static class OwnerPairingEndpoints
     public const string OwnerJevAssistance = "/api/v1/owner/control/jev-assistance";
     public const string OwnerResume = "/api/v1/owner/control/resume";
     public const string OwnerStartWorld = "/api/v1/owner/control/start-world";
+    public const string OwnerSaveList = "/api/v1/owner/saves/list";
+    public const string OwnerSaveCreate = "/api/v1/owner/saves/create";
+    public const string OwnerSaveLoad = "/api/v1/owner/saves/load";
     public const string OwnerFounderPlace = "/api/v1/owner/founders/place";
     public const string OwnerAgentPlace = "/api/v1/owner/agents/place";
     public const string OwnerAgentRename = "/api/v1/owner/agents/rename";
