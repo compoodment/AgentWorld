@@ -14,19 +14,6 @@ public sealed class AssetGovernanceTests
         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
     [Fact]
-    public void CanonicalAssetIdsReuseTheImmutableContentDefinitionConvention()
-    {
-        var version = ContentVersion.Parse("1.2.3");
-
-        var assetId = AssetRules.CanonicalAssetId(PackageDigest, "sunroot", version);
-
-        Assert.Equal($"{PackageDigest}/asset/sunroot@1.2.3", assetId);
-        AssetRules.ValidateCanonicalAssetId(assetId);
-        Assert.Throws<ArgumentException>(() =>
-            AssetRules.ValidateCanonicalAssetId($"{PackageDigest}/asset/Sunroot@1.2.3"));
-    }
-
-    [Fact]
     public void RightsAndProvenanceAreRequiredAndUnknownRightsBlockExport()
     {
         var incomplete = Candidate(

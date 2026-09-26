@@ -377,10 +377,18 @@ public sealed class CognitionRuntime
 
     private CognitionAdmissionResult ApplyFallbackLocked(CognitionDecisionRequest request, string reason)
     {
-        var candidate = request.Observation.Candidates
-            .OrderBy(candidate => candidate.DeterministicPriority)
-            .ThenBy(candidate => candidate.Id, StringComparer.Ordinal)
-            .First();
+        // A provider outage or uncertain answer is not consent to an unrelated
+        // planning, social, or owner-instructed action. Ordinary deterministic
+        // providers still use candidate priorities when they are configured.
+        var candidate = request.Observation.Candidates.SingleOrDefault(candidate =>
+            string.Equals(candidate.Id, "safe_idle", StringComparison.Ordinal));
+        if (candidate is null)
+        {
+            currentIntention = null;
+            RetireInFlight(CognitionRequestState.Rejected, $"{reason}:no_safe_idle", null);
+            AppendEvent(request.Observation.WorldTick, "cognition_fallback_rejected", $"{reason}:no_safe_idle");
+            return Rejected($"{reason}:no_safe_idle");
+        }
         var intention = new CognitionIntention(
             InhabitantId,
             candidate.Id,

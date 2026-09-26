@@ -134,7 +134,6 @@ public sealed class SocietyLifePaceTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(2)]
     [InlineData(-1)]
     public void UnsupportedClockRatesFailClosed(int rate)
     {

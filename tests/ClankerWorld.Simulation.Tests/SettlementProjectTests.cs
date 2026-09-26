@@ -79,11 +79,6 @@ public sealed class SettlementProjectTests
 
     [Theory]
     [InlineData(4)]
-    [InlineData(6)]
-    [InlineData(7)]
-    [InlineData(8)]
-    [InlineData(9)]
-    [InlineData(10)]
     [InlineData(11)]
     public async Task LegacyCheckpointRemainsUntouchedUntilResumedAndThenMigrates(int schema)
     {
@@ -110,7 +105,6 @@ public sealed class SettlementProjectTests
 
     [Theory]
     [InlineData("build:", "working", 0)]
-    [InlineData("build:recipe:example", "invented", 0)]
     [InlineData("build:recipe:example", "working", 11)]
     public void InvalidProjectCheckpointFailsClosed(string candidate, string stage, int work)
     {

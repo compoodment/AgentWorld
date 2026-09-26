@@ -44,6 +44,10 @@ the chosen finished-game calendar or pace.
 - Provider work runs against an isolated proposed tick. A rejected, cancelled
   or superseded answer cannot leave a half-applied action. Pausing or losing
   client presence invalidates in-flight work in the current host.
+  Failure or low confidence selects only the explicit `safe_idle` fallback;
+  it cannot execute a strategic candidate or complete an instruction. A slow
+  request still delays the proposed tick because the scheduler awaits its
+  whole dispatch batch; nonblocking pending work is not implemented yet.
 - API credentials are stored separately from world saves and must not be
   returned in observations or written to telemetry. Operational logs are
   bounded, structured outcome records, not raw prompts or secret-bearing

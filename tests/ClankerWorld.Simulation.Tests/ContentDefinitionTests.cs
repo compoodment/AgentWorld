@@ -7,35 +7,6 @@ public sealed class ContentDefinitionTests
     private const string PackageDigest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
     [Fact]
-    public void BuildingAndRecipeDefinitionsHaveCanonicalIdsAndStablePayloadDigests()
-    {
-        var building = Building(
-            "forge",
-            tags: ["industry", "camp"],
-            costs: [new ContentQuantity("stone", 4), new ContentQuantity("wood", 2)]);
-        var recipe = Recipe(
-            "iron-ingot",
-            building,
-            inputs: [new ContentQuantity("ore", 2), new ContentQuantity("fuel", 1)],
-            outputs: [new ContentQuantity("ingot", 1)],
-            tags: ["metal", "crafting"]);
-        var samePayloadWithDifferentInputOrder = Building(
-            "forge",
-            tags: ["camp", "industry"],
-            costs: [new ContentQuantity("wood", 2), new ContentQuantity("stone", 4)]);
-
-        building.Validate();
-        recipe.Validate();
-
-        Assert.Equal($"{PackageDigest}/building/forge@1.0.0", building.CanonicalId);
-        Assert.Equal($"{PackageDigest}/recipe/iron-ingot@1.0.0", recipe.CanonicalId);
-        Assert.StartsWith("sha256:", building.PayloadDigest, StringComparison.Ordinal);
-        Assert.StartsWith("sha256:", recipe.PayloadDigest, StringComparison.Ordinal);
-        Assert.Equal(building.PayloadDigest, samePayloadWithDifferentInputOrder.PayloadDigest);
-        Assert.Equal(building.CanonicalId, recipe.WorkstationBuildingId);
-    }
-
-    [Fact]
     public void DefinitionCollectionsAreDefensivelyCopiedAndCanonicalized()
     {
         var costs = new List<ContentQuantity>

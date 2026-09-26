@@ -278,6 +278,11 @@ release yet.
 
 ### Fixed
 
+- An unavailable or low-confidence model now leaves its agent on the explicit
+  safe-idle fallback instead of silently choosing the highest-priority legal
+  action. Pending instructions are retained rather than marked completed by
+  that fallback; repeated failure no longer pauses the legacy fixture world.
+
 - Fixed the four-inhabitant world deadlocking around a single berry tile.
   Inhabitants now route around occupied tiles, interact with resources from an
   adjacent tile, prioritize critical sleep, and suppress repeated blocked-path

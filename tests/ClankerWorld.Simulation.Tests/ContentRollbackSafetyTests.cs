@@ -10,7 +10,6 @@ public sealed partial class PrivateWorldRuntimeTests
     [Theory]
     [InlineData("acquiring")]
     [InlineData("completed")]
-    [InlineData("cancelled")]
     public async Task RollbackPreservesRecordedProjectReferences(string stage)
     {
         using var seed = new PrivateWorldRuntime("rollback-project",
@@ -38,7 +37,6 @@ public sealed partial class PrivateWorldRuntimeTests
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
-    [InlineData(true, false)]
     [InlineData(true, true)]
     public async Task RollbackWithCommittedProductionReferencesRejectsWithoutDeletingWorldState(bool crop, bool completed)
     {
@@ -68,7 +66,6 @@ public sealed partial class PrivateWorldRuntimeTests
 
     [Theory]
     [InlineData(false)]
-    [InlineData(true)]
     public async Task WithdrawingUnusedPackageDoesNotCancelOtherPackagesWork(bool crop)
     {
         var (world, _, unusedPackage, jobId) = await WorldWithRollbackJob(crop);

@@ -118,6 +118,31 @@ public sealed partial class PrivateWorldRuntimeTests
             worldEvent => worldEvent.Kind == "instruction_applied" && worldEvent.Detail.Contains(first.InstructionId, StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData(OwnerInstructionKind.MustDo)]
+    [InlineData(OwnerInstructionKind.Suggestive)]
+    public async Task ProviderFailureDoesNotCompleteAnInstructionOrStopOtherAgents(OwnerInstructionKind kind)
+    {
+        using var runtime = new PrivateWorldRuntime("playtest-alpha", id =>
+            id == "founder-rowan" ? new FailingDecisionProvider() : new DeterministicDecisionProvider());
+        var instruction = runtime.SubmitInstruction(new OwnerInstructionRequest(
+            "outage-instruction", "owner-device:test", "founder-rowan",
+            kind, "sleep at the bedroll"));
+
+        var step = await runtime.AdvanceOneTickAsync();
+
+        Assert.True(step.Advanced);
+        Assert.Equal(1, runtime.WorldTick);
+        Assert.False(runtime.Society.IsPaused);
+        Assert.Equal("safe_idle", step.Decisions.Single(item => item.InhabitantId == "founder-rowan")
+            .Admission.Intention?.CandidateId);
+        Assert.Contains(step.Decisions, item => item.InhabitantId != "founder-rowan" &&
+            item.Admission.Intention?.CandidateId != "safe_idle");
+        Assert.DoesNotContain(instruction.InstructionId, runtime.ExportState().CompletedInstructionIds ?? []);
+        Assert.DoesNotContain(runtime.ExportState().Events, item =>
+            item.Kind == "instruction_applied" && item.Detail.Contains(instruction.InstructionId, StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task PrivateWorldActivatesStagedContentOnTheNextTickAndCanQuarantineIt()
     {
@@ -629,5 +654,14 @@ public sealed partial class PrivateWorldRuntimeTests
                 1d,
                 probabilities));
         }
+    }
+
+    private sealed class FailingDecisionProvider : IDecisionProvider
+    {
+        public DecisionProviderKind Kind => DecisionProviderKind.LargeLanguageModel;
+        public long ProviderEpoch => 1;
+        public ValueTask<CognitionDecisionResponse> DecideAsync(
+            CognitionDecisionRequest request, CancellationToken cancellationToken = default) =>
+            throw new HttpRequestException("provider unavailable");
     }
 }

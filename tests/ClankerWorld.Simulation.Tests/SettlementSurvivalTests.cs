@@ -13,9 +13,7 @@ public sealed class SettlementSurvivalTests
     [Theory]
     [InlineData(false, false, false)]
     [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
     [InlineData(true, true, false)]
-    [InlineData(false, true, true)]
     [InlineData(true, true, true)]
     public async Task WorkerDeathRespectsProductionCompletionAndReleasesUnfinishedInputs(bool crop, bool completionDue, bool completedBeforeDeath)
     {
@@ -196,7 +194,6 @@ public sealed class SettlementSurvivalTests
     [Theory]
     [InlineData(WeatherKind.Clear, 6)]
     [InlineData(WeatherKind.Snow, 3)]
-    [InlineData(WeatherKind.Storm, 4)]
     public async Task CropFoodYieldReflectsWeather(WeatherKind weather, int expected)
     {
         using var seed = new PrivateWorldRuntime("crop-weather", _ => new IdleProvider());

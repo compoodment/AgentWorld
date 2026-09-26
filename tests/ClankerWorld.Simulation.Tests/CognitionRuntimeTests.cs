@@ -133,7 +133,14 @@ public sealed class CognitionRuntimeTests
     {
         var runtime = new CognitionRuntime("actor-scout", new ThrowingProvider());
 
-        var result = await runtime.RequestAndDecideAsync(CreateObservation());
+        var result = await runtime.RequestAndDecideAsync(CreateObservation() with
+        {
+            Candidates =
+            [
+                new CognitionCandidate("build:home", "Build a home.", 0),
+                new CognitionCandidate("safe_idle", "Wait safely.", 100),
+            ],
+        });
 
         Assert.True(result.Accepted);
         Assert.True(result.FellBack);

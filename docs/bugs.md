@@ -12,6 +12,18 @@ may track active implementation work, but closing an issue does not remove an
 entry here until the fix is merged and verified through the normal product
 path.
 
+## Open vision-to-code defect
+
+- **Provider-held tick — open, high priority:** the private-world cognition
+  scheduler awaits every selected provider result before committing the next
+  tick. One slow model therefore delays the world and unrelated agents, against
+  the [decided continuous-simulation behavior](vision-interview.md#world-time-pausing-and-slow-models).
+  Failed requests now use only `safe_idle`, but that does not fix slow calls.
+  Acceptance: an indefinitely pending provider for one agent does not prevent
+  other agents and world systems from advancing; pause/quit promptly discard
+  pending work; late answers cannot mutate a later tick; save/reload retains
+  the affected agent's unresolved decision point without a partial action.
+
 ## Original reports and resolution evidence
 
 - **AW-B020 — fixed:** rollback deleted placed buildings and production history

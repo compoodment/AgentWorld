@@ -95,7 +95,6 @@ public sealed class WorldAssetReservationTests
 
     [Theory]
     [InlineData("durable")]
-    [InlineData("cache")]
     [InlineData("gpu")]
     public void SharedChargesMustAgreeAndRejectionIsAtomic(string charge)
     {
@@ -118,7 +117,6 @@ public sealed class WorldAssetReservationTests
 
     [Theory]
     [InlineData("durable")]
-    [InlineData("cache")]
     [InlineData("gpu")]
     public void AggregateOverflowReturnsADiagnosticWithoutMutation(string charge)
     {

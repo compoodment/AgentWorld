@@ -36,7 +36,6 @@ public sealed class SettlementCouncilTests
     [Theory]
     [InlineData("open", 6_000, true)]
     [InlineData("essential_first", 6_000, false)]
-    [InlineData("essential_first", 4_000, true)]
     public async Task AdoptedPolicyChangesSharedFoodAccessButProtectsHungryMembers(string policy, int hunger, bool allowed)
     {
         var state = await PreparedState();

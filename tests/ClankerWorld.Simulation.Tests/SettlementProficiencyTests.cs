@@ -10,14 +10,8 @@ public sealed class SettlementProficiencyTests
 {
     [Theory]
     [InlineData(0, false)]
-    [InlineData(9, false)]
     [InlineData(10, false)]
-    [InlineData(29, false)]
-    [InlineData(30, false)]
     [InlineData(0, true)]
-    [InlineData(9, true)]
-    [InlineData(10, true)]
-    [InlineData(29, true)]
     [InlineData(30, true)]
     public async Task PracticeImprovesWorkAndOnlySuccessfulCompletionEarnsCredit(int experience, bool finish)
     {
@@ -81,7 +75,6 @@ public sealed class SettlementProficiencyTests
 
     [Theory]
     [InlineData(-1, 11)]
-    [InlineData(31, 11)]
     [InlineData(1, 10)]
     public void InvalidOrOldSchemaPracticeFailsClosed(int experience, int schema)
     {

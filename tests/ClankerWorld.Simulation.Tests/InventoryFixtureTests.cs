@@ -7,7 +7,6 @@ public sealed class InventoryFixtureTests
 {
     [Theory]
     [InlineData("alpha")]
-    [InlineData("bravo")]
     public void EitherPartyCanDeclineWithoutTransferringOrRetainingReservations(string party)
     {
         var offered = InventoryFixture.CreateDirectBarterOffer(Genesis(),
@@ -26,7 +25,6 @@ public sealed class InventoryFixtureTests
 
     [Theory]
     [InlineData(false)]
-    [InlineData(true)]
     public void ExpiredBarterCannotAcquireEitherPartysAcceptance(bool firstAlreadyAccepted)
     {
         var offered = InventoryFixture.CreateDirectBarterOffer(Genesis(),

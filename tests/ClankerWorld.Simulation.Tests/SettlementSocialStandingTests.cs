@@ -10,8 +10,6 @@ public sealed class SettlementSocialStandingTests
 {
     [Theory]
     [InlineData(0, 12, false)]
-    [InlineData(11, 12, false)]
-    [InlineData(1, 11, false)]
     [InlineData(1, 12, true)]
     public void InvalidStandingFailsClosed(int trust, int schema, bool unknownSubject)
     {

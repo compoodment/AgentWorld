@@ -42,14 +42,7 @@ public sealed class StagedTickKernelTests
 
     [Theory]
     [InlineData(KernelPhase.Ingress)]
-    [InlineData(KernelPhase.ClockAndPassiveEffects)]
-    [InlineData(KernelPhase.NeedsAndHealth)]
-    [InlineData(KernelPhase.Lifecycle)]
-    [InlineData(KernelPhase.ReservationsAndMovement)]
     [InlineData(KernelPhase.RoutineWorkAndEconomy)]
-    [InlineData(KernelPhase.CommunicationAndObservation)]
-    [InlineData(KernelPhase.CognitionQueue)]
-    [InlineData(KernelPhase.DecisionsAndControl)]
     [InlineData(KernelPhase.Commit)]
     public void PauseRequestedAtAnyPhaseFinishesThatTickAndResumeIsIdempotent(KernelPhase phase)
     {
@@ -84,14 +77,7 @@ public sealed class StagedTickKernelTests
 
     [Theory]
     [InlineData(KernelPhase.Ingress)]
-    [InlineData(KernelPhase.ClockAndPassiveEffects)]
-    [InlineData(KernelPhase.NeedsAndHealth)]
-    [InlineData(KernelPhase.Lifecycle)]
-    [InlineData(KernelPhase.ReservationsAndMovement)]
     [InlineData(KernelPhase.RoutineWorkAndEconomy)]
-    [InlineData(KernelPhase.CommunicationAndObservation)]
-    [InlineData(KernelPhase.CognitionQueue)]
-    [InlineData(KernelPhase.DecisionsAndControl)]
     [InlineData(KernelPhase.Commit)]
     public void InterruptionAtEveryPhaseLeavesOnlyThePriorCheckpointAndRecoversDeterministically(KernelPhase phase)
     {

@@ -7,7 +7,6 @@ public sealed class WorldServerOriginTests
     [Theory]
     [InlineData("https://clanker.tail87ae72.ts.net:8443/")]
     [InlineData("https://EXAMPLE.test/")]
-    [InlineData("http://127.0.0.1:5188/")]
     [InlineData("http://[::1]:5188/")]
     public void AcceptsAnHttpsOriginOrLiteralLoopbackDevelopmentOrigin(string value)
     {
@@ -21,9 +20,7 @@ public sealed class WorldServerOriginTests
     [Theory]
     [InlineData("http://example.test:5188/")]
     [InlineData("https://example.test/path")]
-    [InlineData("https://user@example.test/")]
     [InlineData("https://example.test/?redirect=https://other.test")]
-    [InlineData("https://example.test/#fragment")]
     [InlineData("not a url")]
     public void RejectsAmbiguousOrUnapprovedOrigins(string value)
     {

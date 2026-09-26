@@ -19,6 +19,12 @@ into one understandable loop: useful starter resources, persistent work,
 inventory and ownership, barter and cooperation, consequential survival, and
 clear Godot feedback. Provider usage and failures must be visible without
 exposing credentials or private raw traces.
+Move hosted model requests out of the all-or-nothing tick wait: unrelated
+agents and the world clock continue, while a pending agent retains a durable
+decision point and can only do safe routine work. Prove pause, quit, retry,
+late-response rejection, and save/reload around that boundary before changing
+the live host. Do not silently reinterpret existing saves to implement the
+new calendar or founder flow.
 
 **Gate:** in a normal Godot session, agents acquire distinct inputs, choose and
 complete a useful project, exchange or share a needed item, use the result,

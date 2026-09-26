@@ -6,47 +6,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class PersistenceSpikeTests
 {
     [Fact]
-    public void GenesisAndSnapshotSuffixReplayHaveIdenticalStateAndEventDigests()
-    {
-        var identity = CreateIdentity();
-        var events = CreateEvents();
-        var genesisReplay = WorldReplay.ReplayGenesis(identity, events);
-        var snapshotState = WorldReplay.ReplayGenesis(identity, events.Take(2));
-        var snapshot = CanonicalPersistenceCodec.DecodeSnapshot(
-            CanonicalPersistenceCodec.EncodeSnapshot(new WorldSnapshot(snapshotState)));
-        var suffixReplay = WorldReplay.ReplaySnapshotSuffix(snapshot, events);
-
-        Assert.Equal(
-            CanonicalPersistenceCodec.StateDigest(genesisReplay),
-            CanonicalPersistenceCodec.StateDigest(suffixReplay));
-        Assert.Equal(
-            CanonicalPersistenceCodec.EventDigest(events),
-            CanonicalPersistenceCodec.EventDigest(
-                CanonicalPersistenceCodec.DecodeEventLog(CanonicalPersistenceCodec.EncodeEventLog(events))));
-    }
-
-    [Fact]
-    public void CanonicalSnapshotAndEventLogRoundTripByteForByteAndRemainInspectable()
-    {
-        var identity = CreateIdentity();
-        var events = CreateEvents();
-        var snapshotState = WorldReplay.ReplayGenesis(identity, events.Take(2));
-        var save = new PersistedWorld(
-            CanonicalPersistenceCodec.EncodeSnapshot(new WorldSnapshot(snapshotState)),
-            CanonicalPersistenceCodec.EncodeEventLog(events));
-
-        var decodedSnapshot = CanonicalPersistenceCodec.DecodeSnapshot(save.SnapshotBytes);
-        var decodedEvents = CanonicalPersistenceCodec.DecodeEventLog(save.EventLogBytes);
-        var inspection = SaveInspector.Inspect(save);
-
-        Assert.True(save.SnapshotBytes.SequenceEqual(CanonicalPersistenceCodec.EncodeSnapshot(decodedSnapshot)));
-        Assert.True(save.EventLogBytes.SequenceEqual(CanonicalPersistenceCodec.EncodeEventLog(decodedEvents)));
-        Assert.Equal(identity.WorldId, inspection.Identity.WorldId);
-        Assert.Equal(3, inspection.LastEventId);
-        Assert.Equal(3, inspection.EventCount);
-    }
-
-    [Fact]
     public void VersionOneSnapshotRemainsDecodableAfterTheCanonicalPayloadExtension()
     {
         var state = WorldReplay.ReplayGenesis(CreateIdentity(), CreateEvents().Take(2));

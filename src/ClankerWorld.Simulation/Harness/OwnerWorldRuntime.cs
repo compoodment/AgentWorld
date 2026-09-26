@@ -422,7 +422,8 @@ public sealed class OwnerWorldRuntime
     private CognitionRuntime cognition;
     private int consecutiveProviderFailures;
 
-    private const int ProviderFailurePauseThreshold = 3;
+    // Bound legacy save telemetry; an outage must not pause the whole world.
+    private const int MaximumRecordedProviderFailures = 3;
 
     /// <summary>
     /// Creates a Phase 2 runtime. Asset references are denied unless the host
@@ -642,27 +643,16 @@ public sealed class OwnerWorldRuntime
 
             if (decision.FellBack && IsProviderFailure(decision.Outcome))
             {
-                consecutiveProviderFailures = checked(consecutiveProviderFailures + 1);
+                consecutiveProviderFailures = Math.Min(MaximumRecordedProviderFailures, consecutiveProviderFailures + 1);
             }
             else if (!decision.FellBack)
             {
                 consecutiveProviderFailures = 0;
             }
 
-            var pausedForOutage = false;
-            if (consecutiveProviderFailures >= ProviderFailurePauseThreshold && !isPaused)
-            {
-                isPaused = true;
-                _ = cognition.Pause(world.Identity.WorldTick);
-                AppendGlobalEvent(
-                    "provider_outage_paused",
-                    $"provider:{decisionProvider.Kind}:failures:{consecutiveProviderFailures}");
-                pausedForOutage = true;
-            }
-
             return new OwnerCognitionAdvanceResult(
                 true,
-                pausedForOutage,
+                false,
                 decision.Outcome,
                 candidate.Id,
                 decision,
@@ -901,7 +891,7 @@ public sealed class OwnerWorldRuntime
         }
 
         if (state.ConsecutiveProviderFailures < 0 ||
-            state.ConsecutiveProviderFailures > ProviderFailurePauseThreshold)
+            state.ConsecutiveProviderFailures > MaximumRecordedProviderFailures)
         {
             throw new InvalidDataException("The saved provider failure counter is invalid.");
         }

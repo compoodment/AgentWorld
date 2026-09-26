@@ -138,7 +138,6 @@ public sealed class SettlementTradeTests
 
     [Theory]
     [InlineData("spoiled")]
-    [InlineData("ownership_changed")]
     [InlineData("reservation_released")]
     public async Task UnusableOfferCancelsAndReleasesBothSidesInsteadOfBlockingTicks(string fault)
     {

@@ -1873,7 +1873,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         var pendingInstruction = PendingInstructionFor(decision.InhabitantId);
         var candidateId = decision.Admission.Intention.CandidateId;
-        var forcedCandidate = pendingInstruction?.Kind == OwnerInstructionKind.MustDo
+        var forcedCandidate = !decision.Admission.FellBack && pendingInstruction?.Kind == OwnerInstructionKind.MustDo
             ? InstructionCandidate(pendingInstruction.Text)
             : null;
         if (forcedCandidate is not null && CreateCandidates(decision.InhabitantId, state)
@@ -1884,7 +1884,7 @@ public sealed partial class PrivateWorldRuntime : IDisposable
 
         ApplyCandidate(decision.InhabitantId, state, candidateId, reportIdle: true);
 
-        if (pendingInstruction is not null &&
+        if (!decision.Admission.FellBack && pendingInstruction is not null &&
             (pendingInstruction.Kind == OwnerInstructionKind.Suggestive || forcedCandidate is not null))
         {
             completedInstructionIds.Add(pendingInstruction.InstructionId);

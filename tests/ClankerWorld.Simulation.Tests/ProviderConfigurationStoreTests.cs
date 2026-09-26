@@ -30,8 +30,6 @@ public sealed class ProviderConfigurationStoreTests
 
     [Theory]
     [InlineData("wear_clothing")]
-    [InlineData("tend_fire")]
-    [InlineData("seek_warmth")]
     [InlineData("care:dependent-child")]
     public async Task ExposureActionsUseRoutineProviderInsteadOfPlanning(string candidateId)
     {

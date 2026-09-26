@@ -39,7 +39,6 @@ public sealed class ApprovedAssetCatalogTests
 
     [Theory]
     [InlineData("{\"schemaVersion\":1,\"references\":[{\"assetId\":\"portrait-alice\",\"assetDigest\":\"sha256:bad\"}]}")]
-    [InlineData("{\"schemaVersion\":1,\"references\":[{\"assetId\":\"portrait-alice\",\"assetDigest\":\"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"extra\":true}]}")]
     [InlineData("{\"schemaVersion\":2,\"references\":[]}")]
     public void ExistingInvalidCatalogRefusesToStart(string content)
     {

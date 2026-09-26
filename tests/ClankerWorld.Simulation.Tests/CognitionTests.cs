@@ -53,7 +53,7 @@ public sealed class CognitionTests
     }
 
     [Fact]
-    public async Task RepeatedHostedProviderFailureFallsBackThenPausesTheWorld()
+    public async Task RepeatedHostedProviderFailureKeepsTheWorldRunningSafely()
     {
         var runtime = new OwnerWorldRuntime("camp-alpha", decisionProvider: new ThrowingProvider());
 
@@ -65,10 +65,11 @@ public sealed class CognitionTests
         Assert.True(first.Cognition?.FellBack);
         Assert.True(second.Advanced);
         Assert.True(third.Advanced);
-        Assert.True(third.PausedForProviderOutage);
-        Assert.True(runtime.Capture().Snapshot.IsPaused);
-        Assert.Contains(runtime.Capture().Events, worldEvent => worldEvent.Kind == "provider_outage_paused");
-        Assert.False((await runtime.AdvanceOneActionAsync()).Advanced);
+        Assert.Equal("safe_idle", first.CandidateId);
+        Assert.False(third.PausedForProviderOutage);
+        Assert.False(runtime.Capture().Snapshot.IsPaused);
+        Assert.Equal(3, runtime.Capture().Snapshot.World.Identity.WorldTick);
+        Assert.True((await runtime.AdvanceOneActionAsync()).Advanced);
     }
 
     [Fact]

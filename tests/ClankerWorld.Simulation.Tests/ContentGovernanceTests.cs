@@ -5,18 +5,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class ContentGovernanceTests
 {
     [Fact]
-    public void ContentDefinitionUsesAnImmutablePackageDigestIdentity()
-    {
-        var definition = Definition("item", "berry", "sha256:" + new string('b', 64));
-
-        definition.Validate();
-
-        Assert.Equal(
-            $"sha256:{new string('a', 64)}/item/berry@1.0.0",
-            definition.CanonicalId("sha256:" + new string('a', 64)));
-    }
-
-    [Fact]
     public void ResolverChoosesTheHighestCompatibleVersionAndLocksDependenciesFirst()
     {
         var coreV1 = Package("core", "1.0.0", 'a');

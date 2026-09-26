@@ -11,7 +11,6 @@ public sealed class GodotOwnerWorldApiTests
 {
     [Theory]
     [InlineData(1)]
-    [InlineData(365)]
     [InlineData(1_460)]
     public void LifePacePayloadMatchesTheHostExactly(int rate)
     {

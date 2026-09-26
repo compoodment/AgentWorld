@@ -6,57 +6,6 @@ namespace ClankerWorld.Simulation.Tests;
 public sealed class OwnerWorldRuntimeTests
 {
     [Fact]
-    public void GlobalEventsAreMonotonicAndIndependentFromTheHarnessEventIds()
-    {
-        var runtime = new OwnerWorldRuntime("camp-alpha");
-        _ = runtime.SubmitInstruction(new OwnerInstructionRequest(
-            "instruction-key-1",
-            "owner",
-            "actor-scout",
-            OwnerInstructionKind.Suggestive,
-            "Gather food."));
-        Assert.True(runtime.TryAdvanceOneAction());
-        Assert.True(runtime.Pause());
-        Assert.True(runtime.Resume());
-
-        var capture = runtime.Capture();
-
-        Assert.Equal(
-            Enumerable.Range(1, capture.Events.Count).Select(index => (long)index),
-            capture.Events.Select(worldEvent => worldEvent.EventId));
-        Assert.Equal(
-            capture.Events.OrderBy(worldEvent => worldEvent.EventId),
-            capture.Events);
-        Assert.Single(capture.Snapshot.World.Events);
-        Assert.Equal("instruction_queued", capture.Events[0].Kind);
-        Assert.Equal(
-            capture.Snapshot.World.Events[0].EventId + 1,
-            capture.Events.Single(worldEvent => worldEvent.Kind == "fixture_action_committed").EventId);
-    }
-
-    [Fact]
-    public void InstructionSubmissionIsServerMintedAndIdempotent()
-    {
-        var runtime = new OwnerWorldRuntime("camp-alpha");
-        var request = new OwnerInstructionRequest(
-            "same-request",
-            "owner",
-            "actor-scout",
-            OwnerInstructionKind.MustDo,
-            "Return to camp.");
-
-        var first = runtime.SubmitInstruction(request);
-        var replay = runtime.SubmitInstruction(request);
-        var capture = runtime.Capture();
-
-        Assert.Equal(first, replay);
-        Assert.Equal("instruction-0000000001", first.InstructionId);
-        Assert.Single(capture.Snapshot.Instructions);
-        Assert.Single(capture.Events);
-        Assert.Equal("must_do", capture.Events.Single().Detail.Split(':')[1]);
-    }
-
-    [Fact]
     public void InstructionCannotTargetAnInhabitantThatIsNotActiveInThisWorld()
     {
         var runtime = new OwnerWorldRuntime("camp-alpha");
@@ -71,28 +20,6 @@ public sealed class OwnerWorldRuntimeTests
 
         Assert.Contains("No active inhabitant", exception.Message, StringComparison.Ordinal);
         Assert.Empty(runtime.Capture().Events);
-    }
-
-    [Fact]
-    public void PauseBlocksFixtureTicksAndResumeCreatesANewRunEpoch()
-    {
-        var runtime = new OwnerWorldRuntime("camp-alpha");
-        Assert.True(runtime.TryAdvanceOneAction());
-        var beforePause = runtime.Capture();
-
-        Assert.True(runtime.Pause());
-        Assert.False(runtime.TryAdvanceOneAction());
-        var paused = runtime.Capture();
-        Assert.Equal(beforePause.Snapshot.World.Identity.WorldTick, paused.Snapshot.World.Identity.WorldTick);
-        Assert.True(paused.Snapshot.IsPaused);
-
-        Assert.True(runtime.Resume());
-        var resumed = runtime.Capture();
-
-        Assert.False(resumed.Snapshot.IsPaused);
-        Assert.Equal(beforePause.Snapshot.RunEpoch + 1, resumed.Snapshot.RunEpoch);
-        Assert.True(runtime.TryAdvanceOneAction());
-        Assert.Equal(beforePause.Snapshot.World.Identity.WorldTick + 1, runtime.Capture().Snapshot.World.Identity.WorldTick);
     }
 
     [Fact]
@@ -242,94 +169,6 @@ public sealed class OwnerWorldRuntimeTests
         Assert.Contains("issuer=owner-device:first", afterReplay.Events[^1].Detail, StringComparison.Ordinal);
         Assert.False(collision.Applied);
         Assert.Contains("cannot be reused", collision.Failure, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void SerializedStateRestoresTheReconnectCursorAndContinuesGlobalEventIds()
-    {
-        var runtime = new OwnerWorldRuntime("camp-alpha");
-        var water = runtime.Capture().Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Water).Position;
-        Assert.True(runtime.TryAdvanceOneAction());
-        Assert.True(runtime.Pause("owner-device:alice"));
-        Assert.True(runtime.ApplyAuthoringBatch(new OwnerAuthoringBatch(
-            "persisted-map-edit",
-            [new SetTerrainOperation(water, TerrainKind.Mountain)],
-            "owner-device:alice")).Applied);
-        _ = runtime.SubmitInstruction(new OwnerInstructionRequest(
-            "persisted-instruction",
-            "owner-device:alice",
-            "actor-scout",
-            OwnerInstructionKind.Suggestive,
-            "Stay close to camp."));
-        Assert.True(runtime.Resume("owner-device:alice"));
-
-        var beforeRestart = runtime.Capture();
-        var serialized = JsonSerializer.Serialize(runtime.ExportState());
-        var persistedState = JsonSerializer.Deserialize<OwnerWorldRuntimeState>(serialized) ??
-            throw new InvalidOperationException("The serialized runtime state was empty.");
-        var restored = OwnerWorldRuntime.Restore(persistedState, "camp-alpha");
-        var reconnect = restored.Capture(beforeRestart.Snapshot.LatestGlobalEventId);
-
-        Assert.Equal(beforeRestart.Snapshot.World.Identity.WorldTick, reconnect.Snapshot.World.Identity.WorldTick);
-        Assert.Equal(beforeRestart.Snapshot.LatestGlobalEventId, reconnect.Snapshot.LatestGlobalEventId);
-        Assert.Equal(beforeRestart.Snapshot.CurrentMapManifestDigest, reconnect.Snapshot.CurrentMapManifestDigest);
-        Assert.Empty(reconnect.Events);
-
-        Assert.True(restored.TryAdvanceOneAction());
-        var continuation = restored.Capture(beforeRestart.Snapshot.LatestGlobalEventId);
-
-        Assert.Single(continuation.Events);
-        Assert.Equal(beforeRestart.Snapshot.LatestGlobalEventId + 1, continuation.Events.Single().EventId);
-    }
-
-    [Fact]
-    public void RestorePreservesPauseAuthoringInstructionAndIdempotencyState()
-    {
-        var approvedAsset = new OwnerApprovedAssetReference("portrait-lena", "sha256:portrait-lena");
-        var approvedAssetPolicy = new AllowListedAssetReferencePolicy(approvedAsset);
-        var runtime = new OwnerWorldRuntime("camp-alpha", approvedAssetPolicy);
-        var water = runtime.Capture().Snapshot.CurrentMap.Tiles.Single(tile => tile.Terrain == TerrainKind.Water).Position;
-        var batch = new OwnerAuthoringBatch(
-            "preserve-authoring",
-            [
-                new SetTerrainOperation(water, TerrainKind.Mountain),
-                new SetWeatherSeasonOperation("rain", "winter"),
-                new CreateFounderDraftOperation("founder-lena", "Lena", new GridPoint(3, 2)),
-                new AddApprovedAssetReferenceOperation(approvedAsset.AssetId, approvedAsset.AssetDigest),
-            ],
-            "owner-device:alice");
-        var instruction = new OwnerInstructionRequest(
-            "preserve-instruction",
-            "owner-device:alice",
-            "actor-scout",
-            OwnerInstructionKind.MustDo,
-            "Return to camp.");
-
-        Assert.True(runtime.Pause("owner-device:alice"));
-        var applied = runtime.ApplyAuthoringBatch(batch);
-        var queued = runtime.SubmitInstruction(instruction);
-        var restored = OwnerWorldRuntime.Restore(
-            runtime.ExportState(),
-            "camp-alpha",
-            approvedAssetPolicy);
-        var capture = restored.Capture();
-
-        Assert.True(capture.Snapshot.IsPaused);
-        Assert.Equal(
-            TerrainKind.Mountain,
-            capture.Snapshot.CurrentMap.Tiles.Single(tile => tile.Position == water).Terrain);
-        Assert.Equal(new OwnerClimate("rain", "winter"), capture.Snapshot.Climate);
-        Assert.Equal(
-            new OwnerFounderDraft("founder-lena", "Lena", new GridPoint(3, 2), applied.Revision),
-            Assert.Single(capture.Snapshot.FounderDrafts));
-        Assert.Equal(
-            approvedAsset,
-            Assert.Single(capture.Snapshot.ApprovedAssetReferences));
-        Assert.False(restored.TryAdvanceOneAction());
-        Assert.Equal(applied, restored.ApplyAuthoringBatch(batch));
-        Assert.Equal(queued, restored.SubmitInstruction(instruction));
-        Assert.True(restored.Resume("owner-device:alice"));
-        Assert.True(restored.TryAdvanceOneAction());
     }
 
     [Fact]

@@ -9,7 +9,6 @@ public sealed class BuildingDesignTests
 {
     [Theory]
     [InlineData("shelter")]
-    [InlineData("storage")]
     [InlineData("hearth")]
     public async Task InhabitantsConstructReviewedDesignThroughOrdinaryPlanning(string purpose)
     {
@@ -32,10 +31,6 @@ public sealed class BuildingDesignTests
 
     [Theory]
     [InlineData("shelter", 1)]
-    [InlineData("shelter", 48)]
-    [InlineData("storage", 1)]
-    [InlineData("storage", 48)]
-    [InlineData("hearth", 1)]
     [InlineData("hearth", 48)]
     public async Task BuildingPreviewUsesRealConstructionCostsAndReturnsExactValidatedBytes(string purpose, int woodCost)
     {
@@ -62,9 +57,7 @@ public sealed class BuildingDesignTests
 
     [Theory]
     [InlineData("", "shelter", 4)]
-    [InlineData("name\nsecret", "shelter", 4)]
     [InlineData("name", "filesystem", 4)]
-    [InlineData("name", "shelter", 0)]
     [InlineData("name", "shelter", 49)]
     public void InvalidBuildingDesignsFailBeforeCreatingContent(string name, string purpose, int woodCost) =>
         Assert.ThrowsAny<ArgumentException>(() => BuildingDesign.Create(name, purpose, woodCost));

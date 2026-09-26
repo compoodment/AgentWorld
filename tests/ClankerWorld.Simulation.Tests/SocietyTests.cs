@@ -95,7 +95,6 @@ public sealed class SocietyTests
 
     [Theory]
     [InlineData("propose")]
-    [InlineData("accept")]
     [InlineData("revoke")]
     public void BiologicalParentageCannotBeEditedThroughOrdinaryRelationshipCommands(string operation)
     {

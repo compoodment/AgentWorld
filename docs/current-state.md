@@ -79,10 +79,29 @@ the authority file; old challenges fail closed after restart.
 | Multiplayer/public worlds | **Excluded** | Single-player only by owner decision | Multiple paired owner devices are not multiplayer |
 | Executable generated mods | **Planned/disabled** | Data-only packages are fail-closed | No sandbox has been selected; arbitrary generated code does not run on the host |
 
+## Decided-vision reconciliation
+
+This is the current code audit against [decided finished-game behavior](vision-interview.md),
+not a claim that all interview proposals should be implemented at once.
+
+| Priority | Decided behavior | Current playable behavior / remaining work |
+| --- | --- | --- |
+| 1 | A slow or unavailable personal model does not stop unrelated agents or invent an important choice | Failed or low-confidence requests now select only `safe_idle`; pending instructions cannot override or be completed by that fallback. The legacy fixture no longer automatically pauses after repeated failure. **Still open in code:** the private-world scheduler awaits a whole provider batch inside a proposed tick, so one slow call stalls tick commits. Move pending work outside the tick transaction with durable request identity, deadlines, and pause/quit cancellation before claiming this is solved. |
+| 2 | New World creates a map and empty base camp; four configured founders are added in-world, then Start World begins time | The present single private world starts with four hard-coded founders and an active settlement. There is no finished new-world setup, multiple-world selection, or explicit start gate. Introduce a versioned world-setup state without rewriting the paused development save. |
+| 3 | Playtest a six-minute day and custom 40-day/four-season year, with at most six hours of life from birth | The host still schedules one minute per real second; the world calendar has 1,440 ticks/day and 365 days/year. Existing saves/replay depend on these values. Make clock/calendar parameters versioned per world and migrate deliberately; do not reinterpret the live world's dates. |
+| 4 | Each agent owns a personal model and key; Jev is an optional per-world support layer | Personal planning-provider overrides exist, but the routine/planning split and shared credential slots do not match the full per-agent assignment flow. There is no per-world Jev switch. Add distinct credential identities and transition rules before exposing the intended UI. |
+| 5 | One continuous zoomable pixel-art world view with an always-available draggable overview and inspection controls | The Godot prototype has a world view, pause/menu and some selected-agent information, but not the decided Main Menu, world map, event-log navigation, filters, thoughts/memories or family tree. Art and UI are prototype-quality. |
+| 6 | Local Windows install runs the authoritative simulation and keeps saves/keys on that PC | The Godot client currently requires the private VPS host. Preserve it for development, then package the same simulation locally and prove a fresh install without the VPS. |
+| 7 | Regional weather, bounded inventions and mods, cross-generation social life | The current world has basic seasonal weather effects, data-only building proposals and thin family/trade/council loops. Weather regions, the Mod Library, restricted scripted content, deep conversation/memory and full inheritance are not yet connected. |
+
 ## Current cognition behavior
 
 The server generates a bounded observation and legal candidate list. Provider
 output can choose one candidate; it cannot invent an undeclared world mutation.
+Provider failure or low confidence now permits only the explicit `safe_idle`
+fallback; without that candidate the request is rejected rather than choosing
+a strategic action. A failed request cannot complete a pending
+instruction. This does not yet solve the slow-provider tick-stall above.
 
 | Role | Options | Typical current work |
 | --- | --- | --- |
